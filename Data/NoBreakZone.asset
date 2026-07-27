@@ -12,4 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: -472462764, guid: d00b036db31ed324f99d4111c393f019, type: 3}
   m_Name: NoBreakZone
   m_EditorClassIdentifier: 
-  enableOverloading: 0
+  enableOverloading: 1
