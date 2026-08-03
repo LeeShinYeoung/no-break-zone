@@ -1,79 +1,107 @@
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
+using UnityEngine;
 
-// STAGE 4 — hardcoded damage-block verification (기획서 13장 1단계).
-// Makes ALL placed, damageable installations indestructible. No pylon and no range yet:
-// this blanket-protects every placeable prefab that can take damage, so we can verify in-game
-// that the mechanism actually stops destruction before layering coordinates/pylons on top.
+// STAGE 4 — hardcoded damage-block verification (기획서 13장 1단계). v5 — the flicker fix.
 //
-// Mechanism (from decompiled Pug.Other.dll):
-//   All damage — combat, explosions, tile mining, automation drills — funnels a HealthChange
-//   into the shared HealthChangeBuffer. The SINGLE destruction gate is SetEntitiesDestroyedSystem:
-//   when health <= 0 it enables EntityDestroyedCD UNLESS the entity carries
-//   DontDestroyOnZeroHealthCD{ disabled = false }, in which case it returns early and the entity
-//   survives (its health may sit at 0, but it is never destroyed). So adding that one component
-//   protects against every damage source at once, at the data level — no Burst patching needed.
+// WHY v1–v4 flickered (invisible object + endless phantom loot), from decompiling
+// PlayerAttackSystem / PlayerController / GhostUpdateSystem:
+//   * Mining/attack/explosion damage runs PREDICTED on BOTH the client and the server world
+//     (PlayerAttackSystem: ServerSimulation|ClientSimulation, PredictedSimulationSystemGroup).
+//   * That predicted object-damage path (PlayerController.DealDamageToObject) checks ONLY
+//     IndestructibleCD (and tile-immune). It does NOT consult ImmuneToDamageCD or DontDestroy — so our
+//     old components never stopped the client from enqueueing damage.
+//   * NetCode freezes each ghost's replicated component set at BAKE time. A component we AddComponent at
+//     runtime (server-only) is never serialized to clients. So the client kept predicting the object's
+//     death (renders destroyed + predicted/phantom loot) while the server kept it alive → per-swing
+//     rollback flicker.
 //
-// RESOURCE-DUPLICATION SAFETY (기획서 6장 "절대 발생해서는 안 되는 것"):
-//   Terrain, walls, ore boulders and (some) crops are destroyed through the SAME gate. If we
-//   protected anything with HealthCD, drills/pickaxes would drive ore to 0 health but it would
-//   never deplete — infinite resources. We therefore EXCLUDE TileCD / MineableCD / DiggableCD and
-//   only target PlaceablePrefab installations that are explicitly DamageableObjectCD.
-[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
+// FIX: enable the game's own IndestructibleCD. In DealDamageToObject an enabled IndestructibleCD makes the
+// hit deal ZERO damage (no HealthChange enqueued) on whichever world evaluates it — so if BOTH worlds have
+// it enabled locally, neither predicts any damage → health never drops → nothing to destroy → no flicker.
+// Because runtime-added components don't replicate, we run this system in BOTH worlds and enable it on each
+// world's local copy. DontDestroyOnZeroHealthCD is added as a cheap backstop for any exotic damage source
+// that might bypass DealDamageToObject (SetEntitiesDestroyedSystem also runs predicted on both worlds and
+// reads it locally).
+//
+// Discriminator (validated vs the full DB, Editor/게임데이터/object_flags.csv): protect PlaceablePrefab +
+// HealthCD, excluding tiles (query) and resources/loot-droppers (DestructibleObjectCD /
+// DropsLootFromLootTableCD / DropsLootWhenDamagedCD) so ore/pots/walls stay mineable (no resource dup).
+[WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
-public partial class NoBreakZoneProtectionSystem : PugSimulationSystemBase
+public partial class NoBreakZoneProtectionSystem : SystemBase
 {
-    // Placeable, damageable installations that are NOT terrain/ore/crops and not yet protected.
-    // Once an entity is protected it gains DontDestroyOnZeroHealthCD and leaves this query, so the
-    // steady-state cost is ~0 — only newly placed objects are ever processed.
-    private EntityQuery _unprotectedInstallations;
+    private EntityQuery _candidates;
+    private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
 
     protected override void OnCreate()
     {
-        base.OnCreate();
-
-        _unprotectedInstallations = GetEntityQuery(new EntityQueryDesc
+        // WithNone<IndestructibleCD>: once enabled the entity leaves the query (enableable component),
+        // so each object is processed once per world.
+        _candidates = GetEntityQuery(new EntityQueryDesc
         {
             All = new[]
             {
                 ComponentType.ReadOnly<HealthCD>(),
-                ComponentType.ReadOnly<DamageableObjectCD>(),
                 ComponentType.ReadOnly<ObjectTypeCD>(),
+                ComponentType.ReadOnly<ObjectDataCD>(),
             },
             None = new[]
             {
                 ComponentType.ReadOnly<TileCD>(),
-                ComponentType.ReadOnly<MineableCD>(),
-                ComponentType.ReadOnly<DiggableCD>(),
-                ComponentType.ReadOnly<DontDestroyOnZeroHealthCD>(),
+                ComponentType.ReadOnly<IndestructibleCD>(),
             },
         });
     }
 
     protected override void OnUpdate()
     {
-        if (!_unprotectedInstallations.IsEmpty)
+        if (_candidates.IsEmpty)
         {
-            // Snapshot before mutating: AddComponentData is a structural change, but these copies
-            // are taken first so iterating them stays valid.
-            var entities = _unprotectedInstallations.ToEntityArray(Allocator.Temp);
-            var objectTypes = _unprotectedInstallations.ToComponentDataArray<ObjectTypeCD>(Allocator.Temp);
-
-            for (int i = 0; i < entities.Length; i++)
-            {
-                // Only player-placeable installations (chests, workbenches, lamps, drills, ...).
-                if (objectTypes[i].Value != ObjectType.PlaceablePrefab)
-                {
-                    continue;
-                }
-
-                EntityManager.AddComponentData(entities[i], new DontDestroyOnZeroHealthCD { disabled = false });
-            }
-
-            entities.Dispose();
-            objectTypes.Dispose();
+            return;
         }
 
-        base.OnUpdate();
+        var entities = _candidates.ToEntityArray(Allocator.Temp);
+        var objectTypes = _candidates.ToComponentDataArray<ObjectTypeCD>(Allocator.Temp);
+        var objectDatas = _candidates.ToComponentDataArray<ObjectDataCD>(Allocator.Temp);
+        var em = EntityManager;
+
+        for (int i = 0; i < entities.Length; i++)
+        {
+            if (objectTypes[i].Value != ObjectType.PlaceablePrefab)
+            {
+                continue;
+            }
+
+            var entity = entities[i];
+
+            bool isResource = em.HasComponent<DestructibleObjectCD>(entity)
+                              || em.HasComponent<DropsLootFromLootTableCD>(entity)
+                              || em.HasComponent<DropsLootWhenDamagedCD>(entity);
+            if (isResource)
+            {
+                continue;
+            }
+
+            // Primary: game-native indestructibility, checked in the predicted damage path on both worlds.
+            em.AddComponent<IndestructibleCD>(entity);
+            em.SetComponentEnabled<IndestructibleCD>(entity, true);
+
+            // Backstop: block the destruction gate for any damage that bypasses DealDamageToObject.
+            if (!em.HasComponent<DontDestroyOnZeroHealthCD>(entity))
+            {
+                em.AddComponentData(entity, new DontDestroyOnZeroHealthCD { disabled = false });
+            }
+
+            if (_logged.Add(objectDatas[i].objectID))
+            {
+                Debug.Log($"[NoBreakZone] PROTECT {objectDatas[i].objectID} (world={World.Name})");
+            }
+        }
+
+        entities.Dispose();
+        objectTypes.Dispose();
+        objectDatas.Dispose();
     }
 }
