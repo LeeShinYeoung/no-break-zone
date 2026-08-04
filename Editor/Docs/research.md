@@ -193,8 +193,115 @@ C:\Users\LeeShinYeoung\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
 
 **교훈:** 네트워크 게임 모드에서 "런타임에 서버에서만 컴포넌트 붙이기"는 클라 예측을 못 막는다. (1) 클라도 보는 경로의 플래그를 쓰고, (2) 동기화가 안 되면 양쪽 월드에서 각자 적용한다.
 
+## 10. 조사 재료의 위치 — **윈도우 없이도 전부 읽힌다** (2026-08-04)
+
+가장 큰 발견. **게임 어셈블리를 맥으로 옮길 필요도, 디컴파일러를 설치할 필요도 없다.**
+전부 공개 저장소에 있고 최신이다. 스크래치패드에 클론해서 grep 한다.
+
+| 저장소 | 내용 | 쓰임 |
+| --- | --- | --- |
+| `Adrriiannn/ck-db` | 게임 전체 디컴파일 소스. `.cs` **4,476개**를 어셈블리별로 정리 | 게임이 **어떻게 동작하는지** |
+| `Pugstorm/CoreKeeperModDocs` | 공식 모딩 문서 + `code-examples/` | SDK를 **어떻게 쓰는지** |
+| `Adrriiannn/ck-mods` | 같은 저자의 모드 3개(ConveyorTunnel·ChunkLoader·SmartSplitter). SDK 프로젝트 통째 사본 | **실제로 어떻게 짜는지**. 커스텀 설치물 완본 |
+| `CoreKeeperMods/CoreLib` | 모딩 라이브러리 | 대안 구현 비교 |
+| SDK `Assets/Examples.zip` | 공식 예제 모드 10개 (Item·Workbench·Enemy·Rpc 등) | 최소 템플릿 |
+
+**신뢰도 검증:** 8장이 디컴파일로 알아낸 심볼(`SetEntitiesDestroyedSystem`·`DontDestroyOnZeroHealthCD`·
+`IndestructibleCD`·`HealthChangeBuffer`·`TileDamageSystem`·`PlayerController.DealDamageToObject`)이
+`ck-db`에 전부 같은 이름·같은 위치로 존재하고 본문(job 구조체·쿼리·lookup)도 살아 있다.
+
+**주의:** `ck-db`는 2026-05-16 기준 비공식 3자 저장소다. 게임 업데이트 시 어긋난다.
+**최종 근거는 언제나 윈도우 빌드 통과 여부다.**
+
+⚠️ 저장소 안에 클론하지 말 것. `.dll`·`.cs`가 modPath 루트에 있으면 번들에 실린다
+(`Editor/` 아래는 제외됨 — `ModBuilder.cs:312,403,442`).
+
+### 여기서 확정된 사실
+
+| 항목 | 결론 | 근거 |
+| --- | --- | --- |
+| 오브젝트 → 타일 좌표 | `LocalTransform.Position.RoundToInt2()`. **XZ 평면** (`(int2)math.round(float2(x.x, x.z))`) | `Pug.UnityExtensions/ExtensionMethods.cs:551` |
+| 다중 타일 점유 계산 | `tile += prefabCornerOffset` 후 `[tile, tile+prefabTileSize)` 순회. `DirectionCD` 있으면 `GetPrefabOffsetAndTileSize`로 회전 반영 | `Pug.Other/DetectRoomSystem.cs:167-192` |
+| 오브젝트 크기 | `ObjectInfo.prefabTileSize`(Vector2Int), `prefabCornerOffset` | `Pug.Base/ObjectInfo.cs:87,90` |
+| ObjectID 등록 | `API.Authoring.GetObjectID(name)` — **단순 딕셔너리 조회. 이름에 제약 없음** (점 OK) | `Pug.Other/PugMod/ModAPIAuthoring.cs:28` |
+| 토글 + 세이브 | `ObjectAuthoring.variation` / `variationIsDynamic` / `variationToToggleTo`. 월드 세이브가 자동 보관 | `Pug.ECS.Authoring/ObjectAuthoring.cs:132-138` |
+| 상호작용(E) | `InteractableObject`(그래픽 프리팹에 붙음), `InteractWithEnvironmentSystem` | `Pug.Other/` |
+| 안정 API | `API.Server.World` · `API.Effects.PlayPuff` · `API.Audio.PlaySfx` · **`API.ConfigFilesystem`**(모드 전용 샌드박스 파일 IO) | 공식 문서, `ConveyorTunnelPersistence.cs` |
+| 레시피 주입 | `SingleAuthoringComponentConverter<CraftingAuthoring>` 상속 | `ConveyorTunnelRecipeInjectionConverter.cs` |
+| 효과음 ID 목록 | `ck-mods/Docs/CoreKeeper-SfxID-list.txt` | — |
+
+### ⚠️ 스프라이트 규격 — 우리 초안이 2배 크다
+
+**1타일 = 16px.** 레퍼런스 모드 실측: 인벤토리 아이콘 16×16, 손에 든 것 10×10,
+4타일 벨트 64×16. SDK 예제 작업대 16×18.
+
+`Editor/Docs/art/*.png` 초안은 파일런 32×32, 작업대 64×32 — **정확히 2배**다. 재생성 필요.
+컬러는 직접 칠하지 않고 **그레이스케일 + GradientMapDataBlock** 방식을 쓴다
+(`ck-mods/…/Workbench/Grayscale/`, `Data/GradientMapDataBlock/`).
+
+### 5단계 위험 — 재사용할 범위 표시가 없다
+
+기획서 §7은 "게임에 이미 있는 범위 표시 방식을 그대로 따른다(아이템 수집기 등)"고 지시하는데,
+**게임 소스에서 재사용 가능한 범위 표시 컴포넌트를 찾지 못했다.** 레퍼런스 모드도 `SpriteRenderer`를
+직접 풀링해서 마커를 깐다(`ConveyorTunnelPlacementGuideController.cs`). 기획서 §7의 대안 조항으로
+가야 한다 — **5단계 착수 전 승인 필요.**
+
+## 11. 유니티 없이 프리팹을 작성하는 법 (2026-08-04)
+
+프리팹·ScriptableObject는 전부 평범한 YAML이다. **유니티를 열지 않고 손으로 쓸 수 있다.**
+막는 건 `m_Script: {fileID: N, guid: G}` 한 줄뿐인데, 그게 전부 계산·조회 가능하다.
+
+### fileID 는 클래스 이름에서 계산된다
+
+```
+fileID = int32_little_endian( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명)[:4] )
+```
+
+구현은 `Editor/preflight.py`의 `md4()` / `script_file_id()`. 표는
+`Editor/GameData/script_fileids.csv` (게임 클래스 3,235개, 충돌 0건).
+
+**검증:** 레퍼런스 프리팹 20개에서 뽑은 `m_Script` 참조 295건 중 게임 authoring 어셈블리
+**184건이 100% 일치.**
+
+### guid 는 어셈블리를 가리킨다 — 프리팹에서 베낀다
+
+| guid | 무엇 | 확인 방법 |
+| --- | --- | --- |
+| `3392f4c23e1d8662d749dabb2361ee02` | 게임 authoring 어셈블리 (`ObjectAuthoring`·`HealthAuthoring`·`PlaceableObjectAuthoring` 등) | 레퍼런스 프리팹 184회 등장 |
+| `6f4e9f12d8be4d048a7b574866c31a4f` + fileID `11500000` | `EntityMonoBehaviour` (그래픽 프리팹 루트) | 필드(`XScaler`·`spriteObjects`·`interactable`)로 `Pug.Other/EntityMonoBehaviour.cs` 확인 |
+| `292700ef68995bdb2163e35989fc7eb0` + fileID `1908045241` | SpriteObject (그래픽 자식) | `spriteObjects` 배열 원소 |
+
+⚠️ **SDK의 `Assets/ModSDK/Data/MetaFiles.zip`(`.dll.meta` 114개)의 guid는 프리팹이 쓰는 것과
+다르다.** 대조해 봤으나 한 건도 안 겹친다. **프리팹에서 관측한 guid를 쓸 것.**
+
+### 그 밖의 고정값
+
+| 값 | 의미 |
+| --- | --- |
+| `fileID: 21300000` | 단일 스프라이트 텍스처(`spriteMode: 1`)의 Sprite 서브에셋. 우리 PNG를 참조할 때 이걸 쓴다 |
+| `spriteID: 5e97eb03825dee720800000000000000` | 텍스처 `.meta` 고정값 (레퍼런스 14개 전부 동일) |
+| `objectType: 800` | `ObjectType.PlaceablePrefab` |
+| 텍스처 임포트 | `textureType: 8`(Sprite) · `filterMode: 0`(Point) · `spritePixelsToUnits: 16` · `alphaIsTransparency: 1` |
+
+### 설치물 프리팹의 구성
+
+로직 프리팹(ECS 엔티티)과 그래픽 프리팹이 쌍을 이루고, `ObjectAuthoring.graphicalPrefab`이
+후자를 `{fileID: <그래픽 루트 GameObject의 로컬 id>, guid: <그래픽 프리팹 guid>, type: 3}`로 가리킨다.
+
+로직 프리팹의 컴포넌트 (SDK 작업대 예제 기준):
+`ObjectAuthoring` · `InventoryItemAuthoring` · `LocalizationAuthoring` · `MineableAuthoring` ·
+`HealthAuthoring` · `PlaceableObjectAuthoring` · `IgnoreVertexOffsetsAuthoring` ·
+`StateAuthoring` · `IdleStateAuthoring` · `TookDamageStateAuthoring` · `DeathStateAuthoring` ·
+`DamageReductionAuthoring` (+ 작업대는 `CraftingAuthoring`, 회전물은 `RotationAuthoring`)
+
+그래픽 프리팹: 루트에 `EntityMonoBehaviour`, 자식에 SpriteObject, 상호작용하면 `InteractableObject`.
+
+각 컴포넌트의 필드 이름·순서는 `ck-db/Pug.ECS.Authoring/*.cs`에서 읽는다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
 - [ ] 재적용에 전체 재시작이 필요한지, 부분 재로드로 되는지
 - [ ] 배포(mod.io/창작마당) 절차 — 6단계에서 조사 (UploadMod.cs / SteamWorkshopTab.cs 존재 확인만 됨)
+- [ ] **그래픽 프리팹의 나머지 참조** — `EntityMonoBehaviour`·SpriteObject 외에 SpriteAsset·
+  GradientMapDataBlock 연결이 남았다. 3단계에서 마저 규명한다
