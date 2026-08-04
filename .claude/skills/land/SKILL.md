@@ -123,16 +123,18 @@ gh pr merge --merge --delete-branch
 
 ## 6. 정리
 
+`gh pr merge --delete-branch`가 **로컬과 원격 브랜치를 둘 다 지우고** `main`으로 옮겨준다
+(도움말: `Delete the local and remote branch after merge`). 남는 건 remote-tracking ref뿐이다.
+
 ```bash
-git checkout main
-git pull --ff-only                  # 머지 직후라 항상 FF여야 한다. 아니면 뭔가 잘못된 것이다
-git branch -d <피처브랜치>          # 실패하면 머지가 안 된 것이다. 확인 후 알린다
-git fetch --prune origin            # --delete-branch 는 원격만 지운다. 추적 ref가 남는다
-git branch -a                       # 로컬·원격 추적 ref 모두 사라졌는지 확인
+git fetch --prune origin     # 실제로 필요한 건 이것 하나
+git branch -a                # main 만 남았는지 확인
 ```
 
-`--ff-only`인 이유: 여기서 머지 커밋이 만들어진다는 건 `main`이 갈라졌다는 뜻이고,
-조용히 봉합하면 안 된다. 실패하면 멈추고 보고한다.
+`checkout`·`pull`·`branch -d`를 다시 하지 않는다. 이미 끝난 일이라 no-op이거나 에러가 난다.
+
+**피처 브랜치가 아직 보이면** 머지가 실제로 안 된 것이다. 강제 삭제(`-D`)하지 말고
+`gh pr view`로 상태를 확인해 보고한다.
 
 ## 7. 보고
 
