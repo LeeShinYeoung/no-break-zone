@@ -74,12 +74,26 @@ cat .github/pull_request_template.md
 ```bash
 BODY="$(mktemp -t nbz-pr)"
 # ... 채운 본문을 $BODY 에 쓴다 ...
-gh pr create --base main --title "<type>: <subject>" --body-file "$BODY"
+gh pr create --base main --title "<읽히는 한 문장>" --body-file "$BODY"
 rm -f "$BODY"
 ```
 
-**제목과 본문 모두 영문이다.** 제목은 커밋 규약과 같은 `type: subject` 형식 —
-머지 커밋 제목이 되므로 `main` 이력과 형식이 같아야 한다. 언어 규칙은 `CLAUDE.md` §1-1이 원본이다.
+### 제목 — 서술형 한 문장. `type:` 접두사를 붙이지 않는다
+
+```
+○  Adopt a feature-branch and PR workflow
+○  Narrow protection to the pylon radius
+✗  chore: adopt a feature-branch and PR workflow
+```
+
+접두사가 필요한 건 **squash merge**를 쓰거나 릴리스 자동화가 제목을 파싱할 때다.
+우리는 둘 다 아니다. merge commit에서 PR 제목은 커밋 subject가 되지 않는다 —
+subject는 GitHub이 `Merge pull request #N from …`으로 만들고 PR 제목은 본문 첫 줄로 간다.
+
+커밋에는 이미 전부 `type:`이 붙어 있으므로 PR 목록에서 한 번 더 반복할 이유가 없다.
+제목의 독자는 PR 목록을 훑는 사람이지 파서가 아니다.
+
+**제목과 본문 모두 영문이다** (`CLAUDE.md` §1-1).
 
 ## 5. 머지
 
