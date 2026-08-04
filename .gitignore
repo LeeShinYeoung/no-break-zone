@@ -1,1 +1,17 @@
-# Onboarding 문서·데이터도 git에 추적한다 (Editor 폴더라 배포 모드엔 미포함).
+# 이 저장소의 루트는 Unity 프로젝트의 Assets/NoBreakZone/ 이다.
+# Library/·Temp/·Logs/ 같은 Unity 생성물은 이 폴더 밖이라 여기 적을 필요가 없다.
+# Editor/Docs·Editor/GameData는 의도적으로 추적한다 (Editor 폴더라 모드 번들에 안 실림).
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 빌드 산출물·로그
+nbz_build.log
+*.log
+*.tmp
+
+# 에디터
+.idea/
+.vscode/
+*.swp
