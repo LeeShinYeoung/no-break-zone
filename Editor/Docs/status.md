@@ -1,6 +1,6 @@
 # 진행상황
 
-최종 갱신: 2026-08-04 (4단계 인게임 검증 완료 — 설치물 무적, 깜빡임 해결)
+최종 갱신: 2026-08-04 (저장소를 단일 모드 표준 구조로 정리. 기능은 4단계 검증 완료 상태 그대로)
 
 ---
 
@@ -11,6 +11,38 @@
 핵심 해결: 클라이언트 예측 오작동이 원인이었고, 게임 자체 플래그 `IndestructibleCD`를 서버+클라 양쪽 월드에서 켜서 해결. 상세·교훈은 `research.md` 9장. 전체 오브젝트 데이터 위키는 `GameData/object_flags.csv`.
 
 **다음: 2단계(좌표 조건) → 3단계(파일런 커스텀 오브젝트) → 토글/세이브 → 시각표현 → 렌즈·리모콘·작업대.** (기획서 13장 순서. 지금은 "모든 설치물 무적" 하드코딩 상태라, 다음은 파일런 범위 안에서만 보호되게 좁히는 것.)
+
+### 저장소 구조 (2026-08-04 정리 완료)
+
+단일 모드로 확정하고 커뮤니티 표준 레이아웃에 맞췄다. 근거와 레퍼런스는 `workflow.md` 11장.
+`.cs`는 전부 `Scripts/` 아래로 옮겼다. 문서·게임데이터는 `Editor/` 아래라 번들에 안 실린다.
+
+### 윈도우에서 처리해야 할 것 — ModBuilderSettings 추적 (미완)
+
+**빌드 설정 에셋이 저장소 밖에 있어 버전 관리가 안 된다.** 모드 이름·의존성·`modPath`·
+Linux 빌드 여부가 전부 윈도우 머신에만 있고, 그 머신이 사라지면 복원할 근거가 없다.
+
+근거: `Data/NoBreakZone.asset`에는 `metadata`·`modPath` 필드가 없다(= 런타임 데이터 에셋이지
+빌드 설정이 아니다). `CliBuild.cs`는 `Assets/NoBreakZone.asset`을 로드하고 빌드는 성공하므로,
+그 파일은 저장소 밖 `Assets/` 바로 아래에 존재한다. 레퍼런스 모드는 4/4 모두 이 파일을
+모드 폴더 안에 두어 추적한다.
+
+윈도우에서 할 일:
+
+1. 유니티 프로젝트 창에서 `Assets/NoBreakZone.asset`을 `Assets/NoBreakZone/` 안으로 드래그
+   (`.meta`는 유니티가 같이 옮긴다)
+2. 그 에셋의 `modPath`가 `Assets/NoBreakZone` 그대로인지 인스펙터에서 확인
+3. `Editor/CliBuild.cs`의 `ModSettingsAssetPath` 상수를
+   `"Assets/NoBreakZone/NoBreakZone.asset"` 으로 수정
+4. `Editor/build.ps1` 실행해 종료 코드 0 확인 → 커밋
+
+### 함께 확인할 것 (윈도우, 미검증)
+
+- 이번 구조 정리(`Scripts/` 이동, 폴더 개명) 후 유니티가 **재임포트·GUID 경고 없이** 여는지
+- 빌드 종료 코드 0 — `asmdef`가 하위 폴더를 포괄하는지 확인하는 실질 테스트
+- 루트 `README.md`·`LICENSE.md`·`CLAUDE.md` 때문에 `Player.log`에 새 `couldn't load` 경고가
+  뜨는지. 뜨면 루트 파일을 더 줄이는 결정이 필요하다
+- Unity 버전 불일치 — 공식 SDK README는 `6000.0.58f2`, `build.ps1`은 `6000.0.59f2`
 
 ---
 

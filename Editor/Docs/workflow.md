@@ -279,19 +279,35 @@ commit · pr · release는 **만들지 않는다.** 전역 gstack 스킬(`/ship`
 **확정됨.** 저장소 루트가 곧 유니티의 `Assets/NoBreakZone/`, 즉 **모드 번들 경로(modPath)**다.
 이게 구조를 규정하는 유일한 제약이다.
 
+레이아웃은 커뮤니티 표준을 따른다. 공개된 SDK 단일 모드 저장소
+(moorowl/CustomizableMapBackground, budak7273, limoka/SecureAttachment, germanoeich/Cornucopia)에서
+공통으로 나타나는 형태다.
+
 ```
 no-break-zone/                  = Assets/NoBreakZone/ = modPath
 ├─ .claude/                     작업 하네스. 점으로 시작 → 유니티가 안 읽음
 ├─ .github/                     PR 템플릿
-├─ CLAUDE.md · README.md · LICENSE      루트 문서는 여기까지. 짧게 유지
+├─ CLAUDE.md · README.md · LICENSE.md   루트 문서는 여기까지. 짧게 유지
 ├─ NoBreakZone.asmdef
-├─ NoBreakZone*.cs               런타임 코드
-├─ Data/                         모드 정의 에셋
+├─ Scripts/                      런타임 코드 (.cs는 전부 여기)
+├─ Data/NoBreakZone.asset        런타임 모드 데이터
 └─ Editor/                       ← 번들 제외 구역
    ├─ CliBuild.cs · build.ps1    빌드 도구
    ├─ Docs/                      문서 + art/ (스프라이트 초안)
    └─ GameData/                  DB 덤프 참조
 ```
+
+**아직 없지만 이름이 정해진 것** — 실제 파일이 생길 때 만든다. 빈 폴더를 미리 만들면
+`.meta`만 남는 쓰레기가 된다.
+
+| 경로 | 언제 | 용도 |
+| --- | --- | --- |
+| `NoBreakZone.asset` | 윈도우 작업 시 | **ModBuilderSettings**(빌드 설정). 지금 저장소 밖에 있어 추적이 안 된다 |
+| `Scripts/Systems/` · `Scripts/Components/` | 3단계 | 파일이 늘면 나눈다 |
+| `Textures/` | 3단계 | 스프라이트 PNG |
+| `Prefabs/` | 3단계 | 커스텀 오브젝트 프리팹 |
+| `Localization/Localization.csv` | 3단계 | SDK가 특별 취급하는 경로 |
+| `NoBreakZone_modio.asset` | 7단계 | 배포 채널별 빌드 설정 |
 
 **핵심 규칙 세 개:**
 
