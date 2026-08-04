@@ -31,6 +31,23 @@ git log --oneline main..HEAD
 - **작업 트리가 더러우면** 무엇이 남았는지 보여주고 커밋할지 물어본다
 - **`main..HEAD`가 비어 있으면** 머지할 게 없다. 중단한다
 
+### `main`이 원격과 어긋나 있는지 — 놓치면 PR이 오염된다
+
+PR은 **원격** `main`과 비교된다. 로컬 `main`이 앞서 있으면 그 커밋들까지 PR에 딸려 들어간다.
+이 피처와 무관한 변경이 리뷰 대상이 되고 머지 커밋에 묶인다.
+
+```bash
+git fetch -q origin
+git log --oneline origin/main..main   # 로컬만 있는 것
+git log --oneline main..origin/main   # 원격만 있는 것
+```
+
+| 결과 | 대응 |
+| --- | --- |
+| 둘 다 비었다 | 정상. 진행한다 |
+| `origin/main..main`에만 있다 (fast-forward) | 커밋 목록과 이유를 **보고한 뒤** `git push origin main` 하고 진행한다 |
+| 양쪽 다 있다 (diverged) | **중단한다.** 자동으로 rebase·merge하지 않는다. 상태를 보고하고 사람의 판단을 받는다 |
+
 ## 2. 검증 상태 파악 — 묻지 않는다
 
 **`/land`를 부른 것 자체가 "머지해도 된다"는 판단이다.** 다시 확인받지 않는다.
@@ -108,10 +125,14 @@ gh pr merge --merge --delete-branch
 
 ```bash
 git checkout main
-git pull
+git pull --ff-only                  # 머지 직후라 항상 FF여야 한다. 아니면 뭔가 잘못된 것이다
 git branch -d <피처브랜치>          # 실패하면 머지가 안 된 것이다. 확인 후 알린다
-git branch -a | grep <피처브랜치>   # 로컬·원격 모두 사라졌는지
+git fetch --prune origin            # --delete-branch 는 원격만 지운다. 추적 ref가 남는다
+git branch -a                       # 로컬·원격 추적 ref 모두 사라졌는지 확인
 ```
+
+`--ff-only`인 이유: 여기서 머지 커밋이 만들어진다는 건 `main`이 갈라졌다는 뜻이고,
+조용히 봉합하면 안 된다. 실패하면 멈추고 보고한다.
 
 ## 7. 보고
 
