@@ -1,21 +1,21 @@
-## 무엇을 바꿨나
+## What changed
 
-<!-- 한 문단. 기획서(Editor/Docs/design.md)의 어느 항목인지 함께 적는다. -->
+<!-- One paragraph. Name the design.md item this implements, if any. -->
 
-## 왜
+## Why
 
-<!-- 근거. 조사로 알아낸 사실이면 Editor/Docs/research.md 의 해당 장을 가리킨다. -->
+<!-- The reasoning, not a restatement of the diff. If it came from decompiling or an
+     experiment, point at the research.md chapter that holds the evidence. -->
 
-## 사람이 게임에서 확인한 것
+## Verified in game
 
-<!--
-빌드가 됐다는 것은 검증이 아니다. 실제로 게임에서 본 것을 적는다.
-- [ ] 보호: 
-- [ ] 망가지지 않음(광석·벽·항아리 채굴, 작물 수확):
-- [ ] Player.log 에 예외·경고 없음
-아직 확인 못 했으면 그렇게 적고 머지하지 않는다.
--->
+<!-- What a human actually observed in Core Keeper. A build succeeding is not verification.
+     Cover both directions:
+       - the protection worked
+       - nothing else broke — ore, walls, and pots still mine; crops still harvest
+     If this branch only touches docs or tooling, say that game verification does not apply.
+     If nobody has played it yet, write "Not verified in game." Never invent an observation. -->
 
-## 위험 / 남은 것
+## Risks / follow-ups
 
-<!-- 알려진 한계, 미확인 항목, 후속 작업. 없으면 "없음". -->
+<!-- Known limits, unverified assumptions, work this leaves behind. "None" if there are none. -->
