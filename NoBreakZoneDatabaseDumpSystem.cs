@@ -18,7 +18,7 @@ using UnityEngine;
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneDatabaseDumpSystem : PugSimulationSystemBase
 {
-    // Set true and rebuild to regenerate Editor/Onboarding/게임데이터/object_flags.csv (e.g. after a
+    // Set true and rebuild to regenerate Editor/GameData/object_flags.csv (e.g. after a
     // game update). Left OFF so normal test builds don't spam ~2300 lines into Player.log.
     private const bool RunAudit = false;
 

@@ -25,7 +25,7 @@ using UnityEngine;
 // that might bypass DealDamageToObject (SetEntitiesDestroyedSystem also runs predicted on both worlds and
 // reads it locally).
 //
-// Discriminator (validated vs the full DB, Editor/게임데이터/object_flags.csv): protect PlaceablePrefab +
+// Discriminator (validated vs the full DB, Editor/GameData/object_flags.csv): protect PlaceablePrefab +
 // HealthCD, excluding tiles (query) and resources/loot-droppers (DestructibleObjectCD /
 // DropsLootFromLootTableCD / DropsLootWhenDamagedCD) so ore/pots/walls stay mineable (no resource dup).
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]

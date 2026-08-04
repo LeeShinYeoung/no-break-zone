@@ -129,7 +129,7 @@ C:\Users\LeeShinYeoung\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
 - 콜드 스타트 빌드 소요: 대략 수 분 (코드 0줄 기준).
 - **⚠️ 에디터 빌드 컴파일 ≠ 게임 런타임 컴파일.** `build.ps1`이 성공해도(에디터가 asmdef 컴파일 OK) **게임은 로드 시 Scripts/를 자체 Roslyn으로 다시 컴파일 + 보안검사(safetyCheck)** 한다. 여기서 실패하면 게임에 "다음 모드를 로딩하지 못했습니다: NoBreakZone(컴파일링 실패)" 팝업. **진짜 컴파일 검증은 게임 로드 시점**이고, 에러는 `Player.log`의 `mod NoBreakZone load error: CompileFailed` + `Referenced in method body ... in source file ... at line ...`로 찍힌다.
 - **⚠️ 모드 코드에서 `System.Reflection` 금지.** 보안검사가 모드 IL의 리플렉션 호출을 거부한다. 예: `Type.Name`(=`MemberInfo.get_Name`), `GetType()` 직접 호출 → 거부. 컴포넌트 타입명이 필요하면 `ComponentType.ToString()`을 쓴다(리플렉션이 있더라도 신뢰된 게임 어셈블리 내부에서 일어나 통과). 참고로 `enum.ToString()`(문자열 보간 `$"{id}"` 포함)은 통과한다 — 리플렉션이 프레임워크 내부라 모드 IL에 안 남기 때문.
-- **모드 폴더(`modPath`) 안의 모든 자산이 번들에 실린다.** `ModBuilder`는 `.cs`(→Scripts), `.dll`(→Libraries), `Conf/*.json`, `Localization/*.csv`, `Editor`/`CodeGen` 폴더를 제외한 **나머지 전부**를 AssetBundle로 쓸어담는다. 첫 빌드에서 `Editor/Onboarding/`의 기획 문서·초안 PNG·`sprites.py`가 번들에 포함되고 게임 로그에 `couldn't load ... sprites.py` 경고가 떴다. → **개발 문서·초안은 `Editor/` 하위(또는 modPath 밖)에 둔다.** 배포 대상 아닌 것을 `Assets/NoBreakZone/` 루트에 두지 말 것. (`Onboarding/`을 `Editor/Onboarding/`으로 이동해 해결)
+- **모드 폴더(`modPath`) 안의 모든 자산이 번들에 실린다.** `ModBuilder`는 `.cs`(→Scripts), `.dll`(→Libraries), `Conf/*.json`, `Localization/*.csv`, `Editor`/`CodeGen` 폴더를 제외한 **나머지 전부**를 AssetBundle로 쓸어담는다. 첫 빌드에서 `Editor/Docs/`의 기획 문서·초안 PNG·`sprites.py`가 번들에 포함되고 게임 로그에 `couldn't load ... sprites.py` 경고가 떴다. → **개발 문서·초안은 `Editor/` 하위(또는 modPath 밖)에 둔다.** 배포 대상 아닌 것을 `Assets/NoBreakZone/` 루트에 두지 말 것. (`Docs/`을 `Editor/Docs/`으로 이동해 해결)
 
 ## 8. 게임 코드 조사 (3단계) — 파괴 파이프라인
 

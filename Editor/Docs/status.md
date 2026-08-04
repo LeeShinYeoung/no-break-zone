@@ -8,7 +8,7 @@
 
 **1·2·3·4단계 완료 (검증까지).** 설치물이 곡괭이/폭발에 안 부서지고, 깜빡임/팬텀 아이템 없음, 광석·항아리·벽 채굴 정상. 커밋·푸시됨(`1675e90`).
 
-핵심 해결: 클라이언트 예측 오작동이 원인이었고, 게임 자체 플래그 `IndestructibleCD`를 서버+클라 양쪽 월드에서 켜서 해결. 상세·교훈은 `조사결과.md` 9장. 전체 오브젝트 데이터 위키는 `게임데이터/object_flags.csv`.
+핵심 해결: 클라이언트 예측 오작동이 원인이었고, 게임 자체 플래그 `IndestructibleCD`를 서버+클라 양쪽 월드에서 켜서 해결. 상세·교훈은 `research.md` 9장. 전체 오브젝트 데이터 위키는 `GameData/object_flags.csv`.
 
 **다음: 2단계(좌표 조건) → 3단계(파일런 커스텀 오브젝트) → 토글/세이브 → 시각표현 → 렌즈·리모콘·작업대.** (기획서 13장 순서. 지금은 "모든 설치물 무적" 하드코딩 상태라, 다음은 파일런 범위 안에서만 보호되게 좁히는 것.)
 
@@ -18,7 +18,7 @@ _(아래는 이전 단계 기록)_
 
 **1·2·3단계 완료. 4단계 코드 작성·컴파일·빌드까지 됐으나 인게임 검증은 아직 안 함(=코드 완료, 검증 완료 아님). 다음: 사람이 게임에서 테스트.**
 
-- **3단계(게임 코드 조사) 완료** — 파괴 파이프라인 전체를 디컴파일로 규명. `조사결과.md` 8장. 핵심: 모든 피해가 `SetEntitiesDestroyedSystem` 단일 관문을 지나며, `DontDestroyOnZeroHealthCD{disabled=false}` 부여로 파괴를 막는다. 전부 Burst라 데이터 레벨 개입만 가능.
+- **3단계(게임 코드 조사) 완료** — 파괴 파이프라인 전체를 디컴파일로 규명. `research.md` 8장. 핵심: 모든 피해가 `SetEntitiesDestroyedSystem` 단일 관문을 지나며, `DontDestroyOnZeroHealthCD{disabled=false}` 부여로 파괴를 막는다. 전부 Burst라 데이터 레벨 개입만 가능.
 - **4단계(하드코딩 피해 차단) 코드 완료** — 서버 시스템 `NoBreakZoneProtectionSystem`이 `PlaceablePrefab`+`DamageableObjectCD` 설치물에 보호 컴포넌트 부여(`TileCD`/`MineableCD`/`DiggableCD` 제외 → 자원 복제 방지). `NoBreakZoneMod`(IMod)는 로드 로그용. 라이브 `...\Mods\NoBreakZone\`에 설치 완료. **인게임에서 한 번도 안 돌려봄.**
 
 ### 다음 세션이 이어서 할 일 — 인게임 검증 (사람)
@@ -70,7 +70,7 @@ _(아래는 이전 단계 기록)_
 
 ### 2단계 — 개발 루프 확립 (조사 완료, 스크립트 작성 대기)
 
-조사 결과는 `조사결과.md`에 기록됨. 요약:
+조사 결과는 `research.md`에 기록됨. 요약:
 
 - [x] 커맨드라인 빌드 가능 여부 — 가능하나 **전용 메서드 없음**. `ModBuilder.BuildMod`를 감싸는 에디터 래퍼 필요. 배치모드는 **에디터를 닫아야** 락 충돌이 없음
 - [~] 게임 재시작 없이 모드 재적용 가능 여부 — 코드상 게임 시작 시 로드로 추정. **인게임 실검증 필요**
@@ -80,14 +80,14 @@ _(아래는 이전 단계 기록)_
   - `Assets/NoBreakZone/Editor/CliBuild.cs` — `ModBuilder.BuildMod` 배치모드 래퍼
   - `Assets/NoBreakZone/Editor/NoBreakZone.Editor.asmdef` — 전용 에디터 어셈블리
   - `Assets/NoBreakZone/Editor/build.ps1` — 에디터 락 확인 → Unity 배치 호출 → 종료코드 보고
-  - 산출물: `...\Mods\NoBreakZone\`에 Windows+Linux 번들 + `ModManifest.json`. Linux 모듈·배치 파이프라인 확인됨 (`조사결과.md` 6장)
+  - 산출물: `...\Mods\NoBreakZone\`에 Windows+Linux 번들 + `ModManifest.json`. Linux 모듈·배치 파이프라인 확인됨 (`research.md` 6장)
 
 **개발 루프 (확정):**
 ```
 코드 수정 → (에디터 닫기) → build.ps1 실행 → ...\Mods\NoBreakZone\ 갱신
          → 사람이 게임 실행/재로드 → 확인 → Player.log 확인
 ```
-남은 인게임 검증: 모드가 실제로 로드/활성화되는지, 재적용에 전체 재시작이 필요한지 (`조사결과.md` 7장).
+남은 인게임 검증: 모드가 실제로 로드/활성화되는지, 재적용에 전체 재시작이 필요한지 (`research.md` 7장).
 
 **이 단계가 끝나야 이후 작업 속도가 정해진다.** 서두르지 말고 확실히 한다.
 
@@ -98,7 +98,7 @@ _(아래는 이전 단계 기록)_
 - [ ] 해당 시스템이 Burst 컴파일 대상인지 확인
 - [ ] 기존 설치물 스프라이트 규격과 팔레트 확인
 - [ ] 기존 범위 표시(아이템 수집기 등) 구현 방식 확인
-- [ ] 결과를 `조사결과.md`에 기록하고 기획서의 `확인 필요` 항목 갱신
+- [ ] 결과를 `research.md`에 기록하고 기획서의 `확인 필요` 항목 갱신
 
 ### 4단계 — 피해 차단 검증
 
@@ -110,30 +110,29 @@ _(아래는 이전 단계 기록)_
 
 ## 제공된 것
 
-모두 `Assets/NoBreakZone/Editor/Onboarding/` 아래에 있다. (Editor 폴더라 빌드된 모드에는 포함되지 않는다 — 2단계에서 번들 오염 발견 후 이동)
+모두 `Assets/NoBreakZone/Editor/Docs/` 아래에 있다. (Editor 폴더라 빌드된 모드에는 포함되지 않는다 — 2단계에서 번들 오염 발견 후 이동)
 
 | 항목 | 위치 |
 | --- | --- |
-| 기획서 | `Editor/Onboarding/NoBreakZone_기획서.md` |
-| 워크스페이스 정의서 | `Editor/Onboarding/워크스페이스_정의서.md` |
-| 스프라이트 초안 | `Editor/Onboarding/*.png` (lens, pylon_on/off, remote, workbench, preview) |
-| 스프라이트 생성 스크립트 | `Editor/Onboarding/sprites.py` |
+| 기획서 | `Editor/Docs/design.md` |
+| 워크스페이스 정의서 | `Editor/Docs/workflow.md` |
+| 스프라이트 초안 | `Editor/Docs/art/*.png` (lens, pylon_on/off, remote, workbench, preview) |
+| 스프라이트 생성 스크립트 | `Editor/Docs/art/sprites.py` |
+| 오브젝트 DB 참조 | `Editor/GameData/object_flags.csv` |
 
-스프라이트는 **규격과 팔레트가 확인되기 전의 초안**이다. 3단계에서 실제 값이 확인되면 `sprites.py`의 색상 상수와 좌표를 고쳐 다시 생성한다.
+스프라이트는 **규격과 팔레트가 확인되기 전의 초안**이다. 3단계에서 실제 값이 확인되면 `art/sprites.py`의 색상 상수와 좌표를 고쳐 다시 생성한다.
 
 ---
 
 ## 아직 없는 것
 
-- 조사결과.md — 3단계에서 만든다
-- 실패기록.md — 필요해지면 만든다
-- scripts/ — 2단계에서 만든다
-- 스킬 정의 — 개발 루프가 정해진 뒤에 만든다
+- `Editor/Docs/failures.md` — 필요해지면 만든다
+- deploy-prep 스킬 — 배포 절차(`workflow.md` 6장)가 확인된 뒤에 만든다
 
 ---
 
 ## 기록 방법
 
-작업이 끝날 때마다 이 문서를 갱신한다. 체크박스를 채우고, 알게 된 사실은 `조사결과.md`로, 실패한 시도는 `실패기록.md`로 보낸다.
+작업이 끝날 때마다 이 문서를 갱신한다. 체크박스를 채우고, 알게 된 사실은 `research.md`로, 실패한 시도는 `failures.md`로 보낸다.
 
 **세션을 새로 시작한 사람이 이 문서만 읽고 이어갈 수 있어야 한다.**
