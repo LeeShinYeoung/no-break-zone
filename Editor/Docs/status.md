@@ -56,14 +56,36 @@ python3 Editor/preflight.py
 
 ### 3단계 — 파일런 커스텀 오브젝트 (다음 작업)
 
-재료는 `research.md` 11장에 다 있다. 남은 것:
+**조사는 끝났다. 필요한 값이 전부 `research.md` 11장에 있다.** 이제 쓰는 일만 남았다.
 
-1. 스프라이트 16px 재생성 — 현재 초안이 정확히 2배 (`research.md` 10장)
-2. 로직 프리팹 + 그래픽 프리팹 + `.meta`
-3. `Data/TextDataBlock/` (이름·설명문), SpriteAsset 연결
-4. `NoBreakZonePylonRegistrySystem` — 하드코딩 좌표 제거
+만들 파일:
 
-미규명 하나: 그래픽 프리팹의 SpriteAsset·GradientMapDataBlock 연결부.
+| 파일 | 비고 |
+| --- | --- |
+| `Textures/NoBreakZonePylon.png` + `.meta` | **초안 그대로 쓴다.** `spritePixelsToUnits: 32`로 두면 1타일로 렌더된다 (아래) |
+| `Data/SpriteAsset/NoBreakZonePylon.asset` | `m_staticSpriteData.texture` → 위 PNG (`fileID: 2800000`) |
+| `SpriteAssetManifest.asset` | 모드 루트. 레퍼런스 모드와 같은 위치 |
+| `Data/TextDataBlock/NoBreakZonePylon.asset` | 13개 언어 주소는 SDK 예제에서 복사 |
+| `Prefabs/NoBreakZonePylon.prefab` | 로직. `ObjectAuthoring{objectName: "NoBreakZone.Pylon", objectType: 800}` |
+| `Prefabs/NoBreakZonePylonGraphics.prefab` | `EntityMonoBehaviour` + SpriteObject |
+| `Scripts/Systems/NoBreakZonePylonRegistrySystem.cs` | 하드코딩 좌표 제거 |
+
+분량이 YAML 1,500줄쯤 된다. **손으로 쓰지 말고 스펙에서 생성하는 스크립트를 만든다** —
+6단계에서 렌즈·리모콘·작업대 셋을 더 만들어야 하므로 그때 그대로 재사용된다.
+(`workflow.md` 4장 "프리팹 생성은 스크립트로 프로그래밍적으로 처리"와도 맞다.)
+
+### 스프라이트 — 초안을 그대로 쓰기로 결정 (2026-08-04)
+
+게임은 1타일 = 16px인데 초안은 32px다(정확히 2배). 셋 중 (a)를 택했다.
+
+- **(a) 채택 — 지금 초안을 그대로 쓰고, 텍스처 `.meta`의 `spritePixelsToUnits`를 32로 둔다.**
+  1타일 크기로 렌더되지만 주변 아트보다 2배 촘촘해 튄다. 기획서 13장 3단계가 "임시 스프라이트를
+  사용한다"고 전제하고 있고, 아트는 7단계 마감 항목이다. 인게임에서 눈으로 본 뒤 고치는 게 순서다
+- (b) 16px로 재생성 — `sprites.py`가 32px 좌표로 그려서 사실상 재설계
+- (c) 규격만 넘기고 사람이 그림
+
+확인된 것: **그레이스케일은 필수가 아니다.** 레퍼런스 모드는 컬러로 직접 그린다.
+그레이스케일 + GradientMap은 스킨(색 교체)용 선택 기능이다.
 
 ### 사람이 윈도우에서 해야 할 것
 

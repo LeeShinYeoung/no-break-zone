@@ -298,6 +298,54 @@ fileID = int32_little_endian( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명
 
 각 컴포넌트의 필드 이름·순서는 `ck-db/Pug.ECS.Authoring/*.cs`에서 읽는다.
 
+### 에셋 사이의 연결 — `m_address` (128비트 자체 선언 ID)
+
+스프라이트와 텍스트는 GUID가 아니라 **`m_address {m_low, m_high}`** 로 연결된다.
+`Pug.Base/GuidAsULongs.cs`의 `DataBlockAddress(lowBits, highBits)`가 그 타입이다.
+
+```
+SpriteAsset.m_address  ←──  SpriteObject.m_assetRef.m_address     (그래픽 프리팹)
+SpriteAssetManifest.spriteAssets[] ──→ SpriteAsset  (이건 guid 참조)
+```
+
+**미검증 가정:** `m_address`가 무엇에서 유도되는지 못 찾았다. SDK 예제의 값은 그 파일의 GUID와도,
+이름 해시와도 안 맞는다(대조해 봄). 따라서 **에셋이 스스로 선언하는 고유 ID**로 보고, 우리 것은
+한 번 생성해 고정하면 된다고 가정한다. **인게임에서 스프라이트가 안 보이면 여기를 제일 먼저 의심한다.**
+
+### 나머지 고정값
+
+| 값 | 의미 |
+| --- | --- |
+| `fileID: 2800000` | Texture2D 서브에셋. **`SpriteAsset.m_staticSpriteData.texture`가 이걸 가리킨다** |
+| `fileID: 21300000` | Sprite 서브에셋. `InventoryItemAuthoring.icon`이 이걸 가리킨다 |
+| `fileID: 11500000` | 클래스가 `.dll`이 아니라 `.cs` 파일에 있을 때의 MonoScript id |
+| `292700ef68995bdb2163e35989fc7eb0` | PugSprite 어셈블리. SpriteObject `1908045241` · SpriteAsset `-217761678` · SpriteAssetManifest `1876717734` |
+| `e853a5af7d19630282ad0af7b5dabadc` | TextDataBlock `2108018792` |
+| `6f4e9f12d8be4d048a7b574866c31a4f` | `EntityMonoBehaviour` (+ `11500000`) |
+
+### TextDataBlock — 13개 언어 주소는 게임 고정값
+
+`m_localizedTexts.keys`에 13개 언어의 `(m_low, m_high)`가 들어간다. **게임이 정한 값이라
+SDK 예제에서 그대로 베끼면 된다.** 어느 항목이 어느 언어인지는 아직 모른다 — SDK 예제는 13개
+전부에 같은 영문을 넣는다. 1차 배포가 영어·한국어뿐이므로(기획서 §4) 같은 방식으로 시작하고
+7단계에서 구분한다.
+
+`m_header`는 카테고리 문자열(`Items`), `m_shouldBeLocalized: 1`.
+
+### SpriteAsset 의 구조
+
+```
+m_staticSpriteData:            변형 0 (기본)
+  texture: {fileID: 2800000, guid: <우리 PNG>, type: 3}
+  emissiveTexture / normalTexture: {fileID: 0}
+  pivot: {x: 0.5, y: 0.5}
+  inheritPivot: 1
+m_staticVariants: []           변형 1 이상 (파일런 켜짐 = 여기)
+```
+
+발광 표현(기획서 §7 "발광 부위")은 `emissiveTexture`로 간다 — 별도 레이어 스프라이트가 아니라
+같은 SpriteAsset의 필드다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
