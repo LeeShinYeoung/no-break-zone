@@ -54,23 +54,32 @@ git push -u origin "$(git branch --show-current)"
 
 ## 4. PR 생성
 
-본문은 `.github/pull_request_template.md`의 4개 절을 채운다.
-
-| 절 | 채우는 법 |
-| --- | --- |
-| 무엇을 바꿨나 | `git log main..HEAD` 에서 요약. 해당하면 `design.md` 항목 명시 |
-| 왜 | 커밋 본문의 근거. 조사 기반이면 `research.md` 장 번호 |
-| 사람이 게임에서 확인한 것 | **2단계에서 읽어낸 것만.** 없으면 없다고 쓴다. 지어내지 않는다 |
-| 위험 / 남은 것 | 알려진 한계·미확인 항목. 없으면 "없음" |
+**본문 형식의 원본은 `.github/pull_request_template.md` 하나뿐이다.**
+이 스킬에 절 제목이나 골격을 옮겨 적지 않는다 — 두 곳에 있으면 반드시 어긋난다.
 
 ```bash
-gh pr create --base main --title "<브랜치의 대표 변경>" --body "$(cat <<'EOF'
-...
-EOF
-)"
+cat .github/pull_request_template.md
 ```
 
-제목은 커밋 규약과 같게 **영문 `type: subject`**, 본문은 한글.
+읽은 다음:
+
+1. **절 구조를 그대로 유지한다.** 제목·순서·개수를 바꾸지 않는다
+2. 각 절의 `<!-- -->` 주석이 무엇을 쓸지 지시한다. **그 지시를 따르고, 주석은 지운다**
+3. 재료는 `git log main..HEAD` 와 2단계에서 읽어낸 검증 상태다
+4. 템플릿이 바뀌면 이 스킬을 고치지 않아도 결과가 따라간다
+
+본문을 임시 파일에 쓰고 `--body-file`로 넘긴다. 긴 본문을 `--body "$(...)"`로 넘기면
+따옴표·백틱에서 깨진다. **저장소 안에 임시 파일을 만들지 않는다** — 루트가 곧 modPath다.
+
+```bash
+BODY="$(mktemp -t nbz-pr)"
+# ... 채운 본문을 $BODY 에 쓴다 ...
+gh pr create --base main --title "<type>: <subject>" --body-file "$BODY"
+rm -f "$BODY"
+```
+
+**제목과 본문 모두 영문이다.** 제목은 커밋 규약과 같은 `type: subject` 형식 —
+머지 커밋 제목이 되므로 `main` 이력과 형식이 같아야 한다. 언어 규칙은 `CLAUDE.md` 참고.
 
 ## 5. 머지
 
