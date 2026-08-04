@@ -64,5 +64,6 @@ description: NoBreakZone 모드를 빌드해 게임 Mods 폴더에 설치한다.
 
 - 번들에는 modPath 아래 `Editor/`·`Conf/`·`Localization/`·`.cs`·`.dll` **밖의 모든 자산**이
   실린다. 빌드 후 새 `couldn't load` 경고가 보이면 루트에 파일을 늘린 게 원인이다.
-- 검증이 끝나기 전에는 커밋하지 않는다. 사정이 있으면 메시지에 `미검증`을 명시한다.
-- 검증이 끝나면 `/log` 로 `Editor/Docs/status.md` 를 갱신한다.
+- 피처 브랜치 안이라면 미검증 상태로 커밋해도 된다. 메시지에 `미검증`을 명시한다.
+  게이트는 커밋이 아니라 머지다 — `main`에 넣는 건 `/land` 뿐이고 그 스킬이 검증을 묻는다.
+- 검증이 끝나면 `Editor/Docs/status.md` 를 갱신하고 `/land` 로 넘어간다.
