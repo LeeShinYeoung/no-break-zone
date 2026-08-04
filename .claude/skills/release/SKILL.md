@@ -35,10 +35,13 @@ git tag --sort=-v:refname | head -3
 ## 2. 노트 초안
 
 ```bash
-git log <직전태그>..HEAD --format='%s%n%b%n---'
+git log --no-merges <직전태그>..HEAD --format='%s%n%b%n---'
 ```
 
 태그가 하나도 없으면 저장소 처음부터 훑는다.
+
+`--no-merges`가 필요한 이유: 머지 방식이 merge commit이라 PR마다 `Merge pull request #N
+from …` 이 하나씩 쌓인다. 사용자에게 아무 의미도 없고 실제 내용은 개별 커밋에 있다.
 
 노트 작성 규칙:
 
