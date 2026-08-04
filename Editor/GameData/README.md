@@ -6,6 +6,8 @@
 - 추출: `NoBreakZoneDatabaseDumpSystem`이 로드 시 `PugDatabase.objectInfos` 전체를 순회하며 각 프리팹에 `HasComponent<T>`를 찍어 `Player.log`에 덤프 → CSV로 정리
 - 컴포넌트 **이름**은 릴리즈 빌드에서 못 읽음(DebugTypeName 스트립 + 모드에서 리플렉션 금지). 그래서 **이름이 아니라 "관심 컴포넌트 유무"** 를 찍는다.
 
+- `script_fileids.csv` — 게임 클래스 **3235개** × 유니티 `m_Script` fileID (아래 참조)
+
 ## 컬럼
 
 | 컬럼 | 컴포넌트 | 의미 |
@@ -50,3 +52,32 @@
 ## 재생성 방법
 `NoBreakZoneDatabaseDumpSystem`을 포함해 빌드→설치→게임 1회 로드→월드 진입.
 `Player.log`의 `[NBZDB]` 라인을 뽑아 CSV로 저장. 게임 업데이트로 오브젝트가 바뀌면 다시 뜬다.
+
+---
+
+# script_fileids.csv — 프리팹 `m_Script` 역참조표
+
+프리팹 YAML은 컴포넌트를 `m_Script: {fileID: N, guid: G}` 로 가리킨다. 이 표가 있으면
+**유니티 없이 프리팹을 작성하고 검증할 수 있다.** `Editor/preflight.py`가 이걸 읽는다.
+
+| 컬럼 | 의미 |
+| --- | --- |
+| fileID | 유니티가 그 클래스에 부여하는 값 |
+| assembly | 어느 게임 어셈블리 소속인지 (`Pug.ECS.Authoring` 이 프리팹용) |
+| fullName | 네임스페이스 포함 클래스명 |
+
+**fileID는 클래스 이름에서 결정론적으로 계산된다:**
+
+```
+fileID = int32_le( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명)[:4] )
+```
+
+게임 authoring 어셈블리 guid는 **`3392f4c23e1d8662d749dabb2361ee02`** 고정이다.
+
+검증: SDK 예제와 레퍼런스 모드의 프리팹 20개에서 뽑은 게임 어셈블리 참조 **184건이 100% 일치**했다.
+표 안에서 fileID 충돌은 0건.
+
+## 재생성 방법
+게임 디컴파일 소스(`Adrriiannn/ck-db`)를 클론한 뒤 클래스마다 위 식을 적용해 CSV로 쓴다.
+`Editor/preflight.py`의 `md4`·`script_file_id` 함수가 같은 구현이므로 그걸 가져다 쓰면 된다.
+게임 업데이트로 클래스가 추가·개명되면 다시 뜬다.
