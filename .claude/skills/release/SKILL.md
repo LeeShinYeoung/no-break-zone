@@ -24,13 +24,16 @@ description: main에 쌓인 PR들을 묶어 버전 태그와 GitHub 릴리스를
 ## 1. 전제 확인
 
 ```bash
-git branch --show-current          # main 이어야 한다
-git status --porcelain             # 비어 있어야 한다
-git fetch origin && git status -sb # 원격과 동기화됐는지
-git tag --sort=-v:refname | head -3
+git branch --show-current              # main 이어야 한다
+git status --porcelain                 # 비어 있어야 한다
+git fetch origin && git status -sb     # 원격과 동기화됐는지
+git tag -l 'v*' --sort=-v:refname | head -3
 ```
 
 `main`이 아니거나, 커밋되지 않은 변경이 있거나, 원격과 어긋나 있으면 **중단하고 알린다.**
+
+`git tag`에 `-l 'v*'` 필터가 **반드시** 붙어야 한다. 저장소에는 버전이 아닌 태그가 있을 수
+있고, 필터 없이 정렬하면 그런 태그가 "직전 릴리스"로 잡혀 노트 범위가 통째로 틀어진다.
 
 ## 2. 노트 초안
 
@@ -65,14 +68,17 @@ from …` 이 하나씩 쌓인다. 사용자에게 아무 의미도 없고 실�
 
 ## 4. 릴리스 생성
 
+노트를 임시 파일에 쓰고 `--notes-file`로 넘긴다. 긴 노트를 `--notes "$(...)"`로 넘기면
+따옴표·백틱에서 깨진다. **저장소 안에 임시 파일을 만들지 않는다** — 루트가 곧 modPath다.
+
 ```bash
-gh release create v<버전> --title "v<버전>" --notes "$(cat <<'EOF'
-...
-EOF
-)"
+NOTES="$(mktemp -t nbz-release)"
+# ... 2단계에서 쓴 노트를 $NOTES 에 쓴다 ...
+gh release create "v<버전>" --title "v<버전>" --notes-file "$NOTES"
+rm -f "$NOTES"
 ```
 
-아직 검증이 덜 끝난 상태를 기록만 하려면 `--prerelease` 를 붙인다.
+3단계에서 "기록만"을 골랐으면 `--prerelease` 를 붙인다.
 
 ## 5. 멈추고 보고
 
