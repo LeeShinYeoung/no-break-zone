@@ -592,6 +592,41 @@ material·sortingLayer를 복사하는데, **설치 중이 아니면 그 대상�
 우리는 `FindObjectOfType<PlacementIcon>(true)`로 씬에서 빌려 쓴다 — **인게임 확인 필요.**
 못 찾으면 유니티 기본 스프라이트 재질이 쓰여 안 보이거나 벽을 뚫고 그려질 수 있다.
 
+## 15. 커서가 지목한 것을 아는 법 — `ClientInput` (2026-08-05)
+
+design.md §12의 **"커스텀 도구가 커서로 지목한 오브젝트를 알 수 있는가"**에 대한 답: **된다.**
+그리고 처음 보인 길보다 훨씬 싸다.
+
+### 처음 보인 길 (쓰지 않음)
+
+아이템 사용에 반응하려면 `EquipmentSlot.UpdateEquipment(…, bool secondInteractHeld, …)`를
+Harmony로 패치해야 하는데, **Burst 잡 안이라 `EquipmentUpdateSystem` 전체의 Burst를 꺼야 한다.**
+SDK의 `TeleportAfterEating` 예제가 그 방식이고, 예제 주석 자체가 "This slows down the game"이라고
+적어뒀다.
+
+### 실제로 쓴 길 — `ClientInput`
+
+`Pug.ECS.Components/ClientInput.cs`. **netcode 입력 컴포넌트라 서버에 이미 복제돼 있다.**
+
+| 필드 | 내용 |
+| --- | --- |
+| `float2 mouseOrJoystickWorldPoint` | **커서 월드 좌표** |
+| `short buttonSetMask` + `IsButtonStateSet(name)` | 버튼 상태 |
+
+`CommandInputButtonStateNames`에 **눌린 순간(Pressed)과 누르고 있음(HeldDown)이 따로** 있다 —
+`SecondInteract_Pressed = 256`. 엣지를 우리가 기억할 필요가 없다.
+
+들고 있는 물건: `EquippedObjectCD.equippedSlotIndex` → `ContainedObjectsBuffer[slot]`
+(`ChangeVariationWhenPlayerHoldObjectNearbySystem`과 같은 패턴).
+클라 쪽에서는 `Manager.main.player.clientInput`으로 같은 것을 읽는다.
+
+**서버 시스템이면 RPC가 필요 없다.** `ObjectDataCD`를 직접 쓰면 NetCode가 복제한다.
+4단계의 E키가 클라에서 시작해 `SetVariationRPC`를 보내야 했던 것과 대비된다.
+
+⚠️ **미검증 가정:** `KeyItem`은 `NonUsableSlot`으로 분류되는데
+(`PlayerController.GetEquippedSlotTypeForObjectType`), `ClientInput`은 슬롯 로직 이전의 원시
+입력이므로 **든 물건과 무관하게 플래그가 설 것**으로 본다. 리모콘이 반응하지 않으면 여기다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
