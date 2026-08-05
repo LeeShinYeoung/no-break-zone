@@ -153,6 +153,10 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
         // variationIsDynamic flag together.
         var transforms = _pylons.ToComponentDataArray<LocalTransform>(Allocator.Temp);
 
+        // Compared position by position, which assumes the query returns pylons in a stable order.
+        // It does in practice: chunk order only shifts when a pylon's own component set changes,
+        // and that happens once, when it is first tagged. If the assumption ever breaks the cost is
+        // a redundant re-evaluation, not a wrong answer — re-judging can only add protection.
         bool changed = transforms.Length != _positions.Length;
         for (int i = 0; i < transforms.Length; i++)
         {
