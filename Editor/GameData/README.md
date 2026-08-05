@@ -7,6 +7,8 @@
 - 컴포넌트 **이름**은 릴리즈 빌드에서 못 읽음(DebugTypeName 스트립 + 모드에서 리플렉션 금지). 그래서 **이름이 아니라 "관심 컴포넌트 유무"** 를 찍는다.
 
 - `script_fileids.csv` — 게임 클래스 **3235개** × 유니티 `m_Script` fileID (아래 참조)
+- `script_guids.csv` — 프로젝트의 모든 MonoScript **8186개** × `(fileID, guid)` (아래 참조).
+  **프리팹을 쓸 때 참조할 표는 이쪽이다.**
 
 ## 컬럼
 
@@ -50,8 +52,16 @@
 - 나무·덤불·풀·트로피 ~123개는 과보호되지만 자원복제 아님(4단계 검증엔 무해). 파일런 범위 도입 후 재검토.
 
 ## 재생성 방법
-`NoBreakZoneDatabaseDumpSystem`을 포함해 빌드→설치→게임 1회 로드→월드 진입.
+`NoBreakZoneDatabaseDumpSystem`의 `RunAudit`을 켜고 빌드→설치→게임 1회 로드→월드 진입.
 `Player.log`의 `[NBZDB]` 라인을 뽑아 CSV로 저장. 게임 업데이트로 오브젝트가 바뀌면 다시 뜬다.
+
+⚠️ **`[NBZDB]` 줄을 통째로 뽑으면 안 된다.** 덤프가 찍는 `BEGIN objectInfos=…`·`END unique=…`
+마커와 `COLUMNS=` 헤더까지 딸려 들어온다. 실제로 그렇게 만들어져서 마커 2줄이 데이터 한가운데
+박혔고(추출 후 알파벳 정렬을 해서), `Editor/Tests`의 전수 회귀가
+`KeyNotFoundException: 'type'`이라는 엉뚱한 얼굴로 실패했다.
+
+빼야 할 것: `BEGIN`/`END` 마커, `COLUMNS=` 헤더, 그리고 프리팹이 없어 4칸만 찍히는
+`None,NonUsable,none,<no-prefab>` 행. 남는 정상 행은 **2279개**여야 한다 (= `END unique`).
 
 ---
 
@@ -81,3 +91,32 @@ fileID = int32_le( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명)[:4] )
 게임 디컴파일 소스(`Adrriiannn/ck-db`)를 클론한 뒤 클래스마다 위 식을 적용해 CSV로 쓴다.
 `Editor/preflight.py`의 `md4`·`script_file_id` 함수가 같은 구현이므로 그걸 가져다 쓰면 된다.
 게임 업데이트로 클래스가 추가·개명되면 다시 뜬다.
+
+---
+
+# script_guids.csv — 유니티가 답한 `m_Script` 정답표
+
+프리팹의 `m_Script: {fileID, guid}`에 무엇을 써야 하는지에 대한 **유일한 출처**다.
+
+| 컬럼 | 의미 |
+| --- | --- |
+| fullName | 네임스페이스 포함 클래스명 |
+| fileID | 유니티가 그 스크립트에 부여하는 값 |
+| guid | 그 스크립트가 사는 에셋(`.dll` 또는 `.cs`)의 guid |
+| assembly | 소속 어셈블리 이름 |
+| path | 그 에셋의 프로젝트 경로 |
+
+**레퍼런스 모드나 `Assets/Examples`에서 guid를 베끼지 않는다.** 그렇게 해서 모든 참조가
+끊긴 채로 빌드가 성공한 사고가 있었다 — `research.md` 11장에 전말이 있다.
+
+`Editor/genassets.py`의 `game_script()`가 이 표를 조회하고, `Editor/preflight.py`가 생성된
+프리팹·`.asset`의 모든 참조를 이 표와 대조한다.
+
+## 재생성 방법
+
+```
+Unity.exe -batchmode -quit -projectPath C:\Unity\CoreKeeper ^
+  -executeMethod NoBreakZone.EditorTools.DumpScriptGuids.Dump
+```
+
+게임·SDK 업데이트로 어셈블리가 바뀌면 다시 뜨고, `genassets.py`를 재실행한다.
