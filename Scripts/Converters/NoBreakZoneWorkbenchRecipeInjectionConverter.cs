@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using Pug.Conversion;
 using PugMod;
 using UnityEngine;
@@ -29,19 +28,8 @@ public class NoBreakZoneWorkbenchRecipeInjectionConverter
     // only because nothing has shifted it yet.)
     private const ObjectID TargetWorkbench = ObjectID.IronWorkBench;
 
-    // Both ways this can fail used to be a bare return, so a missing recipe looked exactly like a
-    // converter that never ran. Every station is named once instead: if TargetWorkbench is absent
-    // from that list the match is what is wrong, and if it is present the line after it says
-    // whether our own object had an id yet.
-    private static readonly HashSet<int> Reported = new HashSet<int>();
-
     protected override void Convert(CraftingAuthoring authoring)
     {
-        if (Reported.Add(ObjectIndex))
-        {
-            Debug.Log($"[NoBreakZone] crafting station seen: {(ObjectID)ObjectIndex} ({ObjectIndex})");
-        }
-
         if ((ObjectID)ObjectIndex != TargetWorkbench)
         {
             return;
