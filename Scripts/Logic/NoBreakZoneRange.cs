@@ -49,6 +49,28 @@ public static class NoBreakZoneRange
         return dx <= radius && dz <= radius;
     }
 
+    // 기획서 §4: the remote reaches 30 tiles. Configurable later via Conf/ (7단계).
+    //
+    // Deliberately a fixed tile count rather than "whatever is on screen": 기획서 §4 argues that a
+    // screen-relative reach means "모니터가 큰 사람이 유리해지고, 멀티플레이에서는 플레이어마다
+    // 사거리가 달라진다". The lens overlay follows the same rule for the same reason.
+    public const int DefaultRemoteReach = 30;
+
+    // Round, not square. The protection area is a square because a base is (기획서 §6), but reach
+    // is about how far a player can act, and a square there would quietly give 41% more reach on
+    // the diagonal than along an axis.
+    public static bool IsWithinReach(int fromX, int fromZ, int toX, int toZ, int reach)
+    {
+        if (reach < 0)
+        {
+            return false;
+        }
+
+        long dx = toX - fromX;
+        long dz = toZ - fromZ;
+        return dx * dx + dz * dz <= (long)reach * reach;
+    }
+
     // Number of tiles on the square's edge — what the lens draws (기획서 §7). Radius 10 gives 80:
     // a 21-wide ring, counted once per tile, corners included exactly once.
     public static int BoundaryTileCount(int radius)

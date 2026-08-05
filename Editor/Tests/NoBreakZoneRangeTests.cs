@@ -159,6 +159,44 @@ namespace NoBreakZone.Tests
             }
         }
 
+        // --- the remote's reach (기획서 §4) ---------------------------------------------------
+
+        [Test]
+        public void RemoteReachMatchesTheDesignDocument()
+        {
+            Assert.AreEqual(30, NoBreakZoneRange.DefaultRemoteReach);
+        }
+
+        [Test]
+        public void ReachIsRoundSoTheDiagonalIsNotLonger()
+        {
+            // A square reach would give 41% more range on the diagonal than along an axis, which is
+            // not what "플레이어 기준 30타일 반경" says. 30 out along an axis is in; 30 out on both
+            // axes at once is not.
+            Assert.IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 30, 0, 30));
+            Assert.IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 0, -30, 30));
+            Assert.IsFalse(NoBreakZoneRange.IsWithinReach(0, 0, 30, 30, 30));
+
+            // 21,21 is 29.7 away — inside. 22,22 is 31.1 — outside.
+            Assert.IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 21, 21, 30));
+            Assert.IsFalse(NoBreakZoneRange.IsWithinReach(0, 0, 22, 22, 30));
+        }
+
+        [Test]
+        public void ReachIsInclusiveAtTheBoundaryAndRejectsNegatives()
+        {
+            Assert.IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, 0));
+            Assert.IsFalse(NoBreakZoneRange.IsWithinReach(0, 0, 1, 0, 0));
+            Assert.IsFalse(NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, -1));
+        }
+
+        [Test]
+        public void ReachIsMeasuredFromWhereverThePlayerStands()
+        {
+            Assert.IsTrue(NoBreakZoneRange.IsWithinReach(-1000, 500, -1030, 500, 30));
+            Assert.IsFalse(NoBreakZoneRange.IsWithinReach(-1000, 500, -1031, 500, 30));
+        }
+
         [Test]
         public void ShortBufferTruncatesRatherThanOverrunning()
         {

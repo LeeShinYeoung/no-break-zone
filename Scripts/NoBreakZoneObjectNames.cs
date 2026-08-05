@@ -8,6 +8,6 @@ public static class NoBreakZoneObjectNames
 {
     public const string Pylon = "NoBreakZone.Pylon";
     public const string Workbench = "NoBreakZone.Workbench";
-
-    // 6단계: "NoBreakZone.Lens", "NoBreakZone.Remote".
+    public const string Lens = "NoBreakZone.Lens";
+    public const string Remote = "NoBreakZone.Remote";
 }
