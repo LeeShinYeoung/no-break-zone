@@ -30,23 +30,6 @@ public static class NoBreakZoneRangeOverlay
     private static Transform _root;
     private static readonly List<SpriteRenderer> _markers = new List<SpriteRenderer>();
 
-    // Reused every frame — the boundary walk writes into these rather than allocating (see
-    // NoBreakZoneRange.WriteBoundaryTiles). Grown when the configured range needs more room;
-    // WriteBoundaryTiles truncates rather than overrunning, so a stale size draws a partial ring
-    // instead of throwing.
-    private static int[] _tileX = new int[0];
-    private static int[] _tileZ = new int[0];
-
-    private static void EnsureTileBuffer(int radius)
-    {
-        int needed = NoBreakZoneRange.BoundaryTileCount(radius);
-        if (_tileX.Length < needed)
-        {
-            _tileX = new int[needed];
-            _tileZ = new int[needed];
-        }
-    }
-
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
@@ -80,32 +63,34 @@ public static class NoBreakZoneRangeOverlay
         // Read from config so the outline always shows the area actually being protected — the two
         // disagreeing would be worse than no outline at all.
         int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
-        EnsureTileBuffer(radius);
         int2 player = PlayerTile();
         int used = 0;
+
+        // The square spans [-radius, +radius] tiles around the pylon, and a tile is a unit wide, so
+        // the outline sits half a tile beyond the outermost protected tile on each side.
+        float half = radius + 0.5f;
+        float length = radius * 2 + 1;
 
         for (int i = 0; i < pylons.Length; i++)
         {
             int2 pylon = pylons[i];
 
-            // Skip a pylon whose whole square is out of reach before walking 80 tiles of it.
             if (math.abs(pylon.x - player.x) > DrawRadiusTiles + radius ||
                 math.abs(pylon.y - player.y) > DrawRadiusTiles + radius)
             {
                 continue;
             }
 
-            int count = NoBreakZoneRange.WriteBoundaryTiles(pylon.x, pylon.y, radius, _tileX, _tileZ);
-            for (int t = 0; t < count; t++)
-            {
-                if (math.abs(_tileX[t] - player.x) > DrawRadiusTiles ||
-                    math.abs(_tileZ[t] - player.y) > DrawRadiusTiles)
-                {
-                    continue;
-                }
-
-                PlaceMarker(used++, _tileX[t], _tileZ[t]);
-            }
+            // 기획서 §9: "범위 표시를 타일마다 오브젝트를 생성해 구현하지 않는다. 21×21이면 경계만
+            // 해도 80칸이다." Four stretched segments draw the same outline the player sees, at a
+            // twentieth of the objects.
+            //
+            // Top and bottom run the full width so they cover the corners; the sides span the same
+            // length and overlap them, which is what keeps the corners closed.
+            PlaceEdge(used++, pylon.x, pylon.y + half, length, horizontal: true);
+            PlaceEdge(used++, pylon.x, pylon.y - half, length, horizontal: true);
+            PlaceEdge(used++, pylon.x - half, pylon.y, length, horizontal: false);
+            PlaceEdge(used++, pylon.x + half, pylon.y, length, horizontal: false);
         }
 
         // Everything the pool still holds beyond what this frame needed.
@@ -207,7 +192,12 @@ public static class NoBreakZoneRangeOverlay
         return new int2(Mathf.RoundToInt(position.x), Mathf.RoundToInt(position.z));
     }
 
-    private static void PlaceMarker(int index, int tileX, int tileZ)
+    /// One side of the square, stretched to length.
+    ///
+    /// Only the length axis is scaled. The segment is uniform along that axis, so stretching cannot
+    /// distort it, and leaving the other axis alone keeps the line exactly as thick as it was drawn.
+    private static void PlaceEdge(int index, float centreX, float centreZ, float length,
+                                  bool horizontal)
     {
         while (_markers.Count <= index)
         {
@@ -221,10 +211,14 @@ public static class NoBreakZoneRangeOverlay
         }
 
         // Flat on the ground, like the game's own tile-level sprites: the sprite quad stands upright
-        // by default, so it is rotated a quarter turn about X. The small lift avoids z-fighting with
-        // the floor.
+        // by default, so it is rotated a quarter turn about X. The extra turn about Z is what makes
+        // a side run along Z instead of X — UNVERIFIED, and the first thing to adjust if the sides
+        // come out crossed. The small lift avoids z-fighting with the floor.
         marker.transform.SetPositionAndRotation(
-            new Vector3(tileX, 0.02f, tileZ), Quaternion.Euler(90f, 0f, 0f));
+            new Vector3(centreX, 0.02f, centreZ),
+            Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f));
+
+        marker.transform.localScale = new Vector3(length, 1f, 1f);
         SetActive(marker, true);
     }
 
