@@ -34,6 +34,15 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     private NoBreakZonePylonRegistrySystem _registry;
     private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
 
+    // The registry hands out int2s; NoBreakZoneRange takes parallel int arrays so it can stay free
+    // of Unity types and be unit tested. Copied into reusable buffers once per frame rather than
+    // per object.
+    private int[] _pylonX = new int[8];
+    private int[] _pylonZ = new int[8];
+    private int _pylonCount;
+
+    private bool _warnedMissingObjectInfo;
+
     protected override void OnCreate()
     {
         // Both systems are managed and run in order on the main thread, so reading the registry's
@@ -71,13 +80,15 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // give these back — see ReleaseUncovered.
         _ours = GetEntityQuery(
             ComponentType.ReadOnly<NoBreakZoneProtectedCD>(),
-            ComponentType.ReadOnly<LocalTransform>());
+            ComponentType.ReadOnly<LocalTransform>(),
+            ComponentType.ReadOnly<ObjectDataCD>());
     }
 
     protected override void OnUpdate()
     {
         var pylons = _registry.Positions;
         int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter);
+        CachePylons(pylons);
 
         // Before judging anything new: if the set of switched-on pylons just changed, hand back
         // whatever fell outside it. This has to run before the early exits below — switching the
@@ -85,7 +96,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // releasing matters most.
         if (_registry.ConsumeReleaseRequest())
         {
-            ReleaseUncovered(pylons, radius);
+            ReleaseUncovered(radius);
         }
 
         if (_candidates.IsEmpty)
@@ -130,8 +141,9 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 continue;
             }
 
-            int2 tile = transforms[i].Position.RoundToInt2();
-            if (!IsInsideAnyPylon(pylons, tile, radius))
+            // 기획서 §6: every tile the object stands on has to be covered, not just the one its
+            // transform sits at.
+            if (!IsFootprintCovered(em, entity, transforms[i], objectDatas[i], radius))
             {
                 continue;
             }
@@ -157,7 +169,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     //
     // An object still covered by some other switched-on pylon keeps everything, so overlapping
     // squares behave the way 기획서 §6 describes when only one of them is switched off.
-    private void ReleaseUncovered(NativeArray<int2> pylons, int radius)
+    private void ReleaseUncovered(int radius)
     {
         if (_ours.IsEmpty)
         {
@@ -166,13 +178,16 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         var entities = _ours.ToEntityArray(Allocator.Temp);
         var transforms = _ours.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+        var objectDatas = _ours.ToComponentDataArray<ObjectDataCD>(Allocator.Temp);
         var em = EntityManager;
         int released = 0;
 
         for (int i = 0; i < entities.Length; i++)
         {
-            int2 tile = transforms[i].Position.RoundToInt2();
-            if (IsInsideAnyPylon(pylons, tile, radius))
+            // Deliberately the same call the protect path makes. If the two ever disagreed about
+            // what an object occupies, something could qualify for protection and never qualify for
+            // release — indestructible forever, with the pylon switched off.
+            if (IsFootprintCovered(em, entities[i], transforms[i], objectDatas[i], radius))
             {
                 continue;
             }
@@ -183,6 +198,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         entities.Dispose();
         transforms.Dispose();
+        objectDatas.Dispose();
 
         if (released > 0)
         {
@@ -209,19 +225,64 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         em.RemoveComponent<NoBreakZoneProtectedCD>(entity);
     }
 
-    // 기획서 §6: overlapping squares are fine — being inside any one active pylon is enough.
-    private static bool IsInsideAnyPylon(NativeArray<int2> pylons, int2 tile, int radius)
+    private void CachePylons(NativeArray<int2> pylons)
     {
-        for (int i = 0; i < pylons.Length; i++)
+        if (_pylonX.Length < pylons.Length)
         {
-            int2 pylon = pylons[i];
-            if (NoBreakZoneRange.Covers(pylon.x, pylon.y, tile.x, tile.y, radius))
-            {
-                return true;
-            }
+            _pylonX = new int[pylons.Length];
+            _pylonZ = new int[pylons.Length];
         }
 
-        return false;
+        for (int i = 0; i < pylons.Length; i++)
+        {
+            _pylonX[i] = pylons[i].x;
+            _pylonZ[i] = pylons[i].y;
+        }
+
+        _pylonCount = pylons.Length;
+    }
+
+    // 기획서 §6, both rules at once: every tile the object occupies must be covered, and each of
+    // them may be covered by a different pylon.
+    //
+    // The size comes from the object database rather than from anything on the entity, and the
+    // walk mirrors the game's own in DetectRoomSystem — corner offset first, then the tile span,
+    // with DirectionCD rotating both for objects that can be turned.
+    private bool IsFootprintCovered(
+        EntityManager em, Entity entity, LocalTransform transform, ObjectDataCD data, int radius)
+    {
+        int2 origin = transform.Position.RoundToInt2();
+        int2 size = new int2(1, 1);
+        int2 corner = int2.zero;
+
+        var info = PugDatabase.GetObjectInfo(data.objectID, data.variation);
+        if (info != null)
+        {
+            size = new int2(info.prefabTileSize.x, info.prefabTileSize.y);
+            corner = new int2(info.prefabCornerOffset.x, info.prefabCornerOffset.y);
+        }
+        else if (!_warnedMissingObjectInfo)
+        {
+            // Falling back to one tile is the safe direction — the object stays protectable — but
+            // it also silently restores the old origin-only behaviour, so say so once rather than
+            // letting it look like the multi-tile rule is working.
+            _warnedMissingObjectInfo = true;
+            Debug.LogWarning($"[NoBreakZone] no ObjectInfo for {data.objectID}; treating objects "
+                             + "without database entries as 1x1 (world=" + World.Name + ")");
+        }
+
+        if (em.HasComponent<DirectionCD>(entity))
+        {
+            em.GetComponentData<DirectionCD>(entity)
+                .GetPrefabOffsetAndTileSize(corner, size, out corner, out size);
+        }
+
+        NoBreakZoneFootprint.Rect(
+            origin.x, origin.y, size.x, size.y, corner.x, corner.y,
+            out int minX, out int minZ, out int maxX, out int maxZ);
+
+        return NoBreakZoneRange.AllTilesCovered(
+            _pylonX, _pylonZ, _pylonCount, minX, minZ, maxX, maxZ, radius);
     }
 
     private void Protect(EntityManager em, Entity entity, ObjectID objectID)

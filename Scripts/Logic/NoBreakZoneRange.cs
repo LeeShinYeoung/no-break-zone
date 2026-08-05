@@ -198,7 +198,10 @@ public static class NoBreakZoneRange
         return true;
     }
 
-    public static bool IsCoveredByAny(
+    // Private on purpose: AllTilesCovered is the rule 기획서 §6 states, and a second public entry
+    // point that answers for one tile invites callers to re-implement the multi-tile rule badly.
+    // That is how CoversRect ended up written, tested and never called.
+    private static bool IsCoveredByAny(
         int[] pylonX, int[] pylonZ, int pylonCount, int tileX, int tileZ, int radius)
     {
         for (int i = 0; i < pylonCount; i++)
