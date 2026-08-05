@@ -21,13 +21,21 @@ public class NoBreakZoneMod : IMod
 
     public void Shutdown()
     {
+        NoBreakZoneRangeOverlay.Dispose();
     }
 
+    // Every asset in the mod's bundle arrives here. It is the only way to get hold of one at
+    // runtime — a mod never sees a path or a guid — so the lens's marker sprite is picked out by
+    // name as it goes past.
     public void ModObjectLoaded(Object obj)
     {
+        NoBreakZoneRangeOverlay.RegisterLoadedObject(obj);
     }
 
+    // Client-side per-frame hook. The range overlay lives here rather than in an ECS system so it
+    // cannot end up running in the server simulation (design.md §9).
     public void Update()
     {
+        NoBreakZoneRangeOverlay.Update();
     }
 }

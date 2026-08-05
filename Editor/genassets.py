@@ -237,6 +237,41 @@ def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
 
 
 # ---------------------------------------------------------------------------------------------
+# The lens's range marker (기획서 §7).
+#
+# One tile of the outline the lens draws. Drawn here rather than by hand because it is four
+# straight lines, and because the numbers below are the ones worth turning after seeing it in game:
+# 기획서 §7 warns that a marker which spoils a decorated base gets the whole mod uninstalled, so
+# "아주 옅은 윤곽" is the target and thickness/alpha are the knobs.
+# ---------------------------------------------------------------------------------------------
+
+# Must stay in step with NoBreakZoneRangeOverlay.MarkerSpriteName, which finds the sprite by name.
+RANGE_MARKER_TEXTURE = "Textures/NoBreakZoneRangeMarker.png"
+
+MARKER_TILE_PIXELS = 16  # one tile; SpriteObject.PixelsPerUnit is a hardcoded 16f
+MARKER_EDGE_THICKNESS = 1
+MARKER_COLOUR = (150, 220, 255)  # pale cyan, to read as "information" rather than as decoration
+MARKER_ALPHA = 90  # out of 255
+
+
+def range_marker_png() -> bytes:
+    """A hollow square outline filling one tile, transparent inside."""
+    size = MARKER_TILE_PIXELS
+    edge = MARKER_EDGE_THICKNESS
+    red, green, blue = MARKER_COLOUR
+
+    rows = []
+    for y in range(size):
+        row = bytearray(size * 4)
+        for x in range(size):
+            on_edge = x < edge or y < edge or x >= size - edge or y >= size - edge
+            if on_edge:
+                row[x * 4:x * 4 + 4] = bytes((red, green, blue, MARKER_ALPHA))
+        rows.append(bytes(row))
+    return _write_png_rgba(size, size, rows)
+
+
+# ---------------------------------------------------------------------------------------------
 # The spec. 6단계 adds lens/remote/workbench by appending here, not by writing YAML.
 # ---------------------------------------------------------------------------------------------
 
@@ -1267,6 +1302,12 @@ def build_outputs():
             out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
             out[spec.graphics_path] = graphics_prefab(spec)
             out[spec.graphics_path + ".meta"] = prefab_meta(spec.graphics_path)
+
+    # The lens's outline marker. Not attached to any spec: it is never an object in the world, just
+    # a sprite the overlay stamps on tiles. NoBreakZoneRangeOverlay finds it by this file's name,
+    # the way the reference mod picks up its own helper sprites in ModObjectLoaded.
+    out[RANGE_MARKER_TEXTURE] = range_marker_png()
+    out[RANGE_MARKER_TEXTURE + ".meta"] = texture_meta(RANGE_MARKER_TEXTURE, MARKER_TILE_PIXELS)
 
     out["SpriteAssetManifest.asset"] = sprite_asset_manifest(
         [s for s in SPECS if s.is_placeable])
