@@ -43,6 +43,11 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
     private bool _warnedMissingObjectInfo;
 
+    // Last diameter acted on. A settings change is the only other thing that can alter an answer,
+    // so it re-judges the world the same way a pylon appearing does; without this a player would
+    // change the setting and see nothing until they switched a pylon off and on.
+    private int _appliedDiameter = -1;
+
     protected override void OnCreate()
     {
         // Both systems are managed and run in order on the main thread, so reading the registry's
@@ -87,8 +92,18 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     protected override void OnUpdate()
     {
         var pylons = _registry.Positions;
-        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter);
+        int diameter = NoBreakZoneConfig.ProtectionDiameter;
+        int radius = NoBreakZoneRange.RadiusFromDiameter(diameter);
         CachePylons(pylons);
+
+        bool diameterChanged = _appliedDiameter != diameter;
+        if (diameterChanged)
+        {
+            // Same treatment a pylon change gets: drop the evaluated tags so everything is judged
+            // again against the new square.
+            _appliedDiameter = diameter;
+            _registry.RequestReevaluation();
+        }
 
         // Before judging anything new: if the set of switched-on pylons just changed, hand back
         // whatever fell outside it. This has to run before the early exits below — switching the
@@ -300,9 +315,23 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             em.AddComponent<NoBreakZoneProtectedCD>(entity);
         }
 
+        // design.md §10's "몹 피해 차단". The two components guard different paths: IndestructibleCD
+        // above is what the player's own mining and attacks consult, while this one guards the
+        // single gate every damage source passes through (research.md 8·9장). Leaving it off is
+        // therefore exactly "끄면 플레이어발 피해만 막음" — mobs and explosions can still finish
+        // something off.
+        bool blockEverything = NoBreakZoneConfig.BlockMobDamage;
         if (!em.HasComponent<DontDestroyOnZeroHealthCD>(entity))
         {
-            em.AddComponentData(entity, new DontDestroyOnZeroHealthCD { disabled = false });
+            if (blockEverything)
+            {
+                em.AddComponentData(entity, new DontDestroyOnZeroHealthCD { disabled = false });
+            }
+        }
+        else
+        {
+            // Already present, from us or from the game. Only the flag is ours to move.
+            em.SetComponentData(entity, new DontDestroyOnZeroHealthCD { disabled = !blockEverything });
         }
 
         if (_logged.Add(objectID))

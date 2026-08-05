@@ -16,6 +16,7 @@ public class NoBreakZoneMod : IMod
 
     public void Init()
     {
+        NoBreakZoneConfig.Register();
         Debug.Log($"[NoBreakZone] loaded ({Version}) — protection follows switched-on {NoBreakZonePylonRegistrySystem.PylonObjectName}");
     }
 
