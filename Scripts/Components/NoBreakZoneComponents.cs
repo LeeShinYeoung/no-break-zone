@@ -18,3 +18,19 @@ public struct NoBreakZoneEvaluatedCD : IComponentData
 public struct NoBreakZoneProtectedCD : IComponentData
 {
 }
+
+// "This entity is one of our pylons." Applied by NoBreakZonePylonRegistrySystem after matching
+// ObjectDataCD.objectID, so the per-frame cost of finding pylons is a query over the pylons
+// themselves rather than over every object in the world.
+public struct NoBreakZonePylonCD : IComponentData
+{
+}
+
+// "We have already asked whether this entity is a pylon." The answer cannot change during an
+// entity's life, so asking once and tagging keeps the discovery query down to entities that have
+// just streamed in. Separate from NoBreakZoneEvaluatedCD because the protection system only ever
+// tags things that passed its own narrower query, and anything it skipped would otherwise be
+// rescanned by the registry every frame.
+public struct NoBreakZonePylonScannedCD : IComponentData
+{
+}

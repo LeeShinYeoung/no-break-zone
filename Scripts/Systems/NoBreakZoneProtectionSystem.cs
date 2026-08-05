@@ -6,12 +6,13 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
-// STAGE 2 — protection scoped to a square around a pylon (기획서 13장 2단계).
+// STAGE 2/3 — protection scoped to a square around a pylon (기획서 13장 2·3단계).
 //
 // 1단계 shipped an unconditional version of this: every placeable in the world became
 // indestructible. That was the point — it proved the mechanism. What it could not do is let anyone
-// ever remodel their base. This narrows it to "inside a pylon's square", with the pylon coordinates
-// still hardcoded because the pylon object itself does not exist until 3단계.
+// ever remodel their base. 2단계 narrowed it to "inside a pylon's square" against a hardcoded
+// coordinate; 3단계 replaced that constant with the real placed pylons, which
+// NoBreakZonePylonRegistrySystem publishes just before this system runs.
 //
 // HOW PROTECTION WORKS (carried over from 1단계, verified in game — research.md 9장):
 // Mining/attack/explosion damage runs PREDICTED on BOTH the client and the server world, and that
@@ -28,18 +29,16 @@ using UnityEngine;
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneProtectionSystem : SystemBase
 {
-    // 2단계 scaffold: one pylon at the world origin. 3단계 replaces this with the real positions
-    // published by NoBreakZonePylonRegistrySystem, and this array goes away.
-    private static readonly int2[] HardcodedPylons =
-    {
-        new int2(0, 0),
-    };
-
     private EntityQuery _candidates;
+    private NoBreakZonePylonRegistrySystem _registry;
     private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
 
     protected override void OnCreate()
     {
+        // Both systems are managed and run in order on the main thread, so reading the registry's
+        // published positions during OnUpdate needs no copy or job dependency.
+        _registry = World.GetOrCreateSystemManaged<NoBreakZonePylonRegistrySystem>();
+
         // LocalTransform is required now: it is how the game itself resolves an entity to a tile
         // (Position.RoundToInt2(), see DetectRoomSystem). Anything without one has no place on the
         // grid and cannot be inside a square.
@@ -56,6 +55,14 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             {
                 ComponentType.ReadOnly<TileCD>(),
                 ComponentType.ReadOnly<NoBreakZoneEvaluatedCD>(),
+
+                // A pylon stands inside its own square, so without this it would protect itself.
+                // 기획서 §6 does want that eventually ("켜져 있는 동안 파일런은 무적"), but the same
+                // sentence continues "회수하려면 먼저 꺼야 한다" — and nothing can switch a pylon off
+                // until 4단계. Self-protecting it now would mean a pylon placed during 체크포인트 1
+                // could never be picked up again. 4단계 grants the pylon IndestructibleCD directly,
+                // tied to its variation, rather than through this discriminator.
+                ComponentType.ReadOnly<NoBreakZonePylonCD>(),
             },
         });
     }
@@ -64,6 +71,15 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     {
         if (_candidates.IsEmpty)
         {
+            return;
+        }
+
+        var pylons = _registry.Positions;
+        if (pylons.Length == 0)
+        {
+            // No pylon means no square, so nothing can qualify (기획서 §6). Leaving early also
+            // leaves the candidates untagged, so they get judged properly once one is placed
+            // rather than being written off now.
             return;
         }
 
@@ -98,7 +114,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             }
 
             int2 tile = transforms[i].Position.RoundToInt2();
-            if (!IsInsideAnyPylon(tile, radius))
+            if (!IsInsideAnyPylon(pylons, tile, radius))
             {
                 continue;
             }
@@ -113,11 +129,11 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     }
 
     // 기획서 §6: overlapping squares are fine — being inside any one active pylon is enough.
-    private static bool IsInsideAnyPylon(int2 tile, int radius)
+    private static bool IsInsideAnyPylon(NativeArray<int2> pylons, int2 tile, int radius)
     {
-        for (int i = 0; i < HardcodedPylons.Length; i++)
+        for (int i = 0; i < pylons.Length; i++)
         {
-            int2 pylon = HardcodedPylons[i];
+            int2 pylon = pylons[i];
             if (NoBreakZoneRange.Covers(pylon.x, pylon.y, tile.x, tile.y, radius))
             {
                 return true;
