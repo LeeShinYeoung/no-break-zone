@@ -549,6 +549,49 @@ API.Audio.PlaySfx(int sfxTableID, Vector3 position, Transform follow = null,
 **인게임 확인 항목.** 안 되면 `EntityMonoBehaviour.objectVariants`(변형별 GameObject on/off,
 `:1181-1207`)로 바꾼다.
 
+## 14. 아이템과 클라이언트 오버레이 (2026-08-05)
+
+### 설치물이 아닌 아이템은 컴포넌트 3개면 된다
+
+SDK `ItemExample/Sword1.prefab` 기준: `ObjectAuthoring` · `InventoryItemAuthoring` ·
+`LocalizationAuthoring`. 그리고
+
+- `graphicalPrefab: {fileID: 0}` — **그래픽 프리팹 없음**
+- **SpriteAsset 없음.** 아이콘이 PNG의 Sprite 서브에셋을 직접 가리킨다
+- 고스트·물리·상태 authoring 전부 없음
+
+`objectType`은 `Pug.Base/ObjectType.cs`에서 고른다. 손에 들지만 기계적 용도가 없는 도구는
+**`KeyItem` (1500)**.
+
+### 모드가 자기 에셋을 런타임에 잡는 법
+
+**`IMod.ModObjectLoaded(Object obj)`가 유일한 통로다.** 번들의 에셋이 하나씩 넘어오고,
+**이름으로 골라낸다.** 런타임에 경로나 guid를 받을 방법은 없다.
+
+```csharp
+public void ModObjectLoaded(Object obj) {
+    if (obj is Sprite s && s.name == "NoBreakZoneRangeMarker") _marker = s;
+}
+```
+
+레퍼런스: `ck-mods/…/ConveyorTunnelHelperSpriteRegistry.RegisterLoadedObject`.
+
+### 클라이언트 매 프레임 훅과 필요한 접근자
+
+| 필요한 것 | 어디 |
+| --- | --- |
+| 매 프레임 (클라) | `IMod.Update()` |
+| 로컬 플레이어 | `Manager.main.player` |
+| 손에 든 물건 | `player.visuallyEquippedContainedObject.objectData.objectID` |
+| UI 열림 판정 | `Manager.ui.isShowingMap` · `isAnyInventoryShowing` |
+| 클라 월드(ECS) | `API.Client.World` → `GetExistingSystemManaged<T>()` |
+
+⚠️ **바닥에 스프라이트를 깔 때 재질을 어디서 가져오나 — 미해결.** 맨 `SpriteRenderer`는 이
+게임 렌더 파이프라인에 맞는 재질이 없다. 레퍼런스 모드는 설치 중에 넘어오는 `PlacementIcon.SR`에서
+material·sortingLayer를 복사하는데, **설치 중이 아니면 그 대상이 없다.**
+우리는 `FindObjectOfType<PlacementIcon>(true)`로 씬에서 빌려 쓴다 — **인게임 확인 필요.**
+못 찾으면 유니티 기본 스프라이트 재질이 쓰여 안 보이거나 벽을 뚫고 그려질 수 있다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
