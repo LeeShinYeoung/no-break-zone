@@ -484,6 +484,46 @@ canCraftObjects:
 거기엔 `WorkBenchGraphical, ItemExample`이라 적혀 있는데 그 스크립트는 `WorkbenchExample.asmdef`
 밑에 있다. 옮기고 안 고친 흔적이다. `preflight.py`가 못 잡는 문자열이다.
 
+## 13. 켜고 끄는 토글은 전부 게임에 있다 (2026-08-05)
+
+**직접 만들 RPC도 커스텀 네트워크 코드도 없다.** `EntityMonoBehaviour.SetVariation(int)` 한 줄이
+클라 예측·서버 반영·다른 클라 전파를 전부 한다.
+
+```
+그래픽쪽 InteractableObject.onUseActions (E키)
+   └─ 우리 메서드 → EntityMonoBehaviour.SetVariation(n)      ← Pug.Other/EntityMonoBehaviour.cs:429
+        ├─ variationOverride 기록 (누른 사람은 즉시 반영)
+        ├─ variationOverrideUpdateCount++ (단조 증가)
+        └─ 고스트면 SetVariationRPC 발송
+              └─ 서버 SetVariationSystem                      ← Pug.Other/SetVariationSystem.cs
+                   ├─ 게스트 모드 차단 (admin 아니면 무시)
+                   ├─ updateCount 가 더 커야만 적용 (순서 뒤바뀜 방지)
+                   └─ ObjectDataCD.variation 기록 → NetCode 가 전원에게 복제
+```
+
+`EntityMonoBehaviour.variation` 게터는 **서버가 따라잡을 때까지 로컬 override를 돌려준다**
+(`:81-92`). 그래서 누른 사람 화면은 지연 없이 바뀐다.
+
+**세이브는 공짜다.** `ObjectDataCD`는 고스트 컴포넌트이자 월드 세이브 대상이다.
+
+### ⚠️ 그래픽 갱신은 우리가 해야 한다
+
+`UpdateGraphicsFromObjectInfo`는 **그래픽 오브젝트가 스폰될 때만** 불린다
+(`EntityMonoBehaviour.cs:1128`). 누른 사람은 로컬 override 덕에 바뀌어 보이지만,
+**다른 클라이언트는 복제된 `ObjectDataCD`만 바뀌고 아무도 갱신을 안 부른다.**
+
+해법은 `ManagedLateUpdate()` override — 프레임마다 도는 virtual 훅이고
+`CraftingBuilding`·`Minecart`·`GoKart`가 이미 그렇게 쓴다. variation이 마지막에 반영한 값과
+다르면 `UpdateGraphicsFromObjectInfo(objectInfo)`를 부른다. `objectInfo` 게터가 현재 variation으로
+조회하므로 그것만으로 맞는 변형이 잡힌다.
+
+### 변형 → 스프라이트 (미검증 추론)
+
+`SpriteAsset.m_staticVariants[0]`이 변형 1이다 — `SpriteObject.SetVariantByIndex`가
+`variantIndex--` 후 `GetStaticVariantHash(index)`를 쓰므로 **0 → 기본, 1 → 변형 0**.
+**인게임 확인 항목.** 안 되면 `EntityMonoBehaviour.objectVariants`(변형별 GameObject on/off,
+`:1181-1207`)로 바꾼다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
