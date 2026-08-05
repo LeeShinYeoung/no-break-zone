@@ -148,7 +148,9 @@ class Placeable:
                  tile_size=(1, 1), pixels_to_units=16, stackable=True, rarity=3,
                  health=10, recipe=(), crafting_time=3.0,
                  sprite_offset=(0, 0.0625, -0.3125),
-                 crafts=(), graphics_script=None, ui_titles=()):
+                 crafts=(), graphics_script=None, ui_titles=(),
+                 variants=(), interact_method=None,
+                 variation_is_dynamic=False, variation_to_toggle_to=0):
         self.key = key  # asset base name; also the localization termKey
         self.object_name = object_name  # ObjectID string — 기획서 §4, never change (CLAUDE.md §5)
         self.title = title
@@ -176,9 +178,22 @@ class Placeable:
         # I2 localization terms for the crafting window header, as the SDK example uses them.
         self.ui_titles = list(ui_titles)
 
+        # Extra looks the object can switch between, as [(suffix, source art)]. Variation 0 is the
+        # base texture above; these become variation 1, 2, ... in SpriteAsset.m_staticVariants.
+        self.variants = list(variants)
+        # Method on graphics_script's class that InteractableObject calls on E. None means the
+        # object cannot be interacted with at all.
+        self.interact_method = interact_method
+        # 기획서 §5's on/off switch, handled entirely by the game once these are set.
+        self.variation_is_dynamic = variation_is_dynamic
+        self.variation_to_toggle_to = variation_to_toggle_to
+
     @property
     def graphics_class(self):
         return pathlib.PurePosixPath(self.graphics_script).stem if self.graphics_script else None
+
+    def variant_texture_path(self, suffix):
+        return f"Textures/{self.key}{suffix}.png"
 
     # --- paths -------------------------------------------------------------------------------
     @property
@@ -221,6 +236,14 @@ SPECS = [
         # until the workbench exists (6단계), so this recipe is inert for now.
         recipe=[("IronBar", 8), ("AncientGemstone", 1), ("MechanicalPart", 2)],
         crafting_time=3.0,
+        # 기획서 §5: E toggles it, a freshly placed one starts off (variation stays 0 above), and
+        # the state survives save/load because ObjectDataCD is part of the world save. The game does
+        # all of it — see Scripts/Graphics/NoBreakZonePylonGraphics.cs.
+        variation_is_dynamic=True,
+        variation_to_toggle_to=1,
+        variants=[("On", "Editor/Docs/art/pylon_on.png")],
+        graphics_script="Scripts/Graphics/NoBreakZonePylonGraphics.cs",
+        interact_method="Toggle",
     ),
     Placeable(
         key="NoBreakZoneWorkbench",
@@ -244,6 +267,7 @@ SPECS = [
         # 기획서 §4 lists pylon, lens and remote. The latter two do not exist until 6단계.
         crafts=["NoBreakZone.Pylon"],
         graphics_script="Scripts/Graphics/NoBreakZoneWorkbenchGraphics.cs",
+        interact_method="Use",  # CraftingBuilding.Use — opens the crafting window
         ui_titles=["gear", "crafting", "base"],  # same three terms the SDK workbench uses
     ),
 ]
@@ -444,11 +468,25 @@ def _null_address(indent: str) -> str:
 def sprite_asset(spec: Placeable) -> str:
     """SpriteAsset: the thing a graphics prefab's SpriteObject resolves through its m_address.
 
-    m_staticSpriteData is variation 0. 4단계's on/off toggle adds variation 1 to m_staticVariants,
-    and 기획서 §7's glow goes in emissiveTexture rather than a separate sprite (research.md 11장).
+    m_staticSpriteData is variation 0; m_staticVariants holds variation 1 upwards, which is how the
+    pylon's on state is drawn (기획서 §5). 기획서 §7's glow will go in emissiveTexture rather than a
+    separate sprite (research.md 11장).
     """
     low, high = data_block_address(spec.sprite_asset_path)
     texture_guid = asset_guid(spec.texture_path)
+    variants = "".join(
+        f"  - texture: {{fileID: {FID_TEXTURE2D}, "
+        f"guid: {asset_guid(spec.variant_texture_path(suffix))}, type: 3}}\n"
+        "    emissiveTexture: {fileID: 0}\n"
+        "    normalTexture: {fileID: 0}\n"
+        "    pivot: {x: 0.5, y: 0.5}\n"
+        "    positionalData: []\n"
+        # Unlike the SDK example's variants, we inherit the base pivot: every variation of ours is
+        # the same art at the same size, so a variant that centred itself differently would make the
+        # pylon jump when switched on.
+        "    inheritPivot: 1\n"
+        for suffix, _ in spec.variants
+    )
     return (
         _scriptable_header(spec.key, FID_SPRITE_ASSET, GUID_PUGSPRITE)
         + "  m_overload:\n" + _null_address("    ")
@@ -471,8 +509,8 @@ def sprite_asset(spec: Placeable) -> str:
         "    pivot: {x: 0.5, y: 0.5}\n"
         "    positionalData: []\n"
         "    inheritPivot: 1\n"
-        "  m_staticVariants: []\n"
-        "  m_animations: []\n"
+        + ("  m_staticVariants: []\n" if not variants else "  m_staticVariants:\n" + variants)
+        + "  m_animations: []\n"
         "  m_events: []\n"
         "  m_positionalData: []\n"
         "  references:\n"
@@ -735,11 +773,11 @@ def logic_prefab(spec: Placeable) -> str:
         ids["object"], root, "ObjectAuthoring",
         f"  objectName: {spec.object_name}\n"
         "  initialAmount: 1\n"
-        # 4단계 turns these three into the on/off toggle: variationIsDynamic 1, toggle 0 <-> 1.
-        # 기획서 §5 says a freshly placed pylon starts off, which is variation 0.
+        # 기획서 §5: a freshly placed pylon starts off, which is variation 0. The two fields below
+        # declare that this object's variation changes at runtime and what it toggles between.
         "  variation: 0\n"
-        "  variationIsDynamic: 0\n"
-        "  variationToToggleTo: 0\n"
+        f"  variationIsDynamic: {1 if spec.variation_is_dynamic else 0}\n"
+        f"  variationToToggleTo: {spec.variation_to_toggle_to}\n"
         f"  objectType: {OBJECT_TYPE_PLACEABLE_PREFAB}\n"
         f"  tags: {TAG_CAN_BE_SALVAGED}\n"
         f"  rarity: {spec.rarity}\n"
@@ -909,8 +947,12 @@ def graphics_prefab(spec: Placeable) -> str:
     interactable = fid("interactableObject")
     low, high = data_block_address(spec.sprite_asset_path)
 
+    # Two independent traits: anything with a method to call gets an InteractableObject, but only a
+    # crafting station also carries CraftingBuilding's fields. The pylon is the first object that is
+    # one without the other.
+    is_interactive = bool(spec.interact_method)
     is_station = bool(spec.crafts)
-    root_children = [scaler_tf] + ([interactable_tf] if is_station else [])
+    root_children = [scaler_tf] + ([interactable_tf] if is_interactive else [])
     root_script = (
         (FID_MONOSCRIPT_CS, asset_guid(spec.graphics_script))
         if spec.graphics_script
@@ -947,8 +989,7 @@ def graphics_prefab(spec: Placeable) -> str:
         "  shadow: {fileID: 0}\n"
         "  indirectLightEmitters: []\n"
         "  animator: {fileID: 0}\n"
-        # For the pylon this stays empty until 4단계 hangs the E-key toggle off it.
-        + (f"  interactable: {{fileID: {interactable}}}\n" if is_station
+        + (f"  interactable: {{fileID: {interactable}}}\n" if is_interactive
            else "  interactable: {fileID: 0}\n")
         + "  spriteObjects:\n"
         f"  - {{fileID: {sprite_obj}}}\n"
@@ -1013,7 +1054,7 @@ def graphics_prefab(spec: Placeable) -> str:
         "  maskInteraction: 0\n",
     )
 
-    if is_station:
+    if is_interactive:
         body += _game_object(interactable_go, "Interactable", [interactable_tf, interactable])
         body += _transform(interactable_tf, interactable_go, root_tf)
         body += _behaviour(
@@ -1023,13 +1064,13 @@ def graphics_prefab(spec: Placeable) -> str:
             "  requiredFactionToInteract: 0\n"
             "  optionalIcon: {fileID: 0}\n"
             "  optionalOutlineController: {fileID: 0}\n"
-            # Pressing E opens the crafting window; walking away closes it. Both methods are public
-            # on CraftingBuilding (ck-db Pug.Other/CraftingBuilding.cs:166,173), so our otherwise
-            # empty subclass inherits them and needs no code of its own.
             "  onUseActions:\n"
-            + _unity_event(emb, spec.graphics_class, "Use")
-            + "  onTriggerExitActions:\n"
-            + _unity_event(emb, spec.graphics_class, "OnPlayerLeftBuilding")
+            + _unity_event(emb, spec.graphics_class, spec.interact_method)
+            # Only a crafting station needs the leave hook — it closes the window the player opened.
+            # A pylon's toggle has nothing to undo when they walk off.
+            + ("  onTriggerExitActions: []\n" if not is_station else
+               "  onTriggerExitActions:\n"
+               + _unity_event(emb, spec.graphics_class, "OnPlayerLeftBuilding"))
             + "  radius: 2\n"
             "  subInteractingData: []\n"
             "  allowToUseOnlyWhenClaimed: 0\n"
@@ -1050,6 +1091,10 @@ def build_outputs():
     for spec in SPECS:
         out[spec.texture_path] = (REPO / spec.art).read_bytes()
         out[spec.texture_path + ".meta"] = texture_meta(spec.texture_path, spec.pixels_to_units)
+        for suffix, art in spec.variants:
+            variant = spec.variant_texture_path(suffix)
+            out[variant] = (REPO / art).read_bytes()
+            out[variant + ".meta"] = texture_meta(variant, spec.pixels_to_units)
         out[spec.sprite_asset_path] = sprite_asset(spec)
         out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
         out[spec.text_path] = text_data_block(spec)

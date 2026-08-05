@@ -62,8 +62,8 @@ MonoBehaviour:
   objectName: NoBreakZone.Pylon
   initialAmount: 1
   variation: 0
-  variationIsDynamic: 0
-  variationToToggleTo: 0
+  variationIsDynamic: 1
+  variationToToggleTo: 1
   objectType: 800
   tags: 19000000
   rarity: 3

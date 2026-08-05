@@ -31,6 +31,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 9104612821232182646}
+  - {fileID: -8350774937934803754}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &-3010924755944594083
@@ -42,14 +43,14 @@ MonoBehaviour:
   m_GameObject: {fileID: -4965098817951059837}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6f4e9f12d8be4d048a7b574866c31a4f, type: 3}
+  m_Script: {fileID: 11500000, guid: 04b09d4e8db4efd5160ef4e267fbb503, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
   XScaler: {fileID: 9104612821232182646}
   shadow: {fileID: 0}
   indirectLightEmitters: []
   animator: {fileID: 0}
-  interactable: {fileID: 0}
+  interactable: {fileID: -2066128246277101289}
   spriteObjects:
   - {fileID: 6938532809090116551}
   useSharedTransformAnimations: 1
@@ -204,3 +205,72 @@ MonoBehaviour:
   syncSprite: 0
   maskChannel: 0
   maskInteraction: 0
+--- !u!1 &6450163231941844638
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: -8350774937934803754}
+  - component: {fileID: -2066128246277101289}
+  m_Layer: 0
+  m_Name: Interactable
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &-8350774937934803754
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6450163231941844638}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: -5431366880259417845}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &-2066128246277101289
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6450163231941844638}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -1216031652, guid: 548e3dd2d27c1e2d0bdf82f0889cb8a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  weightMultiplier: 1
+  useDiscreteOutlineColor: 0
+  requiredFactionToInteract: 0
+  optionalIcon: {fileID: 0}
+  optionalOutlineController: {fileID: 0}
+  onUseActions:
+  - m_PersistentCalls:
+      m_Calls:
+      - m_Target: {fileID: -3010924755944594083}
+        m_TargetAssemblyTypeName: NoBreakZonePylonGraphics, NoBreakZone
+        m_MethodName: Toggle
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
+  onTriggerExitActions: []
+  radius: 2
+  subInteractingData: []
+  allowToUseOnlyWhenClaimed: 0
+  ignorePlayerDirection: 0
