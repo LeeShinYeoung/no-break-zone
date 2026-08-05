@@ -517,6 +517,31 @@ canCraftObjects:
 다르면 `UpdateGraphicsFromObjectInfo(objectInfo)`를 부른다. `objectInfo` 게터가 현재 variation으로
 조회하므로 그것만으로 맞는 변형이 잡힌다.
 
+### 발광·이펙트·사운드 (5단계)
+
+**발광은 `emissiveTexture`로 간다.** 변형 0과 1이 **같은 본체 텍스처**를 가리키고
+`emissiveTexture`만 다르다. 기획서 §7의 "스프라이트는 한 종류만 만들고 발광 레이어를 켜고 끄는
+방식"이 이것이고, 실루엣이 어긋날 수가 없다.
+
+발광 텍스처는 `genassets.py`가 **초안 두 장의 차분에서 생성한다** — `pylon_off`와 `pylon_on`은
+알파가 완전히 같고 36픽셀(보석)만 다르다.
+
+**이펙트·사운드는 프리팹으로 못 한다.** `EntityMonoBehaviour.soundOptions`에는
+`takeDamageSfx`·`deathSfx`뿐이고 파티클 `spawnOccasion`에도 "변형이 바뀜"이 없다. 코드로 부른다.
+
+```csharp
+API.Effects.PlayPuff(int puffId, Vector3 position, int particleCount = 10);
+API.Audio.PlaySfx(int sfxTableID, Vector3 position, Transform follow = null,
+                  float volume = 1, float pitch = 1, int sfxType = 2);
+```
+
+**둘 다 `int`를 받지만 enum 이름으로 캐스팅한다** — `(int)PuffID.AncientBurst`. ObjectID와 같은
+이유다. 목록은 `Pug.Base/PuffID.cs`·`Pug.Base/SfxID.cs`, 사운드 이름만 뽑힌 것은
+`ck-mods/Docs/CoreKeeper-SfxID-list.txt`.
+
+⚠️ **변형 변화 감지에 "처음 반영" 가드가 필요하다.** 없으면 파일런이 스트리밍될 때마다,
+세이브를 켜짐 상태로 불러올 때마다 소리가 난다. 상태를 *맞추는 것*과 상태가 *바뀐 것*은 다르다.
+
 ### 변형 → 스프라이트 (미검증 추론)
 
 `SpriteAsset.m_staticVariants[0]`이 변형 1이다 — `SpriteObject.SetVariantByIndex`가
