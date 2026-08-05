@@ -1,3 +1,4 @@
+using PugMod;
 using UnityEngine.Scripting;
 
 // Root component of Prefabs/NoBreakZonePylonGraphics.prefab, and the whole of the E-key toggle
@@ -46,9 +47,39 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
             return;
         }
 
+        // The first pass is catching up with a state that already existed — a pylon streaming into
+        // view, or a world loading with it switched on. Only a real change gets the fanfare;
+        // otherwise walking into a base would set every pylon in it off at once.
+        bool wasCatchingUp = _appliedVariation < 0;
         _appliedVariation = variation;
 
         // objectInfo is looked up with the current variation, so this re-picks the sprite variant.
         UpdateGraphicsFromObjectInfo(objectInfo);
+
+        if (!wasCatchingUp)
+        {
+            PlayToggleFeedback(variation == VariationOn);
+        }
+    }
+
+    // 기획서 §7's "활성화 순간 이펙트": a short flash, under a second, and a quieter reverse when
+    // switching off. Runs on whichever client observes the change, which is every client — the
+    // variation is replicated, and this method hangs off the same comparison that repaints.
+    //
+    // 기획서 §7 also forbids the effect reaching the edge of the protected square: "파동이 보호
+    // 범위 경계까지 퍼지게 하지 않는다. 그렇게 하면 껐다 켜는 것만으로 범위를 알 수 있어 렌즈의
+    // 존재 이유가 사라진다." PlayPuff bursts particles at one point and cannot expand to a radius,
+    // so this stays true by construction rather than by tuning.
+    private void PlayToggleFeedback(bool switchedOn)
+    {
+        // Named rather than numbered, for the reason ObjectID taught us: names resolve against the
+        // real game assembly at build time. Chosen to match 기획서 §4's framing of the pylon as a
+        // 고대 유물 같은 장치. (anicentDevicePowerUp is the game's own spelling.)
+        int puff = switchedOn ? (int)PuffID.AncientBurst : (int)PuffID.SmallAncientSmoke;
+        int sfx = switchedOn ? (int)SfxID.anicentDevicePowerUp : (int)SfxID.proximity_sensor_off;
+
+        // Fewer particles on the way down — 기획서 §7 wants the off state to fade rather than pop.
+        API.Effects.PlayPuff(puff, transform.position, switchedOn ? 10 : 5);
+        API.Audio.PlaySfx(sfx, transform.position);
     }
 }
