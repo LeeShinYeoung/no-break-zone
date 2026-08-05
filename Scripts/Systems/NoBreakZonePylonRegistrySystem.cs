@@ -27,10 +27,7 @@ using UnityEngine;
 [UpdateBefore(typeof(NoBreakZoneProtectionSystem))]
 public partial class NoBreakZonePylonRegistrySystem : SystemBase
 {
-    // 기획서 §4. Recorded in save files, so this string is fixed (CLAUDE.md §5). It has to match
-    // ObjectAuthoring.objectName in Prefabs/NoBreakZonePylon.prefab, which Editor/genassets.py
-    // writes from the same value.
-    public const string PylonObjectName = "NoBreakZone.Pylon";
+    public const string PylonObjectName = NoBreakZoneObjectNames.Pylon;
 
     private EntityQuery _unclassified;
     private EntityQuery _pylons;
