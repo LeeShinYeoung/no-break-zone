@@ -627,6 +627,92 @@ SDK의 `TeleportAfterEating` 예제가 그 방식이고, 예제 주석 자체가
 (`PlayerController.GetEquippedSlotTypeForObjectType`), `ClientInput`은 슬롯 로직 이전의 원시
 입력이므로 **든 물건과 무관하게 플래그가 설 것**으로 본다. 리모콘이 반응하지 않으면 여기다.
 
+## 16. 다중 타일 보호 판정 (2026-08-05)
+
+### 원점 타일 하나로는 안 된다
+
+`LocalTransform.Position.RoundToInt2()`는 오브젝트의 **원점 타일**일 뿐이다.
+1×1이면 그게 유일한 타일이라 같지만, 그보다 크면 틀린다.
+
+점유 타일 계산은 게임 것을 그대로 쓴다 (`Pug.Other/DetectRoomSystem.cs:167-192`):
+
+```csharp
+int2 tile = LocalTransform.Position.RoundToInt2();
+ObjectInfo info = PugDatabase.GetObjectInfo(objectID, variation);   // 없으면 null
+int2 size   = new int2(info.prefabTileSize.x,     info.prefabTileSize.y);
+int2 corner = new int2(info.prefabCornerOffset.x, info.prefabCornerOffset.y);
+if (em.HasComponent<DirectionCD>(entity))                            // 회전물
+    directionCD.GetPrefabOffsetAndTileSize(corner, size, out corner, out size);
+tile += corner;
+// 점유 = [tile, tile + size)   ← 반열림. 포함 사각형으로 바꾸려면 -1
+```
+
+- **`GetObjectInfo`는 없는 id에 `null`을 준다.** 1×1 폴백을 두되 **로그를 남긴다** —
+  안 그러면 예전(원점만 보던) 동작으로 조용히 돌아간 것을 알 수 없다
+- `variation`을 넘겨야 한다. 변형에 따라 크기가 다른 오브젝트가 있다
+- Burst가 아닌 관리 `SystemBase`라 blob 뱅크 없이 관리 API를 쓸 수 있다
+
+### 기획서 §6의 두 규칙은 합집합으로 읽는다 (2026-08-05 결정)
+
+| 규칙 | 원문 |
+| --- | --- |
+| 다중 타일 | "모든 타일이 **범위** 안에 들어와야 보호된다" |
+| 겹침 | "**어느 하나**의 켜진 파일런 범위 안에 있으면 보호된다" |
+
+**타일마다 따로 판정하고, 모든 타일이 어느 파일런이든 하나에 덮이면 보호한다.**
+두 파일런의 이음매에 걸친 2×1 작업대는 보호된다. 파일런이 하나면 "한 파일런 기준"과 결과가 같다.
+
+### 거는 쪽과 푸는 쪽이 같은 판정을 써야 한다
+
+둘이 어긋나면 **보호는 걸리는데 영원히 안 풀리는** 오브젝트가 생긴다. 파일런을 꺼도 안 부서지고,
+원인을 인게임에서 알아낼 방법이 없다. `NoBreakZoneProtectionSystem`은 후보 판정과
+`ReleaseUncovered`가 **같은 메서드**를 부른다.
+
+## 17. 현지화와 설정 (2026-08-05)
+
+### 현지화 = TextDataBlock. `Localization.csv`는 런타임에 안 읽힌다
+
+공식 문서 `how-to-localize-your-mod.md`가 명확하다.
+
+- **런타임 조회 키는 TextDataBlock의 이름**이고, `Header`는 `Items`여야 한다
+- `.csv`는 **유니티 에디터에서 임포트할 때만** 쓰는 편의 포맷이다. 문서가 임포트 후
+  "다른 디렉터리로 옮겨 백업하라"고 안내한다
+- 13개 슬롯을 다 채우면 어느 언어에서도 이름이 뜬다 (영어로라도). 비우면 그 언어에서 빈칸
+
+**즉 `Localization/` 폴더는 만들 필요가 없다.** 기획서 §4의 "구조는 13개 언어를 받을 수 있게"는
+3단계에 이미 충족돼 있었다.
+
+### ⚠️ 어느 슬롯이 어느 언어인지 모른다 — 윈도우 필요
+
+13개 주소는 게임 번들 안 `LanguageDataBlock` 에셋의 guid다.
+
+- 13개를 전부 guid로 환원해 `ck-db`·`ck-mods`·CoreLib·SDK 예제를 검색 → **0건**
+- 레퍼런스 모드 중 **비영어로 현지화한 것이 없다**
+
+**알아내는 법:** 유니티 Scriptable Data Editor로 TextDataBlock을 열면 슬롯마다 언어 이름이 보인다.
+한국어의 0-기준 인덱스를 `genassets.py`의 `LANGUAGE_SLOTS`에 적으면 된다.
+
+### 설정은 `API.Config` — `Conf/` 폴더는 우리가 안 만든다
+
+```csharp
+IConfigEntry<T> API.Config.Register<T>(mod, section, description, key, defaultValue);
+entry.Value
+```
+
+파일 위치·형식을 게임이 관리한다. **레퍼런스 모드 중 이걸 쓰는 사례는 없다** — 공식 API지만
+실사용례 없이 문서만 보고 쓴 것이다. 등록 실패 시 상수로 폴백하게 해뒀다.
+
+### "몹 피해 차단"에 새 메커니즘이 필요 없다
+
+8·9장의 두 컴포넌트가 **서로 다른 피해 경로**를 막는다는 것이 그대로 설정이 된다.
+
+| 컴포넌트 | 막는 것 |
+| --- | --- |
+| `IndestructibleCD` | **플레이어발** 피해 (`PlayerController.DealDamageToObject`가 이것만 본다) |
+| `DontDestroyOnZeroHealthCD` | **모든** 피해원의 파괴 (`SetEntitiesDestroyedSystem` 단일 관문) |
+
+**켬 = 둘 다. 끔 = `IndestructibleCD`만.** 미검증 추론이다 — 끈 상태를 인게임에서 본 적 없다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)

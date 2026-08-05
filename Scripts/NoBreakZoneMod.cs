@@ -8,7 +8,7 @@ public class NoBreakZoneMod : IMod
 {
     // The suffix tracks 기획서 13장 stage numbering, which is not the repo's old numbering — the
     // previous value said "stage4" under that older scheme (status.md explains the renumbering).
-    public const string Version = "0.0.1-stage6-complete";
+    public const string Version = "0.0.1-stage7";
 
     public void EarlyInit()
     {
@@ -16,6 +16,7 @@ public class NoBreakZoneMod : IMod
 
     public void Init()
     {
+        NoBreakZoneConfig.Register();
         Debug.Log($"[NoBreakZone] loaded ({Version}) — protection follows switched-on {NoBreakZonePylonRegistrySystem.PylonObjectName}");
     }
 

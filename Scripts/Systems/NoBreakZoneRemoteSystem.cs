@@ -129,10 +129,10 @@ public partial class NoBreakZoneRemoteSystem : SystemBase
                 continue;
             }
 
-            // 기획서 §4: 30 tiles from the player, walls and line of sight ignored — the point is
-            // reaching a pylon you have sealed yourself away from.
+            // 기획서 §4: 30 tiles from the player by default, walls and line of sight ignored —
+            // the point is reaching a pylon you have sealed yourself away from.
             if (!NoBreakZoneRange.IsWithinReach(
-                    player.x, player.y, tile.x, tile.y, NoBreakZoneRange.DefaultRemoteReach))
+                    player.x, player.y, tile.x, tile.y, NoBreakZoneConfig.RemoteReachTiles))
             {
                 break;  // right pylon, too far — and no other pylon shares this tile
             }

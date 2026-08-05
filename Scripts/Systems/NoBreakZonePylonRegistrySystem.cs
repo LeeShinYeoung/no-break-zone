@@ -259,6 +259,13 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
         Debug.Log($"[NoBreakZone] active pylons: {_positions.Length} — re-evaluating (world={World.Name})");
     }
 
+    /// Force the same re-judgement a pylon change causes. Used when something other than the pylons
+    /// alters the answer — currently only the protection diameter setting.
+    public void RequestReevaluation()
+    {
+        InvalidateEvaluatedObjects();
+    }
+
     /// True for one frame after the set of switched-on pylons changed. Read and cleared by
     /// NoBreakZoneProtectionSystem, which runs immediately after this system.
     public bool ConsumeReleaseRequest()

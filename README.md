@@ -3,9 +3,38 @@
 A Core Keeper mod that stops your base from being destroyed by your own pickaxe,
 explosions, and stray attacks — while leaving ore, walls, and crops fully mineable.
 
-> **Status: in development.** Damage blocking works and is verified in game, but it
-> currently applies to *every* placeable object. The Pylon that scopes protection to an
-> area is not built yet. Not published to mod.io or the Workshop.
+> **Status: in development, and largely unverified.** Damage blocking was confirmed in game
+> at the point where it applied to every placeable in the world. Everything since — the
+> pylon, its on/off switch, the workbench, the lens, the remote, and the settings — is
+> written but has never been built or played. Not published to mod.io or the Workshop.
+
+## What it adds
+
+Protection is not global: it comes from a pylon you place and switch on, and it covers a
+square around that pylon. Switch the pylon off and your base is ordinary again, so you can
+remodel it.
+
+| | |
+| --- | --- |
+| **No Break Pylon** | Placeable. Press **E** to switch on or off; the state survives save and load. While it is on, nothing inside its square can be destroyed — and neither can the pylon. |
+| **Pylon Workbench** | Where the three below are made. Itself crafted at an iron workbench. |
+| **Pylon Lens** | Hold it to see the edge of every switched-on pylon's square. Nothing else ever draws it. |
+| **Pylon Remote** | Right-click a pylon from a distance to switch it. For when you have walled yourself out of reach of one. |
+
+Ore, walls, pots and crops stay fully mineable and harvestable inside a protected area —
+that is the one thing the protection rules will not do, because duplicating resources would
+break a save permanently.
+
+## Settings
+
+Registered under `NoBreakZone` / `General`; the game decides where the file lives.
+
+| Key | Default | |
+| --- | --- | --- |
+| `protectionDiameter` | `21` | Width and height in tiles of the square one pylon covers. The pylon stands in the middle, so an even number rounds down. |
+| `blockMobDamage` | `true` | Stop every source of damage. Turn off to stop only what the player does, leaving mobs and explosions able to destroy protected objects. |
+| `showRangeWithLens` | `true` | Draw the outline while the lens is held. |
+| `remoteReachTiles` | `30` | How far the remote reaches. |
 
 ## Install
 
@@ -61,12 +90,29 @@ live under `Editor/` for that reason.
 
 | Path | |
 | --- | --- |
-| `Scripts/` | runtime systems |
-| `Data/` | runtime mod data asset |
+| `Scripts/` | runtime systems, graphics components and converters |
+| `Prefabs/` · `Textures/` · `Data/` | the four objects — **generated**, see below |
+| `Editor/genassets.py` | writes every prefab, sprite asset, text block and texture import from one spec list |
+| `Editor/preflight.py` | static checks that run without Unity |
 | `Editor/` | build tooling and docs — excluded from the mod bundle |
 | `Editor/Docs/` | design, workflow, status, research |
 | `Editor/GameData/` | full object-database dump used to derive the protection rules |
 | `.claude/` | agent harness (see [CLAUDE.md](CLAUDE.md)) |
+
+### Generated assets
+
+Everything under `Prefabs/`, `Textures/` and `Data/` other than the mod definition is written
+by `Editor/genassets.py` from a spec list. **Do not hand-edit those files** — change the spec
+and re-run it. Guids and the 128-bit addresses Core Keeper links sprites and text with are
+derived from each asset's path, so regenerating is a no-op:
+
+```
+python3 Editor/genassets.py            # write or refresh
+python3 Editor/genassets.py --check    # fail if anything on disk is stale
+python3 Editor/preflight.py            # prefab references, banned namespaces, .meta pairs
+```
+
+Neither is a compiler. Type errors only surface in the Windows build.
 
 Project documentation in `Editor/Docs/` is written in Korean.
 

@@ -31,12 +31,21 @@ public static class NoBreakZoneRangeOverlay
     private static readonly List<SpriteRenderer> _markers = new List<SpriteRenderer>();
 
     // Reused every frame — the boundary walk writes into these rather than allocating (see
-    // NoBreakZoneRange.WriteBoundaryTiles). Sized for the default range; a bigger radius from Conf/
-    // in 7단계 truncates rather than overruns.
-    private static int[] _tileX = new int[NoBreakZoneRange.BoundaryTileCount(
-        NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter))];
-    private static int[] _tileZ = new int[NoBreakZoneRange.BoundaryTileCount(
-        NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter))];
+    // NoBreakZoneRange.WriteBoundaryTiles). Grown when the configured range needs more room;
+    // WriteBoundaryTiles truncates rather than overrunning, so a stale size draws a partial ring
+    // instead of throwing.
+    private static int[] _tileX = new int[0];
+    private static int[] _tileZ = new int[0];
+
+    private static void EnsureTileBuffer(int radius)
+    {
+        int needed = NoBreakZoneRange.BoundaryTileCount(radius);
+        if (_tileX.Length < needed)
+        {
+            _tileX = new int[needed];
+            _tileZ = new int[needed];
+        }
+    }
 
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
@@ -68,7 +77,10 @@ public static class NoBreakZoneRangeOverlay
             return;
         }
 
-        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter);
+        // Read from config so the outline always shows the area actually being protected — the two
+        // disagreeing would be worse than no outline at all.
+        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
+        EnsureTileBuffer(radius);
         int2 player = PlayerTile();
         int used = 0;
 
@@ -125,6 +137,13 @@ public static class NoBreakZoneRangeOverlay
 
     private static bool ShouldDraw()
     {
+        // design.md §10. 기획서 §7 already limits the display to the lens; this switches off even
+        // that, for players who would rather never see markers on their floor.
+        if (!NoBreakZoneConfig.ShowRangeWithLens)
+        {
+            return false;
+        }
+
         if (_markerSprite == null)
         {
             if (!_warnedNoSprite)

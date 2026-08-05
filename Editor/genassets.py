@@ -104,6 +104,21 @@ LANGUAGE_ADDRESSES = [
 ]
 PRIMARY_LANGUAGE_INDEX = 2  # the entry the SDK example mirrors into m_prevImportPrimaryEntry
 
+# Which slot above is which language — UNKNOWN, and it is the only thing standing between this mod
+# and the Korean release 기획서 §4 asks for.
+#
+# The addresses are guids of LanguageDataBlock assets inside the game's own bundles. Reversing all
+# thirteen and searching ck-db, ck-mods, CoreLib and the SDK examples turns up nothing, and no
+# reference mod localises to anything but English, so there is nothing to copy.
+#
+# HOW TO FILL THIS IN (Windows, one lookup): open a TextDataBlock of ours in Unity's Scriptable Data
+# Editor. It shows each slot's language by name. Note the position of Korean — 0-based, matching the
+# order of LANGUAGE_ADDRESSES — and put it here. Every Korean string in SPECS then lands in the
+# right place on the next run.
+LANGUAGE_SLOTS = {
+    # "ko": <index>,
+}
+
 
 # ---------------------------------------------------------------------------------------------
 # Derived identity. Every id is a hash of the asset path, so running this twice changes nothing.
@@ -294,11 +309,17 @@ class ObjectSpec:
                  sprite_offset=(0, 0.0625, -0.3125),
                  crafts=(), graphics_script=None, ui_titles=(),
                  variants=(), interact_method=None,
-                 variation_is_dynamic=False, variation_to_toggle_to=0):
+                 variation_is_dynamic=False, variation_to_toggle_to=0,
+                 localized=None):
         self.key = key  # asset base name; also the localization termKey
         self.object_name = object_name  # ObjectID string — 기획서 §4, never change (CLAUDE.md §5)
-        self.title = title
+        self.title = title  # English, and the fallback for every slot without a translation
         self.description = description
+        # {language code: (title, description)}. 기획서 §4 ships English and Korean, and wants the
+        # structure to take all thirteen from the start. Text written here only reaches the asset
+        # once LANGUAGE_SLOTS knows which slot that language is — writing it now means the Windows
+        # session that discovers the mapping does not also have to translate.
+        self.localized = dict(localized or {})
         self.art = art  # source PNG under Editor/Docs/art
         self.object_type = object_type
         self.tile_size = tile_size
@@ -378,6 +399,8 @@ SPECS = [
         object_name="NoBreakZone.Pylon",  # 기획서 §4. Written into saves — changing it breaks them.
         title="No Break Pylon",
         description="Protects nearby objects. While it is on, nothing inside can be destroyed.",
+        localized={"ko": ("파일런",
+                          "주변의 물건을 보호한다. 켜져 있는 동안에는 어떤 충격도 그 안의 것들을 부수지 못한다.")},
         art="Editor/Docs/art/pylon_off.png",
         # 기획서 §4: 1x1 tiles. The draft art is 32px where a tile is 16px; see the note in
         # status.md about keeping it for now and looking at it in game first.
@@ -407,6 +430,7 @@ SPECS = [
         object_name="NoBreakZone.Workbench",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Workbench",
         description="Where the pylon and its tools are made.",
+        localized={"ko": ("파일런 작업대", "파일런과 그에 딸린 도구를 만드는 곳.")},
         art="Editor/Docs/art/workbench.png",
         # 기획서 §4: 2x1 tiles. The draft art is 64x32, so it will draw four tiles wide and two
         # tall over a two-tile footprint — the same sprite question as the pylon, decided the same
@@ -432,6 +456,8 @@ SPECS = [
         object_name="NoBreakZone.Lens",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Lens",
         description="Hold it to see the edge of every active pylon's protection.",
+        localized={"ko": ("파일런 렌즈",
+                          "파일런의 파편을 깎아 만든 렌즈. 들고 있으면 보호의 경계가 드러난다.")},
         art="Editor/Docs/art/lens.png",
         # 기획서 §4 calls it 도구, "손에 드는 물건, 착용 장비가 아님", and it does nothing when
         # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
@@ -450,6 +476,7 @@ SPECS = [
         object_name="NoBreakZone.Remote",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Remote",
         description="Right-click a pylon from a distance to switch it on or off.",
+        localized={"ko": ("파일런 리모콘", "멀리서 파일런을 켜고 끈다. 커서를 올리고 우클릭.")},
         art="Editor/Docs/art/remote.png",
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.
@@ -711,16 +738,36 @@ def sprite_asset(spec: ObjectSpec) -> str:
 
 
 def text_data_block(spec: ObjectSpec) -> str:
-    """Item name and description. LocalizationAuthoring.termKey on the logic prefab points here."""
+    """Item name and description, in every language the game has a slot for.
+
+    This IS the localisation (official docs, how-to-localize-your-mod.md): the runtime looks names
+    up in a TextDataBlock keyed by its own name, under a Header of "Items". A Localization.csv is
+    only an import convenience inside the Unity editor and is never read at runtime — the docs tell
+    you to move it away as a backup once imported.
+
+    Every slot gets English unless a translation exists for that slot's language. Filling all
+    thirteen is what the SDK example does, and it is why an item has a name in every language rather
+    than a blank where its title should be.
+    """
     low, high = data_block_address(spec.text_path)
     keys = "".join(f"    - m_low: {lo}\n      m_high: {hi}\n" for lo, hi in LANGUAGE_ADDRESSES)
-    values = "".join(
-        "    - m_language:\n"
-        + _address("        ", lo, hi)
-        + f"      title: {spec.title}\n"
-        f"      description: {spec.description}\n"
-        for lo, hi in LANGUAGE_ADDRESSES
-    )
+
+    # index -> (title, description), for the languages whose slot we know
+    by_slot = {}
+    for code, (title, description) in spec.localized.items():
+        slot = LANGUAGE_SLOTS.get(code)
+        if slot is not None and 0 <= slot < len(LANGUAGE_ADDRESSES):
+            by_slot[slot] = (title, description)
+
+    values = ""
+    for index, (lo, hi) in enumerate(LANGUAGE_ADDRESSES):
+        title, description = by_slot.get(index, (spec.title, spec.description))
+        values += (
+            "    - m_language:\n"
+            + _address("        ", lo, hi)
+            + f"      title: {title}\n"
+            f"      description: {description}\n"
+        )
     primary_low, primary_high = LANGUAGE_ADDRESSES[PRIMARY_LANGUAGE_INDEX]
     return (
         _scriptable_header(spec.key, FID_TEXT_DATA_BLOCK, GUID_TEXT_BLOCK)
