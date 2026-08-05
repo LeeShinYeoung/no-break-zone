@@ -1,0 +1,98 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &-295717537056623224
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 179539774189540650}
+  - component: {fileID: 4984456758049483901}
+  - component: {fileID: -1851890059128219739}
+  - component: {fileID: 1116097473033622016}
+  m_Layer: 0
+  m_Name: NoBreakZoneLens
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &179539774189540650
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: -295717537056623224}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &4984456758049483901
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: -295717537056623224}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 318086258, guid: 3392f4c23e1d8662d749dabb2361ee02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  objectName: NoBreakZone.Lens
+  initialAmount: 1
+  variation: 0
+  variationIsDynamic: 0
+  variationToToggleTo: 0
+  objectType: 1500
+  tags: 19000000
+  rarity: 3
+  salvageMultiplier: 1
+  graphicalPrefab: {fileID: 0}
+  isCustomScenePrefab: 0
+  additionalSprites: []
+--- !u!114 &-1851890059128219739
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: -295717537056623224}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 244469479, guid: 3392f4c23e1d8662d749dabb2361ee02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  sellValue: -1
+  buyValueMultiplier: 1
+  icon: {fileID: 21300000, guid: 4fb44da871db04fd185dae29829d534d, type: 3}
+  iconOffset: {x: 0, y: 0}
+  smallIcon: {fileID: 21300000, guid: 4fb44da871db04fd185dae29829d534d, type: 3}
+  isStackable: 0
+  requiredObjectsToCraft:
+  - objectName: IronBar
+    amount: 6
+  - objectName: AncientGemstone
+    amount: 1
+  craftingTime: 3.0
+--- !u!114 &1116097473033622016
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: -295717537056623224}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 1596865243, guid: 3392f4c23e1d8662d749dabb2361ee02, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  termKey: NoBreakZoneLens
+  languageGenders: []
