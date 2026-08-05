@@ -81,6 +81,7 @@ FID_SPRITE_MANIFEST = 1876717734
 FID_TEXT_DATA_BLOCK = 2108018792
 
 OBJECT_TYPE_PLACEABLE_PREFAB = 800  # ObjectType.PlaceablePrefab
+OBJECT_TYPE_KEY_ITEM = 1500  # ObjectType.KeyItem — held, no mechanical use of its own
 TAG_CAN_BE_SALVAGED = "19000000"  # List<ObjectCategoryTag>{CanBeSalvaged}; Unity's packed int form
 
 # The game's 13 language addresses, copied verbatim from the SDK WorkbenchExample TextDataBlock.
@@ -239,10 +240,20 @@ def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
 # The spec. 6단계 adds lens/remote/workbench by appending here, not by writing YAML.
 # ---------------------------------------------------------------------------------------------
 
-class Placeable:
-    """One placeable object: logic prefab + graphics prefab + sprite + text + texture import."""
+class ObjectSpec:
+    """One object the mod adds, in either of the two shapes the game recognises.
+
+    A PLACEABLE (objectType 800) is a thing in the world: logic prefab, graphics prefab, SpriteAsset,
+    manifest entry, physics, netcode ghost, state machine.
+
+    An ITEM (anything else — the lens is KeyItem) only ever sits in an inventory or a hand, and
+    needs none of that. The SDK's own Sword1 carries three components — ObjectAuthoring,
+    InventoryItemAuthoring, LocalizationAuthoring — with graphicalPrefab left at 0 and no SpriteAsset
+    anywhere, its icon pointing straight at a sprite in the PNG.
+    """
 
     def __init__(self, key, object_name, title, description, art,
+                 object_type=OBJECT_TYPE_PLACEABLE_PREFAB,
                  tile_size=(1, 1), pixels_to_units=16, stackable=True, rarity=3,
                  health=10, recipe=(), crafting_time=3.0,
                  sprite_offset=(0, 0.0625, -0.3125),
@@ -254,6 +265,7 @@ class Placeable:
         self.title = title
         self.description = description
         self.art = art  # source PNG under Editor/Docs/art
+        self.object_type = object_type
         self.tile_size = tile_size
         self.pixels_to_units = pixels_to_units
         self.stackable = stackable
@@ -290,6 +302,12 @@ class Placeable:
         self.variation_to_toggle_to = variation_to_toggle_to
 
     @property
+    def is_placeable(self):
+        """Drives which half of the component set the logic prefab gets, and whether there is any
+        graphics prefab or SpriteAsset to generate at all."""
+        return self.object_type == OBJECT_TYPE_PLACEABLE_PREFAB
+
+    @property
     def graphics_class(self):
         return pathlib.PurePosixPath(self.graphics_script).stem if self.graphics_script else None
 
@@ -320,7 +338,7 @@ class Placeable:
 
 
 SPECS = [
-    Placeable(
+    ObjectSpec(
         key="NoBreakZonePylon",
         object_name="NoBreakZone.Pylon",  # 기획서 §4. Written into saves — changing it breaks them.
         title="No Break Pylon",
@@ -349,7 +367,7 @@ SPECS = [
         graphics_script="Scripts/Graphics/NoBreakZonePylonGraphics.cs",
         interact_method="Toggle",
     ),
-    Placeable(
+    ObjectSpec(
         key="NoBreakZoneWorkbench",
         object_name="NoBreakZone.Workbench",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Workbench",
@@ -368,11 +386,29 @@ SPECS = [
         # the bench belongs to the game rather than to us.
         recipe=[("IronBar", 12), ("Wood", 20), ("MechanicalPart", 1)],
         crafting_time=3.0,
-        # 기획서 §4 lists pylon, lens and remote. The latter two do not exist until 6단계.
-        crafts=["NoBreakZone.Pylon"],
+        # 기획서 §4 lists pylon, lens and remote. The remote is still to come.
+        crafts=["NoBreakZone.Pylon", "NoBreakZone.Lens"],
         graphics_script="Scripts/Graphics/NoBreakZoneWorkbenchGraphics.cs",
         interact_method="Use",  # CraftingBuilding.Use — opens the crafting window
         ui_titles=["gear", "crafting", "base"],  # same three terms the SDK workbench uses
+    ),
+    ObjectSpec(
+        key="NoBreakZoneLens",
+        object_name="NoBreakZone.Lens",  # 기획서 §4. Written into saves — do not change.
+        title="Pylon Lens",
+        description="Hold it to see the edge of every active pylon's protection.",
+        art="Editor/Docs/art/lens.png",
+        # 기획서 §4 calls it 도구, "손에 드는 물건, 착용 장비가 아님", and it does nothing when
+        # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
+        # type for exactly that: carried, no mechanical use of its own.
+        object_type=OBJECT_TYPE_KEY_ITEM,
+        pixels_to_units=32,
+        # 기획서 §4: "렌즈와 리모콘은 스택되지 않는다. 여러 개를 가질 이유가 없는 물건이고,
+        # 겹쳐지면 인벤토리에서 개수만 헷갈린다."
+        stackable=False,
+        rarity=3,
+        recipe=[("IronBar", 6), ("AncientGemstone", 1)],  # 기획서 §4: 철 + 고대 보석 1
+        crafting_time=3.0,
     ),
 ]
 
@@ -569,7 +605,7 @@ def _null_address(indent: str) -> str:
     return _address(indent, 0, 0)
 
 
-def sprite_asset(spec: Placeable) -> str:
+def sprite_asset(spec: ObjectSpec) -> str:
     """SpriteAsset: the thing a graphics prefab's SpriteObject resolves through its m_address.
 
     m_staticSpriteData is variation 0; m_staticVariants holds variation 1 upwards, which is how the
@@ -624,7 +660,7 @@ def sprite_asset(spec: Placeable) -> str:
     )
 
 
-def text_data_block(spec: Placeable) -> str:
+def text_data_block(spec: ObjectSpec) -> str:
     """Item name and description. LocalizationAuthoring.termKey on the logic prefab points here."""
     low, high = data_block_address(spec.text_path)
     keys = "".join(f"    - m_low: {lo}\n      m_high: {hi}\n" for lo, hi in LANGUAGE_ADDRESSES)
@@ -784,7 +820,7 @@ PHYSICS_SHAPE_BODY = (
 )
 
 
-def _crafting_authoring_body(spec: Placeable) -> str:
+def _crafting_authoring_body(spec: ObjectSpec) -> str:
     """CraftingAuthoring — the list of things this station makes.
 
     Modded objects go in by name (moddedObjectID) with objectID left at 0, because a mod's numeric
@@ -827,10 +863,14 @@ def _crafting_authoring_body(spec: Placeable) -> str:
     )
 
 
-def logic_prefab(spec: Placeable) -> str:
-    """The ECS side: what the object IS. Component set follows the SDK workbench, minus
-    RotationAuthoring (nothing we make turns to face the player) and with CraftingAuthoring only on
-    stations."""
+def logic_prefab(spec: ObjectSpec) -> str:
+    """The ECS side: what the object IS.
+
+    A placeable follows the SDK workbench, minus RotationAuthoring (nothing we make turns to face
+    the player) and with CraftingAuthoring only on stations. An item stops after the three the SDK's
+    Sword1 carries — everything below them describes a thing that exists in the world, which an item
+    in a bag does not.
+    """
     path = spec.logic_path
     fid = lambda node: local_file_id(path, node)  # noqa: E731
 
@@ -842,22 +882,26 @@ def logic_prefab(spec: Placeable) -> str:
     ]
     if spec.crafts:
         parts.append(("crafting", None))
-    parts += [
-        ("mineable", None),
-        ("health", None),
-        ("placeable", None),
-        ("ignoreVertexOffsets", None),
-        ("state", None),
-        ("idleState", None),
-        ("tookDamageState", None),
-        ("deathState", None),
-        ("damageReduction", None),
-        ("localization", None),
-        ("animSupport", None),
-        ("physicsShape", None),
-        ("ghost", None),
-        ("marker", None),
-    ]
+    if spec.is_placeable:
+        parts += [
+            ("mineable", None),
+            ("health", None),
+            ("placeable", None),
+            ("ignoreVertexOffsets", None),
+            ("state", None),
+            ("idleState", None),
+            ("tookDamageState", None),
+            ("deathState", None),
+            ("damageReduction", None),
+        ]
+    parts.append(("localization", None))
+    if spec.is_placeable:
+        parts += [
+            ("animSupport", None),
+            ("physicsShape", None),
+            ("ghost", None),
+            ("marker", None),
+        ]
     ids = {name: fid(name) for name, _ in parts}
 
     recipe_block = "  requiredObjectsToCraft:" + (
@@ -883,12 +927,16 @@ def logic_prefab(spec: Placeable) -> str:
         "  variation: 0\n"
         f"  variationIsDynamic: {1 if spec.variation_is_dynamic else 0}\n"
         f"  variationToToggleTo: {spec.variation_to_toggle_to}\n"
-        f"  objectType: {OBJECT_TYPE_PLACEABLE_PREFAB}\n"
+        f"  objectType: {spec.object_type}\n"
         f"  tags: {TAG_CAN_BE_SALVAGED}\n"
         f"  rarity: {spec.rarity}\n"
         "  salvageMultiplier: 1\n"
-        f"  graphicalPrefab: {{fileID: {graphics_root}, guid: {asset_guid(spec.graphics_path)}, type: 3}}\n"
-        "  isCustomScenePrefab: 0\n"
+        # An item has no presence in the world, so no graphics prefab — the SDK's Sword1 leaves this
+        # at 0 the same way.
+        + (f"  graphicalPrefab: {{fileID: {graphics_root}, "
+           f"guid: {asset_guid(spec.graphics_path)}, type: 3}}\n"
+           if spec.is_placeable else "  graphicalPrefab: {fileID: 0}\n")
+        + "  isCustomScenePrefab: 0\n"
         "  additionalSprites: []\n",
     )
     body += _authoring(
@@ -905,6 +953,13 @@ def logic_prefab(spec: Placeable) -> str:
     if spec.crafts:
         body += _authoring(ids["crafting"], root, "CraftingAuthoring",
                            _crafting_authoring_body(spec))
+    if not spec.is_placeable:
+        # Everything past here describes something standing in the world. An item ends with its
+        # name, exactly as the SDK's Sword1 does.
+        body += _authoring(ids["localization"], root, "LocalizationAuthoring",
+                           f"  termKey: {spec.key}\n  languageGenders: []\n")
+        return body
+
     body += _authoring(
         ids["mineable"], root, "MineableAuthoring",
         "  playFailedEffectOnZeroDamage: 0\n",
@@ -1026,7 +1081,7 @@ def _unity_event(target: int, type_name: str, method: str) -> str:
     )
 
 
-def graphics_prefab(spec: Placeable) -> str:
+def graphics_prefab(spec: ObjectSpec) -> str:
     """The rendering side: root -> XScaler -> SpriteObject, plus an Interactable on a station.
 
     Structure follows ck-mods ConveyorTunnelVisual (the minimal working shape) with the field set of
@@ -1200,16 +1255,21 @@ def build_outputs():
             variant = spec.variant_texture_path(suffix)
             out[variant] = derive_emissive(REPO / spec.art, REPO / lit_art)
             out[variant + ".meta"] = texture_meta(variant, spec.pixels_to_units)
-        out[spec.sprite_asset_path] = sprite_asset(spec)
-        out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
         out[spec.text_path] = text_data_block(spec)
         out[spec.text_path + ".meta"] = asset_meta(spec.text_path)
         out[spec.logic_path] = logic_prefab(spec)
         out[spec.logic_path + ".meta"] = prefab_meta(spec.logic_path)
-        out[spec.graphics_path] = graphics_prefab(spec)
-        out[spec.graphics_path + ".meta"] = prefab_meta(spec.graphics_path)
 
-    out["SpriteAssetManifest.asset"] = sprite_asset_manifest(SPECS)
+        # A SpriteAsset exists to draw something in the world, and a graphics prefab to hold it.
+        # An item has neither: its icon points straight at the PNG's sprite, the way Sword1's does.
+        if spec.is_placeable:
+            out[spec.sprite_asset_path] = sprite_asset(spec)
+            out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
+            out[spec.graphics_path] = graphics_prefab(spec)
+            out[spec.graphics_path + ".meta"] = prefab_meta(spec.graphics_path)
+
+    out["SpriteAssetManifest.asset"] = sprite_asset_manifest(
+        [s for s in SPECS if s.is_placeable])
     out["SpriteAssetManifest.asset.meta"] = asset_meta("SpriteAssetManifest.asset")
 
     return {k: v if isinstance(v, bytes) else v.encode("utf-8") for k, v in sorted(out.items())}

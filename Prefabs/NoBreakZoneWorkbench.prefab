@@ -141,6 +141,33 @@ MonoBehaviour:
       hydraBossNatureKilled: 0
       hydraBossSeaKilled: 0
       hydraBossDesertKilled: 0
+  - objectID: 0
+    moddedObjectID: NoBreakZone.Lens
+    amount: 1
+    craftingConsumesEntityAmount: 0
+    entityAmountToConsume: 0
+    allowCraftingNone: 0
+    craftingTime: 3.0
+    hasPrerequisites: 0
+    prerequisites:
+      contentBundlePresent:
+        hasValue: 0
+        value:
+          m_address:
+            m_low: 0
+            m_high: 0
+      contentBundleAbsent:
+        hasValue: 0
+        value:
+          m_address:
+            m_low: 0
+            m_high: 0
+      birdBossKilled: 0
+      octopusBossKilled: 0
+      scarabBossKilled: 0
+      hydraBossNatureKilled: 0
+      hydraBossSeaKilled: 0
+      hydraBossDesertKilled: 0
   includeCraftedObjectsFromBuildings: []
   extractableType: 0
   minMaxRandomDefaultExtractedOutputAmount: {x: 0, y: 0}
