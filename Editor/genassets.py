@@ -30,6 +30,7 @@ the Windows build and by looking at the thing in game (CLAUDE.md §2).
 import argparse
 import hashlib
 import pathlib
+import re
 import struct
 import sys
 import uuid
@@ -59,6 +60,14 @@ GUID_GHOST = "7c79d771cedb4794bf100ce60df5f764"  # NetCode GhostAuthoringCompone
 GUID_ANIM_SUPPORT = "f8b40f5d7f8d7c18ee25ec4e04143ad5"  # orientation/animation support (both refs)
 GUID_EMPTY_MARKER = "c16549610bfe4458aa9389201d072bb6"  # fieldless marker present on both refs
 GUID_SPRITE_MATERIAL = "571bf3c761ee86c4f9d8e65be27151be"  # SpriteObject.material, both refs
+GUID_PUG_OTHER = "548e3dd2d27c1e2d0bdf82f0889cb8a7"  # InteractableObject (SDK WorkbenchExample)
+FID_INTERACTABLE_OBJECT = -1216031652
+
+# The assembly our own MonoBehaviours compile into — NoBreakZone.asmdef's "name". UnityEvent stores
+# its target as "<type>, <assembly>", so this has to match or the call fails to resolve at runtime.
+# (The SDK's own workbench says "WorkBenchGraphical, ItemExample" while that script lives under
+# WorkbenchExample.asmdef — a stale name left behind when the script moved. Do not copy that.)
+MOD_ASSEMBLY = "NoBreakZone"
 
 # fileIDs that are not derived from a class name.
 FID_MONOSCRIPT_CS = 11500000  # class lives in a .cs, not a .dll
@@ -138,7 +147,8 @@ class Placeable:
     def __init__(self, key, object_name, title, description, art,
                  tile_size=(1, 1), pixels_to_units=16, stackable=True, rarity=3,
                  health=10, recipe=(), crafting_time=3.0,
-                 sprite_offset=(0, 0.0625, -0.3125)):
+                 sprite_offset=(0, 0.0625, -0.3125),
+                 crafts=(), graphics_script=None, ui_titles=()):
         self.key = key  # asset base name; also the localization termKey
         self.object_name = object_name  # ObjectID string — 기획서 §4, never change (CLAUDE.md §5)
         self.title = title
@@ -155,6 +165,20 @@ class Placeable:
         # is 16x18 rather than our size, so this is a starting point to eyeball at 체크포인트 1 —
         # not a value anybody verified for this sprite.
         self.sprite_offset = sprite_offset
+
+        # A crafting station. Non-empty means the logic prefab gets CraftingAuthoring and the
+        # graphics prefab grows an InteractableObject so E opens the crafting UI.
+        self.crafts = list(crafts)  # [objectName] — modded ids, resolved by name at bake time
+        # Repo-relative .cs whose class becomes the graphics prefab's root component. Needed for a
+        # station because the root has to derive from CraftingBuilding; None uses stock
+        # EntityMonoBehaviour, which is all a plain placeable needs.
+        self.graphics_script = graphics_script
+        # I2 localization terms for the crafting window header, as the SDK example uses them.
+        self.ui_titles = list(ui_titles)
+
+    @property
+    def graphics_class(self):
+        return pathlib.PurePosixPath(self.graphics_script).stem if self.graphics_script else None
 
     # --- paths -------------------------------------------------------------------------------
     @property
@@ -197,6 +221,30 @@ SPECS = [
         # until the workbench exists (6단계), so this recipe is inert for now.
         recipe=[("IronBar", 8), ("AncientGemstone", 1), ("MechanicalPart", 2)],
         crafting_time=3.0,
+    ),
+    Placeable(
+        key="NoBreakZoneWorkbench",
+        object_name="NoBreakZone.Workbench",  # 기획서 §4. Written into saves — do not change.
+        title="Pylon Workbench",
+        description="Where the pylon and its tools are made.",
+        art="Editor/Docs/art/workbench.png",
+        # 기획서 §4: 2x1 tiles. The draft art is 64x32, so it will draw four tiles wide and two
+        # tall over a two-tile footprint — the same sprite question as the pylon, decided the same
+        # way: look at it in game first.
+        tile_size=(2, 1),
+        pixels_to_units=32,
+        stackable=True,
+        rarity=3,
+        health=10,
+        # 기획서 §4: iron + wood + one mechanical part. Made at a vanilla iron-tier bench, which
+        # NoBreakZoneWorkbenchRecipeInjectionConverter arranges — nothing in this file can, because
+        # the bench belongs to the game rather than to us.
+        recipe=[("IronBar", 12), ("Wood", 20), ("MechanicalPart", 1)],
+        crafting_time=3.0,
+        # 기획서 §4 lists pylon, lens and remote. The latter two do not exist until 6단계.
+        crafts=["NoBreakZone.Pylon"],
+        graphics_script="Scripts/Graphics/NoBreakZoneWorkbenchGraphics.cs",
+        ui_titles=["gear", "crafting", "base"],  # same three terms the SDK workbench uses
     ),
 ]
 
@@ -593,10 +641,53 @@ PHYSICS_SHAPE_BODY = (
 )
 
 
+def _crafting_authoring_body(spec: Placeable) -> str:
+    """CraftingAuthoring — the list of things this station makes.
+
+    Modded objects go in by name (moddedObjectID) with objectID left at 0, because a mod's numeric
+    id does not exist until the game assigns one at load. That is how the SDK example refers to its
+    own items, and it is why the pylon can be listed here without any id plumbing.
+    """
+    entries = "".join(
+        "  - objectID: 0\n"
+        f"    moddedObjectID: {name}\n"
+        "    amount: 1\n"
+        "    craftingConsumesEntityAmount: 0\n"
+        "    entityAmountToConsume: 0\n"
+        "    allowCraftingNone: 0\n"
+        f"    craftingTime: {spec.crafting_time}\n"
+        "    hasPrerequisites: 0\n"
+        "    prerequisites:\n"
+        "      contentBundlePresent:\n"
+        "        hasValue: 0\n"
+        "        value:\n" + _null_address("          ")
+        + "      contentBundleAbsent:\n"
+        "        hasValue: 0\n"
+        "        value:\n" + _null_address("          ")
+        + "      birdBossKilled: 0\n"
+        "      octopusBossKilled: 0\n"
+        "      scarabBossKilled: 0\n"
+        "      hydraBossNatureKilled: 0\n"
+        "      hydraBossSeaKilled: 0\n"
+        "      hydraBossDesertKilled: 0\n"
+        for name in spec.crafts
+    )
+    return (
+        "  craftingType: 0\n"
+        "  showLoopEffectOnOutputSlot: 0\n"
+        "  allInventoryIsForSingleCraft: 0\n"
+        "  canCraftObjects:\n" + entries
+        + "  includeCraftedObjectsFromBuildings: []\n"
+        "  extractableType: 0\n"
+        "  minMaxRandomDefaultExtractedOutputAmount: {x: 0, y: 0}\n"
+        "  minMaxRandomDefaultCraftingTime: {x: 0, y: 0}\n"
+    )
+
+
 def logic_prefab(spec: Placeable) -> str:
-    """The ECS side: what the object IS. Component set follows the SDK workbench minus the parts
-    that only make sense for a crafting station (CraftingAuthoring) or a rotating object
-    (RotationAuthoring)."""
+    """The ECS side: what the object IS. Component set follows the SDK workbench, minus
+    RotationAuthoring (nothing we make turns to face the player) and with CraftingAuthoring only on
+    stations."""
     path = spec.logic_path
     fid = lambda node: local_file_id(path, node)  # noqa: E731
 
@@ -605,6 +696,10 @@ def logic_prefab(spec: Placeable) -> str:
     parts = [
         ("object", None),
         ("item", None),
+    ]
+    if spec.crafts:
+        parts.append(("crafting", None))
+    parts += [
         ("mineable", None),
         ("health", None),
         ("placeable", None),
@@ -664,6 +759,9 @@ def logic_prefab(spec: Placeable) -> str:
         + recipe_block
         + f"  craftingTime: {spec.crafting_time}\n",
     )
+    if spec.crafts:
+        body += _authoring(ids["crafting"], root, "CraftingAuthoring",
+                           _crafting_authoring_body(spec))
     body += _authoring(
         ids["mineable"], root, "MineableAuthoring",
         "  playFailedEffectOnZeroDamage: 0\n",
@@ -760,12 +858,46 @@ def logic_prefab(spec: Placeable) -> str:
     return body
 
 
+def _unity_event(target: int, type_name: str, method: str) -> str:
+    """One persistent UnityEvent call, as the inspector serialises it.
+
+    m_TargetAssemblyTypeName is a plain string Unity resolves by name, so preflight cannot check it
+    and a typo shows up only as an interaction that silently does nothing. m_Mode 1 is "no argument"
+    and m_CallState 2 is "run in play mode and at runtime" — both copied from the SDK workbench.
+    """
+    return (
+        "  - m_PersistentCalls:\n"
+        "      m_Calls:\n"
+        f"      - m_Target: {{fileID: {target}}}\n"
+        f"        m_TargetAssemblyTypeName: {type_name}, {MOD_ASSEMBLY}\n"
+        f"        m_MethodName: {method}\n"
+        "        m_Mode: 1\n"
+        "        m_Arguments:\n"
+        "          m_ObjectArgument: {fileID: 0}\n"
+        "          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine\n"
+        "          m_IntArgument: 0\n"
+        "          m_FloatArgument: 0\n"
+        "          m_StringArgument: \n"
+        "          m_BoolArgument: 0\n"
+        "        m_CallState: 2\n"
+    )
+
+
 def graphics_prefab(spec: Placeable) -> str:
-    """The rendering side: root EntityMonoBehaviour -> XScaler -> SpriteObject.
+    """The rendering side: root -> XScaler -> SpriteObject, plus an Interactable on a station.
 
     Structure follows ck-mods ConveyorTunnelVisual (the minimal working shape) with the field set of
-    the newer SDK example. No subclass script is needed — the stock EntityMonoBehaviour is enough
-    until 5단계 adds glow and 4단계 adds interaction.
+    the newer SDK example. A plain placeable uses the stock EntityMonoBehaviour as its root; a
+    station points at one of our own scripts instead, because the root has to derive from
+    CraftingBuilding for the crafting UI to open.
+
+    WHY A SUBCLASS RATHER THAN STOCK CraftingBuilding: a prefab names a game class in one of two
+    ways — {fileID: 11500000, guid: <that .cs's meta guid>} for a loose script, or
+    {fileID: <hash of the class name>, guid: <assembly>} for one compiled into a dll. Both forms
+    appear for Pug.Other classes (EntityMonoBehaviour is the first, InteractableObject the second)
+    and no reference prefab uses stock CraftingBuilding, so which one it wants is unknown. Pointing
+    at our own script sidesteps the question: we own that .cs, so it is the first form by
+    construction. The SDK example subclasses it too.
     """
     path = spec.graphics_path
     fid = lambda node: local_file_id(path, node)  # noqa: E731
@@ -773,20 +905,52 @@ def graphics_prefab(spec: Placeable) -> str:
     root, root_tf, emb = fid("root"), fid("rootTransform"), fid("entityMonoBehaviour")
     scaler, scaler_tf = fid("xscaler"), fid("xscalerTransform")
     sprite, sprite_tf, sprite_obj = fid("sprite"), fid("spriteTransform"), fid("spriteObject")
+    interactable_go, interactable_tf = fid("interactable"), fid("interactableTransform")
+    interactable = fid("interactableObject")
     low, high = data_block_address(spec.sprite_asset_path)
+
+    is_station = bool(spec.crafts)
+    root_children = [scaler_tf] + ([interactable_tf] if is_station else [])
+    root_script = (
+        (FID_MONOSCRIPT_CS, asset_guid(spec.graphics_script))
+        if spec.graphics_script
+        else (FID_MONOSCRIPT_CS, GUID_ENTITY_MB)
+    )
+
+    # CraftingBuilding's own serialized fields sit after EntityMonoBehaviour's, in this order
+    # (ck-db Pug.Other/CraftingBuilding.cs:234-251). An empty title list would leave the crafting
+    # window unlabelled, so the SDK's three terms are reused.
+    titles = "".join(
+        f"    - mTerm: {term}\n"
+        "      mRTL_IgnoreArabicFix: 0\n"
+        "      mRTL_MaxLineLength: 0\n"
+        "      mRTL_ConvertNumbers: 0\n"
+        "      m_DontLocalizeParameters: 0\n"
+        for term in spec.ui_titles
+    )
+    crafting_fields = (
+        "  hideRecipes: 0\n"
+        "  electricitySprite: {fileID: 0}\n"  # 기획서 §5: no power needed
+        "  defaultUISettings:\n"
+        + ("    titles: []\n" if not titles else "    titles:\n" + titles)
+        + "    craftingUIBackgroundVariation: 0\n"
+        "  buildingSpecificUISettings: []\n"
+        "  craftingCategoryWindowInfos: []\n"
+    ) if is_station else ""
 
     body = YAML_HEADER
     body += _game_object(root, f"{spec.key}Graphics", [root_tf, emb])
-    body += _transform(root_tf, root, 0, children=[scaler_tf])
+    body += _transform(root_tf, root, 0, children=root_children)
     body += _behaviour(
-        emb, root, FID_MONOSCRIPT_CS, GUID_ENTITY_MB,
+        emb, root, root_script[0], root_script[1],
         f"  XScaler: {{fileID: {scaler_tf}}}\n"
         "  shadow: {fileID: 0}\n"
         "  indirectLightEmitters: []\n"
         "  animator: {fileID: 0}\n"
-        # 4단계 hangs an InteractableObject here for the E-key toggle.
-        "  interactable: {fileID: 0}\n"
-        "  spriteObjects:\n"
+        # For the pylon this stays empty until 4단계 hangs the E-key toggle off it.
+        + (f"  interactable: {{fileID: {interactable}}}\n" if is_station
+           else "  interactable: {fileID: 0}\n")
+        + "  spriteObjects:\n"
         f"  - {{fileID: {sprite_obj}}}\n"
         "  useSharedTransformAnimations: 1\n"
         "  reskinOptions: []\n"
@@ -813,7 +977,8 @@ def graphics_prefab(spec: Placeable) -> str:
         "  outlineControllers: []\n"
         "  hasDisableableParticles: 0\n"
         "  previousHealth: 0\n"
-        "  m_spriteObjectOrientationHash: 0\n",
+        "  m_spriteObjectOrientationHash: 0\n"
+        + crafting_fields,
     )
     body += _game_object(scaler, "XScaler", [scaler_tf])
     body += _transform(scaler_tf, scaler, root_tf, children=[sprite_tf])
@@ -847,6 +1012,30 @@ def graphics_prefab(spec: Placeable) -> str:
         "  maskChannel: 0\n"
         "  maskInteraction: 0\n",
     )
+
+    if is_station:
+        body += _game_object(interactable_go, "Interactable", [interactable_tf, interactable])
+        body += _transform(interactable_tf, interactable_go, root_tf)
+        body += _behaviour(
+            interactable, interactable_go, FID_INTERACTABLE_OBJECT, GUID_PUG_OTHER,
+            "  weightMultiplier: 1\n"
+            "  useDiscreteOutlineColor: 0\n"
+            "  requiredFactionToInteract: 0\n"
+            "  optionalIcon: {fileID: 0}\n"
+            "  optionalOutlineController: {fileID: 0}\n"
+            # Pressing E opens the crafting window; walking away closes it. Both methods are public
+            # on CraftingBuilding (ck-db Pug.Other/CraftingBuilding.cs:166,173), so our otherwise
+            # empty subclass inherits them and needs no code of its own.
+            "  onUseActions:\n"
+            + _unity_event(emb, spec.graphics_class, "Use")
+            + "  onTriggerExitActions:\n"
+            + _unity_event(emb, spec.graphics_class, "OnPlayerLeftBuilding")
+            + "  radius: 2\n"
+            "  subInteractingData: []\n"
+            "  allowToUseOnlyWhenClaimed: 0\n"
+            "  ignorePlayerDirection: 0\n",
+        )
+
     return body
 
 
@@ -892,11 +1081,49 @@ def build_folder_metas(owned):
     return {f + ".meta": folder_meta(f).encode("utf-8") for f in sorted(folders)}
 
 
+def check_referenced_scripts():
+    """A prefab pointing at one of our scripts must use that file's real guid.
+
+    Scripts live under Scripts/ and are not generated here, so their .meta is written by hand (or by
+    Unity) while the prefab reference is computed. If the two drift the component silently vanishes
+    from the prefab, which is the sort of thing that only shows up as "the workbench does not open".
+    """
+    problems = []
+    for spec in SPECS:
+        if not spec.graphics_script:
+            continue
+
+        source = REPO / spec.graphics_script
+        meta = REPO / (spec.graphics_script + ".meta")
+        if not source.exists():
+            problems.append(f"{spec.graphics_script}: referenced by {spec.key} but does not exist")
+            continue
+        if not meta.exists():
+            problems.append(f"{spec.graphics_script}: missing .meta")
+            continue
+
+        found = re.search(r"^guid: (\w+)", meta.read_text(encoding="utf-8"), re.MULTILINE)
+        expected = asset_guid(spec.graphics_script)
+        if not found or found.group(1) != expected:
+            problems.append(
+                f"{spec.graphics_script}.meta: guid is {found.group(1) if found else 'missing'}, "
+                f"but prefabs reference {expected}"
+            )
+    return problems
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true",
                         help="report stale files and exit non-zero instead of writing")
     args = parser.parse_args()
+
+    script_problems = check_referenced_scripts()
+    if script_problems:
+        print(f"FAIL — {len(script_problems)} problem(s) before generating:")
+        for problem in script_problems:
+            print(f"  - {problem}")
+        return 1
 
     outputs = build_outputs()
     written, unchanged, stale = [], [], []

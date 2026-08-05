@@ -14,5 +14,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   spriteAssets:
   - {fileID: 11400000, guid: 0b4d2f7717d77c819df51029bafac21e, type: 2}
+  - {fileID: 11400000, guid: 487bca4f2cf545f07e3dd154c083b014, type: 2}
   gradientMaps: []
   transformAnimations: []
