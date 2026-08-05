@@ -51,6 +51,18 @@ BANNED_NAMESPACES = [
     "System.AppDomain",
 ]
 
+# Reflection reached through a method call names no namespace, so the list above cannot see it.
+# obj.GetType().Name compiles to System.Reflection.MemberInfo::get_Name and the safety check
+# rejected the whole assembly for it -- the mod did not load at all, over one log line.
+BANNED_CALLS = [
+    (".GetType()", "System.Reflection through GetType()"),
+    (".GetMethod(", "System.Reflection member lookup"),
+    (".GetProperty(", "System.Reflection member lookup"),
+    (".GetField(", "System.Reflection member lookup"),
+    (".GetMembers(", "System.Reflection member lookup"),
+    (".InvokeMember(", "System.Reflection invocation"),
+]
+
 # Everything under these needs a sibling .meta. Dot-directories are invisible to Unity (CLAUDE.md
 # §1-3) and so is the meta file itself.
 ASSET_ROOTS = ["Scripts", "Data", "Prefabs", "Textures", "Editor", "Localization", "Conf"]
@@ -161,6 +173,12 @@ def check_banned_namespaces(problems):
                 if banned in code:
                     problems.append(
                         f"{path.relative_to(REPO)}:{line_no}: {banned} is rejected by the mod safety check"
+                    )
+            for call, why in BANNED_CALLS:
+                if call in code:
+                    problems.append(
+                        f"{path.relative_to(REPO)}:{line_no}: '{call}' is {why}, "
+                        "rejected by the mod safety check"
                     )
     return checked
 
