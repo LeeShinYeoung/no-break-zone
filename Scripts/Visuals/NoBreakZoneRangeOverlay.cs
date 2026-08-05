@@ -38,6 +38,19 @@ public static class NoBreakZoneRangeOverlay
     /// or a guid at runtime, only the loaded objects.
     public static void RegisterLoadedObject(Object obj)
     {
+        // A mod never sees a path or a guid, so "the sprite is missing" is indistinguishable from
+        // "the sprite arrived under another name" unless the inventory is written down.
+        //
+        // The kind is spelled out with type tests rather than GetType().Name: that call is
+        // System.Reflection.MemberInfo.get_Name, which the game's mod safety check rejects
+        // outright, and a rejected assembly means the whole mod fails to load.
+        string kind = obj is Sprite ? "Sprite"
+            : obj is Texture2D ? "Texture2D"
+            : obj is GameObject ? "GameObject"
+            : obj is Material ? "Material"
+            : "other";
+        Debug.Log($"[NoBreakZone] bundle object: {kind} '{obj.name}'");
+
         if (obj is Sprite sprite && sprite.name == MarkerSpriteName)
         {
             _markerSprite = sprite;
