@@ -34,6 +34,7 @@ import re
 import struct
 import sys
 import uuid
+import zlib
 
 # Importing a sibling would drop a __pycache__ inside the mod path, which then trips preflight's
 # .meta check and would need a .gitignore entry to stay out of the repo. Cheaper to not create it.
@@ -138,6 +139,103 @@ def data_block_address(rel_path: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------------------------
+# Deriving the glow layer from the two draft sprites.
+#
+# 기획서 §7 wants one sprite with a glow layer switched on and off, "이렇게 하면 두 상태의
+# 실루엣이 완전히 동일해 전환 시 튀지 않는다". The drafts already satisfy that — pylon_off and
+# pylon_on have byte-identical alpha and differ in 36 of 1024 pixels, all inside the gem — so the
+# emissive layer is just their difference, and deriving it keeps the silhouettes identical by
+# construction rather than by the artist remembering.
+# ---------------------------------------------------------------------------------------------
+
+def _read_png_rgba(path: pathlib.Path):
+    """Decode an 8-bit RGBA PNG into (width, height, rows of bytes). Enough for our own art only."""
+    data = path.read_bytes()
+    pos, idat = 8, b""
+    width = height = None
+    while pos < len(data):
+        length = struct.unpack(">I", data[pos:pos + 4])[0]
+        kind = data[pos + 4:pos + 8]
+        chunk = data[pos + 8:pos + 8 + length]
+        if kind == b"IHDR":
+            width, height, depth, colour = struct.unpack(">IIBB", chunk[:10])
+            if (depth, colour) != (8, 6):
+                raise ValueError(f"{path}: expected 8-bit RGBA, got depth {depth} colour type {colour}")
+        elif kind == b"IDAT":
+            idat += chunk
+        pos += 12 + length
+
+    raw = zlib.decompress(idat)
+    stride = width * 4
+    rows, previous, at = [], bytearray(stride), 0
+    for _ in range(height):
+        filter_type = raw[at]
+        at += 1
+        line = bytearray(raw[at:at + stride])
+        at += stride
+        for x in range(stride):
+            left = line[x - 4] if x >= 4 else 0
+            up = previous[x]
+            up_left = previous[x - 4] if x >= 4 else 0
+            if filter_type == 1:
+                line[x] = (line[x] + left) & 0xFF
+            elif filter_type == 2:
+                line[x] = (line[x] + up) & 0xFF
+            elif filter_type == 3:
+                line[x] = (line[x] + (left + up) // 2) & 0xFF
+            elif filter_type == 4:
+                estimate = left + up - up_left
+                da, db, dc = abs(estimate - left), abs(estimate - up), abs(estimate - up_left)
+                nearest = left if (da <= db and da <= dc) else (up if db <= dc else up_left)
+                line[x] = (line[x] + nearest) & 0xFF
+            elif filter_type != 0:
+                raise ValueError(f"{path}: unknown PNG filter {filter_type}")
+        rows.append(bytes(line))
+        previous = line
+    return width, height, rows
+
+
+def _write_png_rgba(width: int, height: int, rows) -> bytes:
+    """Encode 8-bit RGBA with no row filtering. Deterministic, so --check stays meaningful."""
+    def chunk(kind: bytes, payload: bytes) -> bytes:
+        return (struct.pack(">I", len(payload)) + kind + payload
+                + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF))
+
+    raw = b"".join(b"\x00" + row for row in rows)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(raw, 9))
+        + chunk(b"IEND", b"")
+    )
+
+
+def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
+    """Pixels the lit sprite changed, on a transparent field — the glow layer, nothing else."""
+    width, height, base = _read_png_rgba(base_art)
+    lit_width, lit_height, lit = _read_png_rgba(lit_art)
+    if (width, height) != (lit_width, lit_height):
+        raise ValueError(f"{base_art.name} is {width}x{height} but {lit_art.name} is "
+                         f"{lit_width}x{lit_height}; they must line up pixel for pixel")
+
+    rows = []
+    changed = 0
+    for y in range(height):
+        row = bytearray(width * 4)
+        for x in range(width):
+            span = slice(x * 4, x * 4 + 4)
+            if base[y][span] != lit[y][span]:
+                row[span] = lit[y][span]
+                changed += 1
+        rows.append(bytes(row))
+
+    if changed == 0:
+        raise ValueError(f"{lit_art.name} is identical to {base_art.name} — no glow to extract")
+
+    return _write_png_rgba(width, height, rows)
+
+
+# ---------------------------------------------------------------------------------------------
 # The spec. 6단계 adds lens/remote/workbench by appending here, not by writing YAML.
 # ---------------------------------------------------------------------------------------------
 
@@ -178,8 +276,11 @@ class Placeable:
         # I2 localization terms for the crafting window header, as the SDK example uses them.
         self.ui_titles = list(ui_titles)
 
-        # Extra looks the object can switch between, as [(suffix, source art)]. Variation 0 is the
-        # base texture above; these become variation 1, 2, ... in SpriteAsset.m_staticVariants.
+        # Extra looks the object can switch between, as [(suffix, lit art)], becoming variation
+        # 1, 2, ... in SpriteAsset.m_staticVariants. Each keeps the base texture and adds an
+        # emissive layer derived from the difference against it, which is 기획서 §7's "스프라이트는
+        # 한 종류만 만들고 발광 레이어를 켜고 끄는 방식" — the silhouette cannot drift because both
+        # variations literally are the same texture.
         self.variants = list(variants)
         # Method on graphics_script's class that InteractableObject calls on E. None means the
         # object cannot be interacted with at all.
@@ -241,7 +342,10 @@ SPECS = [
         # all of it — see Scripts/Graphics/NoBreakZonePylonGraphics.cs.
         variation_is_dynamic=True,
         variation_to_toggle_to=1,
-        variants=[("On", "Editor/Docs/art/pylon_on.png")],
+        # 기획서 §7: one sprite, glow layer switched on and off. The lit draft differs from the
+        # base in 36 pixels — the gem — and has identical alpha, so the difference is exactly the
+        # glow and the two states cannot end up with different silhouettes.
+        variants=[("Glow", "Editor/Docs/art/pylon_on.png")],
         graphics_script="Scripts/Graphics/NoBreakZonePylonGraphics.cs",
         interact_method="Toggle",
     ),
@@ -475,9 +579,10 @@ def sprite_asset(spec: Placeable) -> str:
     low, high = data_block_address(spec.sprite_asset_path)
     texture_guid = asset_guid(spec.texture_path)
     variants = "".join(
-        f"  - texture: {{fileID: {FID_TEXTURE2D}, "
+        # Same base texture as variation 0 — only the emissive layer differs (기획서 §7).
+        f"  - texture: {{fileID: {FID_TEXTURE2D}, guid: {texture_guid}, type: 3}}\n"
+        f"    emissiveTexture: {{fileID: {FID_TEXTURE2D}, "
         f"guid: {asset_guid(spec.variant_texture_path(suffix))}, type: 3}}\n"
-        "    emissiveTexture: {fileID: 0}\n"
         "    normalTexture: {fileID: 0}\n"
         "    pivot: {x: 0.5, y: 0.5}\n"
         "    positionalData: []\n"
@@ -1091,9 +1196,9 @@ def build_outputs():
     for spec in SPECS:
         out[spec.texture_path] = (REPO / spec.art).read_bytes()
         out[spec.texture_path + ".meta"] = texture_meta(spec.texture_path, spec.pixels_to_units)
-        for suffix, art in spec.variants:
+        for suffix, lit_art in spec.variants:
             variant = spec.variant_texture_path(suffix)
-            out[variant] = (REPO / art).read_bytes()
+            out[variant] = derive_emissive(REPO / spec.art, REPO / lit_art)
             out[variant + ".meta"] = texture_meta(variant, spec.pixels_to_units)
         out[spec.sprite_asset_path] = sprite_asset(spec)
         out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
