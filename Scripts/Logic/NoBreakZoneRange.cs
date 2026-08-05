@@ -152,18 +152,63 @@ public static class NoBreakZoneRange
         return written;
     }
 
-    // Multi-tile objects are protected only when EVERY occupied tile is inside the square
-    // (기획서 §6: "모든 타일이 범위 안에 들어와야 보호된다"). Both ranges are inclusive.
-    // Because the range is itself a rectangle, testing the two extreme corners covers all tiles.
-    public static bool CoversRect(
-        int pylonX, int pylonZ, int minX, int minZ, int maxX, int maxZ, int radius)
+    // 기획서 §6, both halves of it at once.
+    //
+    //   "설치물이 여러 타일을 차지하는 경우, 모든 타일이 범위 안에 들어와야 보호된다."
+    //   "범위가 겹쳐도 문제없다. 어느 하나의 켜진 파일런 범위 안에 있으면 보호된다."
+    //
+    // Read together: every occupied tile has to be covered, but each tile may be covered by a
+    // DIFFERENT pylon. A workbench lying across the seam between two overlapping pylons is
+    // protected, which is what "겹쳐도 문제없다" leads a player to expect. With one pylon this is
+    // the same answer as testing the rectangle's two extreme corners against it.
+    //
+    // Both ranges are inclusive. Pylon coordinates come in as parallel arrays because the caller
+    // reuses one buffer per frame rather than allocating.
+    public static bool AllTilesCovered(
+        int[] pylonX, int[] pylonZ, int pylonCount,
+        int minX, int minZ, int maxX, int maxZ, int radius)
     {
-        if (minX > maxX || minZ > maxZ)
+        if (pylonX == null || pylonZ == null || pylonCount <= 0)
         {
             return false;
         }
 
-        return Covers(pylonX, pylonZ, minX, minZ, radius)
-               && Covers(pylonX, pylonZ, maxX, maxZ, radius);
+        if (minX > maxX || minZ > maxZ)
+        {
+            return false;  // a degenerate footprint protects nothing
+        }
+
+        int available = pylonX.Length < pylonZ.Length ? pylonX.Length : pylonZ.Length;
+        if (pylonCount > available)
+        {
+            pylonCount = available;
+        }
+
+        for (int z = minZ; z <= maxZ; z++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (!IsCoveredByAny(pylonX, pylonZ, pylonCount, x, z, radius))
+                {
+                    return false;  // 기획서 §6: "한 칸이라도 밖으로 나가면 보호되지 않는다"
+                }
+            }
+        }
+
+        return true;
+    }
+
+    public static bool IsCoveredByAny(
+        int[] pylonX, int[] pylonZ, int pylonCount, int tileX, int tileZ, int radius)
+    {
+        for (int i = 0; i < pylonCount; i++)
+        {
+            if (Covers(pylonX[i], pylonZ[i], tileX, tileZ, radius))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

@@ -70,27 +70,84 @@ namespace NoBreakZone.Tests
             Assert.IsFalse(NoBreakZoneRange.Covers(0, 0, 0, 0, -1));
         }
 
+        // --- 기획서 §6's multi-tile rule ------------------------------------------------------
+
+        private static bool Covered(int[] px, int[] pz, int minX, int minZ, int maxX, int maxZ)
+        {
+            return NoBreakZoneRange.AllTilesCovered(px, pz, px.Length, minX, minZ, maxX, maxZ, 10);
+        }
+
         [Test]
         public void MultiTileObjectNeedsEveryTileInside()
         {
             // 기획서 §6: "모든 타일이 범위 안에 들어와야 보호된다. 한 칸이라도 밖으로 나가면
             // 보호되지 않는다." A 2×1 workbench straddling the boundary is not protected.
-            Assert.IsTrue(NoBreakZoneRange.CoversRect(0, 0, 9, 0, 10, 0, 10));
-            Assert.IsFalse(NoBreakZoneRange.CoversRect(0, 0, 10, 0, 11, 0, 10));
+            var px = new[] { 0 };
+            var pz = new[] { 0 };
+            Assert.IsTrue(Covered(px, pz, 9, 0, 10, 0));
+            Assert.IsFalse(Covered(px, pz, 10, 0, 11, 0));
+        }
+
+        [Test]
+        public void TilesMayBeCoveredByDifferentPylons()
+        {
+            // The other half of §6: "범위가 겹쳐도 문제없다. 어느 하나의 켜진 파일런 범위 안에
+            // 있으면 보호된다." Two pylons 20 apart, so their squares meet at x=10/x=11 without
+            // overlapping. A 2×1 lying across that seam has each tile covered by a different
+            // pylon, and is protected.
+            var px = new[] { 0, 21 };
+            var pz = new[] { 0, 0 };
+            Assert.IsTrue(Covered(px, pz, 10, 0, 11, 0));
+
+            // Remove the second pylon and the same object is no longer protected — which is what
+            // makes this a real test of the union rule rather than of the geometry.
+            Assert.IsFalse(Covered(new[] { 0 }, new[] { 0 }, 10, 0, 11, 0));
+        }
+
+        [Test]
+        public void AGapBetweenPylonsIsStillAGap()
+        {
+            // Far enough apart that x=11 belongs to neither. Union coverage must not paper over
+            // the hole just because both ends of the object are covered.
+            var px = new[] { 0, 22 };
+            var pz = new[] { 0, 0 };
+            Assert.IsFalse(Covered(px, pz, 10, 0, 12, 0));
         }
 
         [Test]
         public void SingleTileRectBehavesLikeASingleTile()
         {
-            Assert.IsTrue(NoBreakZoneRange.CoversRect(0, 0, 10, 10, 10, 10, 10));
-            Assert.IsFalse(NoBreakZoneRange.CoversRect(0, 0, 11, 11, 11, 11, 10));
+            var px = new[] { 0 };
+            var pz = new[] { 0 };
+            Assert.IsTrue(Covered(px, pz, 10, 10, 10, 10));
+            Assert.IsFalse(Covered(px, pz, 11, 11, 11, 11));
         }
 
         [Test]
         public void InvertedRectIsRejectedRatherThanSilentlyAccepted()
         {
-            Assert.IsFalse(NoBreakZoneRange.CoversRect(0, 0, 5, 0, 4, 0, 10));
-            Assert.IsFalse(NoBreakZoneRange.CoversRect(0, 0, 0, 5, 0, 4, 10));
+            var px = new[] { 0 };
+            var pz = new[] { 0 };
+            Assert.IsFalse(Covered(px, pz, 5, 0, 4, 0));
+            Assert.IsFalse(Covered(px, pz, 0, 5, 0, 4));
+        }
+
+        [Test]
+        public void NoPylonsProtectsNothing()
+        {
+            Assert.IsFalse(NoBreakZoneRange.AllTilesCovered(
+                new[] { 0 }, new[] { 0 }, 0, 0, 0, 0, 0, 10));
+            Assert.IsFalse(NoBreakZoneRange.AllTilesCovered(null, null, 1, 0, 0, 0, 0, 10));
+        }
+
+        [Test]
+        public void CountBeyondTheBufferIsClampedRatherThanReadPastTheEnd()
+        {
+            // The overlay and the protection system both hand in a reused buffer with a live count;
+            // a stale count must not walk off the end.
+            var px = new[] { 0 };
+            var pz = new[] { 0 };
+            Assert.IsTrue(NoBreakZoneRange.AllTilesCovered(px, pz, 99, 0, 0, 0, 0, 10));
         }
 
         // --- the ring the lens draws (기획서 §7) -------------------------------------------
