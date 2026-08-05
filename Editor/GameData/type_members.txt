@@ -1,0 +1,285 @@
+=== ObjectCategoryTag   [Pug.Base]
+    0 = None
+    1 = Dirt
+    2 = Wood
+    3 = Stone
+    4 = Ruins
+    5 = Greenery
+    6 = Obsidian
+    7 = Player
+    8 = HostileCreature
+    9 = LarvaHive
+    10 = DefensiveStructure
+    11 = Ore
+    12 = LightSource
+    13 = Destructible
+    14 = DamageCantGoThrough
+    15 = TileBlock
+    16 = Seed
+    17 = UncommonOrLowerCookedFood
+    18 = RareOrHigherCookedFood
+    19 = Helm
+    20 = BreastArmor
+    21 = PantsArmor
+    22 = Fish
+    23 = DecorativePlant
+    24 = CookingIngredient
+    25 = CanBeSalvaged
+    26 = MusicSheet
+    27 = MelodyListener
+    28 = PetEgg
+    29 = Sand
+    30 = CattlePlantFood
+    31 = Critter
+    32 = Cattle
+    33 = CattleKelpFood
+    34 = CanBeUpgraded
+    35 = CanBePutIntoEnemySpawnerPlatform
+    36 = Bomb
+    37 = Plant
+    38 = Valuable
+    39 = Merchant
+    40 = NonHostileCreature
+    41 = SeedExtractable
+    42 = Pet
+    43 = Potion
+
+=== ObjectCategoryTagsCD   [Pug.ECS.Components]
+    field  public UInt64 tagsBitMask
+
+=== CanCraftObjectsBuffer   [Pug.ECS.Components]
+    field  public ObjectID objectID
+    field  public Int32 amount
+    field  public Int32 entityAmountToConsume
+    field  public Boolean allowCraftingNone
+    field  public Single craftingTimeOverride
+
+=== CraftingAuthoring   [Pug.ECS.Authoring]
+    field  public CraftingType craftingType
+    field  public Boolean showLoopEffectOnOutputSlot
+    field  public Boolean allInventoryIsForSingleCraft
+    field  public List<CraftableObject> canCraftObjects
+    field  public List<CraftingAuthoring> includeCraftedObjectsFromBuildings
+    field  public ObjectCategoryTag extractableType
+    field  public Vector2 minMaxRandomDefaultExtractedOutputAmount
+    field  public Vector2 minMaxRandomDefaultCraftingTime
+    nested CraftableObject
+    nested Prerequisites
+
+=== CraftingAuthoring+CraftableObject   [Pug.ECS.Authoring]
+    field  public ObjectID objectID
+    field  public String moddedObjectID
+    field  public Int32 amount
+    field  public Boolean craftingConsumesEntityAmount
+    field  public Int32 entityAmountToConsume
+    field  public Boolean allowCraftingNone
+    field  public Single craftingTime
+    field  public Boolean hasPrerequisites
+    field  public Prerequisites prerequisites
+
+=== CraftingAuthoring+Prerequisites   [Pug.ECS.Authoring]
+    field  public OptionalValue<DataBlockRef<ContentBundleDataBlock>> contentBundlePresent
+    field  public OptionalValue<DataBlockRef<ContentBundleDataBlock>> contentBundleAbsent
+    field  public Boolean birdBossKilled
+    field  public Boolean octopusBossKilled
+    field  public Boolean scarabBossKilled
+    field  public Boolean hydraBossNatureKilled
+    field  public Boolean hydraBossSeaKilled
+    field  public Boolean hydraBossDesertKilled
+
+=== CraftingAuthoring+CraftableObject   [Pug.ECS.Authoring]
+    field  public ObjectID objectID
+    field  public String moddedObjectID
+    field  public Int32 amount
+    field  public Boolean craftingConsumesEntityAmount
+    field  public Int32 entityAmountToConsume
+    field  public Boolean allowCraftingNone
+    field  public Single craftingTime
+    field  public Boolean hasPrerequisites
+    field  public Prerequisites prerequisites
+
+=== UnityEditor.ObjectInfo   [UnityEditor.CoreModule]
+    field  public Int32 instanceId
+    field  public Int64 memorySize
+    field  public Int32 reason
+    field  public List<ObjectInfo> referencedBy
+    field  public String name
+    field  public String className
+
+=== ObjectInfo   [Pug.Base]
+    field  public ObjectID objectID
+    field  public Int32 initialAmount
+    field  public Int32 variation
+    field  public Boolean variationIsDynamic
+    field  public Int32 variationToToggleTo
+    field  public ObjectType objectType
+    field  public List<ObjectCategoryTag> tags
+    field  public Rarity rarity
+    field  public Single salvageMultiplier
+    field  public Int32 level
+    field  public Int32 sellValue
+    field  public Single buyValueMultiplier
+    field  public Sprite icon
+    field  public Vector2 iconOffset
+    field  public DataBlockRef<SpriteAssetSkin> iconSkinAssetRef
+    field  public Sprite smallIcon
+    field  public Boolean isStackable
+    field  public Vector2Int prefabTileSize
+    field  public Vector2Int prefabCornerOffset
+    field  public Boolean centerIsAtEntityPosition
+    field  public List<Sprite> additionalSprites
+    field  public Int32 tileset
+    field  public TileType tileType
+    field  public List<PrefabInfo> prefabInfos
+    field  public CraftingSettings craftingSettings
+    field  public List<CraftingObject> requiredObjectsToCraft
+    field  public Single craftingTime
+    field  public Boolean appearInMapUI
+    field  public Color mapColor
+    field  public Boolean isCustomScenePrefab
+    field  public List<LanguageGender> languageGenders
+    prop   SpriteAssetSkin iconSkinAsset
+
+=== ObjectAuthoring   [Pug.ECS.Authoring]
+    field  public String objectName
+    field  public Int32 initialAmount
+    field  public Int32 variation
+    field  public Boolean variationIsDynamic
+    field  public Int32 variationToToggleTo
+    field  public ObjectType objectType
+    field  public List<ObjectCategoryTag> tags
+    field  public Rarity rarity
+    field  public Single salvageMultiplier
+    field  public GameObject graphicalPrefab
+    field  public Boolean isCustomScenePrefab
+    field  public List<Sprite> additionalSprites
+    prop   GameObject GameObject
+    prop   Transform Transform
+    prop   ObjectInfo ObjectInfo
+
+=== InventoryItemAuthoring   [Pug.ECS.Authoring]
+    field  public Int32 sellValue
+    field  public Single buyValueMultiplier
+    field  public Sprite icon
+    field  public Vector2 iconOffset
+    field  public Sprite smallIcon
+    field  public Boolean isStackable
+    field  public List<CraftingObject> requiredObjectsToCraft
+    field  public Single craftingTime
+    nested CraftingObject
+
+=== InventoryItemAuthoring+CraftingObject   [Pug.ECS.Authoring]
+    field  public String objectName
+    field  public Int32 amount
+
+=== SimpleCraftingUIContainer   [Pug.Other]
+    field  public Int32 MAX_RECIPES_PER_UI = 6
+    field  public Single WINDOW_SPACING = 5
+    field  public List<SimpleCraftingUI> simpleCraftingUIs
+    field  private Int32 <amountOfWindowsShowing>k__BackingField
+    prop   Int32 amountOfWindowsShowing
+
+=== SimpleCraftingUI   [Pug.Other]
+    field  private Boolean inited
+
+=== CraftingCategoryNavigationUI   [Pug.Other]
+    field  public GameObject root
+    field  public UIelement upArrow
+    field  public UIelement downArrow
+    field  public SpriteRenderer iconSR
+
+=== CraftingBuilding   [Pug.Other]
+    field  public Boolean hideRecipes
+    field  public SpriteObject electricitySprite
+    field  public CraftingUISettings defaultUISettings
+    field  public List<CraftingUISettingsOverride> buildingSpecificUISettings
+    field  private Color _baselineElectricityEmission
+    field  public List<CraftingCategoryWindowInfos> craftingCategoryWindowInfos
+    field  protected CraftingHandler craftingHandler
+    field  private Int32 prevCraftingState
+    nested CraftingCategoryWindowInfos
+    nested CraftingCategoryWindowInfo
+    nested CraftingUISettings
+    nested CraftingUISettingsOverride
+
+=== CraftingBuilding+CraftingCategoryWindowInfos   [Pug.Other]
+    field  public ObjectID usedForBuilding
+    field  public List<CraftingCategoryWindowInfo> windowInfos
+
+=== CraftingBuilding+CraftingCategoryWindowInfo   [Pug.Other]
+    field  public Season showAsDefaultDuringSeason
+    field  public Sprite icon
+    field  public Int32 startSlotIndex
+    field  public Int32 endSlotIndex
+
+=== CraftingBuilding+CraftingUISettings   [Pug.Other]
+    field  public List<LocalizedString> titles
+    field  public CraftingUIThemeType craftingUIBackgroundVariation
+
+=== CraftingBuilding+CraftingUISettingsOverride   [Pug.Other]
+    field  public ObjectID usedForBuilding
+    field  public CraftingUISettings settings
+
+=== UnityEngine.AddressableAssets.Utility.SerializationUtilities+ObjectType   [Unity.Addressables]
+    0 = AsciiString
+    1 = UnicodeString
+    2 = UInt16
+    3 = UInt32
+    4 = Int32
+    5 = Hash128
+    6 = Type
+    7 = JsonObject
+
+=== ObjectType   [Pug.Base]
+    0 = NonUsable
+    1 = NonObtainable
+    100 = Helm
+    101 = BreastArmor
+    102 = PantsArmor
+    103 = Necklace
+    104 = Ring
+    105 = Offhand
+    106 = Bag
+    107 = Lantern
+    108 = Pouch
+    500 = MeleeWeapon
+    501 = RangeWeapon
+    502 = SummoningWeapon
+    503 = ThrowingWeapon
+    600 = Shovel
+    601 = Hoe
+    602 = CastingItem
+    603 = MiningPick
+    604 = PaintTool
+    605 = FishingRod
+    606 = BugNet
+    607 = Sledge
+    608 = RoofingTool
+    609 = DrillTool
+    610 = BeamWeapon
+    800 = PlaceablePrefab
+    801 = Critter
+    802 = Pet
+    900 = Creature
+    1100 = Eatable
+    1200 = WaterCan
+    1201 = Bucket
+    1250 = Seeder
+    1300 = Valuable
+    1400 = UniqueCraftingComponent
+    1500 = KeyItem
+    1600 = Instrument
+    6000 = PlayerType
+
+=== Rewired.Utils.Classes.Data.SerializedObject+ObjectType   [Rewired_Core]
+    0 = Object
+    1 = List
+
+=== Rarity   [Pug.Base]
+    0 = Common
+    1 = Uncommon
+    2 = Rare
+    3 = Epic
+    4 = Legendary
+    -1 = Poor
+

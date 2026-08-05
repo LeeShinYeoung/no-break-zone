@@ -288,16 +288,41 @@ fileID = int32_little_endian( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명
 **검증:** 레퍼런스 프리팹 20개에서 뽑은 `m_Script` 참조 295건 중 게임 authoring 어셈블리
 **184건이 100% 일치.**
 
-### guid 는 어셈블리를 가리킨다 — 프리팹에서 베낀다
+### ⚠️ guid 는 프리팹에서 베끼면 안 된다 — 유니티에게 묻는다 (2026-08-06 정정)
 
-| guid | 무엇 | 확인 방법 |
+**이 장이 원래 적어둔 guid는 전부 틀렸다.** 아래 표가 그 틀린 값이고, 기록으로 남긴다.
+
+| 이 장이 적었던 guid | 실제로 이 설치본의 값 | 어셈블리 |
 | --- | --- | --- |
-| `3392f4c23e1d8662d749dabb2361ee02` | 게임 authoring 어셈블리 (`ObjectAuthoring`·`HealthAuthoring`·`PlaceableObjectAuthoring` 등) | 레퍼런스 프리팹 184회 등장 |
-| `6f4e9f12d8be4d048a7b574866c31a4f` + fileID `11500000` | `EntityMonoBehaviour` (그래픽 프리팹 루트) | 필드(`XScaler`·`spriteObjects`·`interactable`)로 `Pug.Other/EntityMonoBehaviour.cs` 확인 |
-| `292700ef68995bdb2163e35989fc7eb0` + fileID `1908045241` | SpriteObject (그래픽 자식) | `spriteObjects` 배열 원소 |
+| `3392f4c23e1d8662d749dabb2361ee02` | **`9a1db145e9314404d8da91bdc1557235`** | `Pug.ECS.Authoring` |
+| `292700ef68995bdb2163e35989fc7eb0` | **`b3f0ec2c519d21b49bf19f2d86bba8d7`** | `PugSprite` |
+| `e853a5af7d19630282ad0af7b5dabadc` | **`d00b036db31ed324f99d4111c393f019`** | `ScriptableData` |
+| `548e3dd2d27c1e2d0bdf82f0889cb8a7` | **`3519ac58e5ff54941a4a69512016923c`** | `Pug.Other` |
+| `6f4e9f12d8be4d048a7b574866c31a4f` + fileID `11500000` | **`3519ac58…`** + fileID **`1240517312`** | `EntityMonoBehaviour` |
 
-⚠️ **SDK의 `Assets/ModSDK/Data/MetaFiles.zip`(`.dll.meta` 114개)의 guid는 프리팹이 쓰는 것과
-다르다.** 대조해 봤으나 한 건도 안 겹친다. **프리팹에서 관측한 guid를 쓸 것.**
+**대가:** 생성 에셋의 모든 `m_Script`가 이 프로젝트에 존재하지 않는 어셈블리를 가리켰다.
+유니티가 타입을 못 찾아 **깨진 참조를 번들에 써넣었고, 빌드는 종료 코드 0으로 성공을 보고했다.**
+게임은 프리팹도 아이템 정의도 하나도 못 읽었다 — 작업대에 레시피가 안 뜬 1차 원인이다.
+`Assets/`·`Packages/`·`Library/PackageCache`의 `.meta` 12,167개를 전수 조사해 확인했다.
+
+**틀린 이유:** 레퍼런스 모드와 `Assets/Examples`가 그 값을 쓴다(예제 프리팹에 116회 등장).
+하지만 **예제는 아무도 빌드해본 적이 없어서** 그게 이 설치본에서 유효한지 검증된 적이 없다.
+"프리팹에서 관측한 guid를 쓸 것"이라던 옛 지침이 정확히 이 사고를 만들었다.
+`MetaFiles.zip`과 안 겹친다는 것은 **프리팹 쪽이 낡았다는 신호였는데 반대로 읽었다.**
+
+**올바른 방법:** `Editor/DumpScriptGuids.cs`를 배치모드로 돌려
+`Editor/GameData/script_guids.csv`를 만든다. 유니티가 `AssetDatabase`로 직접 답한
+`(fullName, fileID, guid)` 8,186행이다. `genassets.py`의 `game_script()`가 여기서 조회하므로
+**fileID와 guid가 같은 행에서 나와 서로 어긋날 수 없다.** 게임·SDK 업데이트 후 재생성한다.
+
+`preflight.py`가 이제 모든 `(fileID, guid)` 쌍이 실재하는지 검사하고(프리팹 + `.asset`),
+`CliBuild.cs`가 `is missing` 경고를 빌드 실패로 처리한다. 같은 사고가 다시 조용히 지나갈 수 없다.
+
+### fileID 계산은 맞았다
+
+위 사고에도 **fileID는 전부 정확했다.** 유니티 덤프와 대조해 `ObjectAuthoring`(318086258)·
+`SpriteObject`(1908045241)·`TextDataBlock`(2108018792) 등이 모두 일치했다.
+MD4 유도식과 `script_fileids.csv`는 그대로 유효하다. 틀린 것은 **어느 어셈블리 소속이냐**뿐이었다.
 
 ### 그 밖의 고정값
 

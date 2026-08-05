@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using PugMod;
 using UnityEditor;
 using UnityEngine;
@@ -30,6 +32,18 @@ namespace NoBreakZone.EditorTools
 		// Custom command-line arg the wrapper script passes to override the export path.
 		private const string ExportPathArg = "-nbzExportPath";
 
+		// Unity reports an unresolvable m_Script as a warning and carries on, so ModBuilder happily
+		// packs the broken asset and the build exits 0. That is exactly how a bundle whose every
+		// prefab and item definition was dead shipped while the build claimed success. Treat these
+		// as build failures: a green build has to mean the assets are intact.
+		private static readonly string[] BrokenScriptMarkers =
+		{
+			"is missing or no valid script is attached",
+			"The referenced script on this Behaviour",
+		};
+
+		private static readonly List<string> BrokenScripts = new List<string>();
+
 		public static void BuildToGame()
 		{
 			int exitCode = 1;
@@ -59,9 +73,31 @@ namespace NoBreakZone.EditorTools
 
 				// BuildMod invokes its callback synchronously, so 'built' is set before we read it.
 				var built = false;
-				ModBuilder.BuildMod(settings, modsPath, success => built = success, installInSubDirectory: true);
+				BrokenScripts.Clear();
+				Application.logMessageReceived += OnLogMessage;
+				try
+				{
+					ModBuilder.BuildMod(settings, modsPath, success => built = success, installInSubDirectory: true);
+				}
+				finally
+				{
+					Application.logMessageReceived -= OnLogMessage;
+				}
 
-				if (built)
+				var broken = BrokenScripts.Distinct().ToList();
+				if (broken.Count > 0)
+				{
+					// Reported after unsubscribing, so these lines cannot feed back into the list.
+					Debug.LogError(
+						$"[NBZ] BUILD FAILED - {broken.Count} asset(s) reference a script Unity could not " +
+						"resolve. The bundle would load nothing. Run Editor/preflight.py to see which " +
+						"references are dead.");
+					foreach (var line in broken)
+					{
+						Debug.LogError($"[NBZ]   {line}");
+					}
+				}
+				else if (built)
 				{
 					var installedAt = Path.Combine(modsPath, settings.metadata.name);
 					Debug.Log($"[NBZ] BUILD OK -> {installedAt}");
@@ -78,6 +114,18 @@ namespace NoBreakZone.EditorTools
 			}
 
 			EditorApplication.Exit(exitCode);
+		}
+
+		private static void OnLogMessage(string condition, string stackTrace, LogType type)
+		{
+			foreach (var marker in BrokenScriptMarkers)
+			{
+				if (condition.IndexOf(marker, StringComparison.Ordinal) >= 0)
+				{
+					BrokenScripts.Add(condition);
+					return;
+				}
+			}
 		}
 
 		private static string ResolveModsPath()

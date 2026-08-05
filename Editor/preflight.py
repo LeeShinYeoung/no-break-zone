@@ -34,9 +34,10 @@ import uuid
 REPO = pathlib.Path(__file__).resolve().parent.parent
 FILEID_TABLE = REPO / "Editor" / "GameData" / "script_fileids.csv"
 
-# The game's authoring assembly. Unity engine assemblies use other GUIDs and are copied verbatim
-# from reference prefabs, so they are out of scope for check 1.
-GAME_ASSEMBLY_GUID = "3392f4c23e1d8662d749dabb2361ee02"
+# What Unity itself reports for every MonoScript in the project, dumped by Editor/DumpScriptGuids.cs.
+# Check 1 measures references against this rather than against values copied from other people's
+# prefabs, which is how a whole set of dangling references shipped unnoticed.
+SCRIPT_GUIDS = REPO / "Editor" / "GameData" / "script_guids.csv"
 
 # Rejected by the mod safety check when the game recompiles Scripts/ at load
 # (official modding docs; research.md 6장). A hit here means the mod silently fails to load with
@@ -48,6 +49,18 @@ BANNED_NAMESPACES = [
     "System.Runtime.InteropServices",
     "System.Reflection",
     "System.AppDomain",
+]
+
+# Reflection reached through a method call names no namespace, so the list above cannot see it.
+# obj.GetType().Name compiles to System.Reflection.MemberInfo::get_Name and the safety check
+# rejected the whole assembly for it -- the mod did not load at all, over one log line.
+BANNED_CALLS = [
+    (".GetType()", "System.Reflection through GetType()"),
+    (".GetMethod(", "System.Reflection member lookup"),
+    (".GetProperty(", "System.Reflection member lookup"),
+    (".GetField(", "System.Reflection member lookup"),
+    (".GetMembers(", "System.Reflection member lookup"),
+    (".InvokeMember(", "System.Reflection invocation"),
 ]
 
 # Everything under these needs a sibling .meta. Dot-directories are invisible to Unity (CLAUDE.md
@@ -99,11 +112,11 @@ def script_file_id(class_name: str, namespace: str = "") -> int:
     return struct.unpack("<i", md4(b"s\x00\x00\x00" + (namespace + class_name).encode("utf-8"))[:4])[0]
 
 
-def load_fileid_table():
-    if not FILEID_TABLE.exists():
+def load_script_guids():
+    if not SCRIPT_GUIDS.exists():
         return None
-    with FILEID_TABLE.open(encoding="utf-8") as handle:
-        return {int(row["fileID"]): row["fullName"] for row in csv.DictReader(handle)}
+    with SCRIPT_GUIDS.open(newline="", encoding="utf-8") as handle:
+        return {(int(row["fileID"]), row["guid"]): row["fullName"] for row in csv.DictReader(handle)}
 
 
 def tracked_asset_files():
@@ -117,25 +130,36 @@ def tracked_asset_files():
             yield path
 
 
-def check_prefab_scripts(problems):
-    table = load_fileid_table()
+def check_script_refs(problems):
+    """Every m_Script must name a script Unity can actually find.
+
+    This is the check that was missing when the generator shipped assembly guids copied from
+    reference mods. Those guids named assemblies absent from this SDK install, so Unity wrote
+    dangling references into the bundle — the build reported success and the game loaded none
+    of the mod's items. A reference is only sound if the whole (fileID, guid) pair is one Unity
+    emits, which is what script_guids.csv records.
+    """
+    table = load_script_guids()
     if table is None:
-        problems.append(f"reference table missing: {FILEID_TABLE.relative_to(REPO)}")
+        problems.append(
+            f"reference table missing: {SCRIPT_GUIDS.relative_to(REPO)} — "
+            "run Editor/DumpScriptGuids.cs on Windows"
+        )
         return 0
 
     checked = 0
-    for path in REPO.rglob("*.prefab"):
-        if any(part.startswith(".") for part in path.relative_to(REPO).parts):
-            continue
-        text = path.read_text(encoding="utf-8", errors="ignore")
-        for file_id, guid in SCRIPT_PATTERN.findall(text):
-            if guid != GAME_ASSEMBLY_GUID:
+    for pattern in ("*.prefab", "*.asset"):
+        for path in sorted(REPO.rglob(pattern)):
+            if any(part.startswith(".") for part in path.relative_to(REPO).parts):
                 continue
-            checked += 1
-            if int(file_id) not in table:
-                problems.append(
-                    f"{path.relative_to(REPO)}: m_Script fileID {file_id} matches no game class"
-                )
+            text = path.read_text(encoding="utf-8", errors="ignore")
+            for file_id, guid in SCRIPT_PATTERN.findall(text):
+                checked += 1
+                if (int(file_id), guid) not in table:
+                    problems.append(
+                        f"{path.relative_to(REPO)}: m_Script {{fileID: {file_id}, guid: {guid}}} "
+                        "resolves to no script in the project"
+                    )
     return checked
 
 
@@ -149,6 +173,12 @@ def check_banned_namespaces(problems):
                 if banned in code:
                     problems.append(
                         f"{path.relative_to(REPO)}:{line_no}: {banned} is rejected by the mod safety check"
+                    )
+            for call, why in BANNED_CALLS:
+                if call in code:
+                    problems.append(
+                        f"{path.relative_to(REPO)}:{line_no}: '{call}' is {why}, "
+                        "rejected by the mod safety check"
                     )
     return checked
 
@@ -236,7 +266,7 @@ def check_asmdef_references(problems):
 def main():
     problems = []
     counts = {
-        "prefab m_Script refs": check_prefab_scripts(problems),
+        "m_Script refs resolved": check_script_refs(problems),
         "scripts scanned for banned namespaces": check_banned_namespaces(problems),
         "assets checked for .meta": check_meta_pairs(problems),
         "asmdef references": check_asmdef_references(problems),
