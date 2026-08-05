@@ -254,36 +254,34 @@ def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
 # ---------------------------------------------------------------------------------------------
 # The lens's range marker (기획서 §7).
 #
-# One tile of the outline the lens draws. Drawn here rather than by hand because it is four
-# straight lines, and because the numbers below are the ones worth turning after seeing it in game:
-# 기획서 §7 warns that a marker which spoils a decorated base gets the whole mod uninstalled, so
-# "아주 옅은 윤곽" is the target and thickness/alpha are the knobs.
+# ONE STRAIGHT SEGMENT, not a tile stamp. 기획서 §9 forbids drawing the range by making an object
+# per tile — "21×21이면 경계만 해도 80칸이다" — so the overlay stretches four of these into the four
+# sides of the square instead.
+#
+# Drawn here rather than by hand because it is a straight line, and because these numbers are the
+# ones worth turning after seeing it in game: 기획서 §7 warns that a marker which spoils a decorated
+# base gets the whole mod uninstalled, so "아주 옅은 윤곽" is the target.
 # ---------------------------------------------------------------------------------------------
 
 # Must stay in step with NoBreakZoneRangeOverlay.MarkerSpriteName, which finds the sprite by name.
 RANGE_MARKER_TEXTURE = "Textures/NoBreakZoneRangeMarker.png"
 
 MARKER_TILE_PIXELS = 16  # one tile; SpriteObject.PixelsPerUnit is a hardcoded 16f
-MARKER_EDGE_THICKNESS = 1
+MARKER_THICKNESS_PIXELS = 2
 MARKER_COLOUR = (150, 220, 255)  # pale cyan, to read as "information" rather than as decoration
 MARKER_ALPHA = 90  # out of 255
 
 
 def range_marker_png() -> bytes:
-    """A hollow square outline filling one tile, transparent inside."""
-    size = MARKER_TILE_PIXELS
-    edge = MARKER_EDGE_THICKNESS
-    red, green, blue = MARKER_COLOUR
+    """A solid horizontal segment one tile long.
 
-    rows = []
-    for y in range(size):
-        row = bytearray(size * 4)
-        for x in range(size):
-            on_edge = x < edge or y < edge or x >= size - edge or y >= size - edge
-            if on_edge:
-                row[x * 4:x * 4 + 4] = bytes((red, green, blue, MARKER_ALPHA))
-        rows.append(bytes(row))
-    return _write_png_rgba(size, size, rows)
+    Uniform along its length, which is what lets the overlay scale it to any edge without the
+    pattern distorting — only the length axis is scaled, so the line keeps its thickness.
+    """
+    red, green, blue = MARKER_COLOUR
+    row = bytes((red, green, blue, MARKER_ALPHA)) * MARKER_TILE_PIXELS
+    return _write_png_rgba(MARKER_TILE_PIXELS, MARKER_THICKNESS_PIXELS,
+                           [row] * MARKER_THICKNESS_PIXELS)
 
 
 # ---------------------------------------------------------------------------------------------
