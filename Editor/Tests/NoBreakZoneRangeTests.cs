@@ -92,5 +92,81 @@ namespace NoBreakZone.Tests
             Assert.IsFalse(NoBreakZoneRange.CoversRect(0, 0, 5, 0, 4, 0, 10));
             Assert.IsFalse(NoBreakZoneRange.CoversRect(0, 0, 0, 5, 0, 4, 10));
         }
+
+        // --- the ring the lens draws (기획서 §7) -------------------------------------------
+
+        [Test]
+        public void DefaultRangeHasEightyBoundaryTiles()
+        {
+            Assert.AreEqual(80, NoBreakZoneRange.BoundaryTileCount(10));
+            Assert.AreEqual(8, NoBreakZoneRange.BoundaryTileCount(1));
+            Assert.AreEqual(1, NoBreakZoneRange.BoundaryTileCount(0));
+            Assert.AreEqual(0, NoBreakZoneRange.BoundaryTileCount(-1));
+        }
+
+        [Test]
+        public void BoundaryWalkVisitsEveryEdgeTileExactlyOnce()
+        {
+            const int radius = 10;
+            int expected = NoBreakZoneRange.BoundaryTileCount(radius);
+            var x = new int[expected];
+            var z = new int[expected];
+
+            Assert.AreEqual(expected, NoBreakZoneRange.WriteBoundaryTiles(0, 0, radius, x, z));
+
+            // Corners are where a naive four-sided walk double-counts, which would make the lens
+            // stack two markers on the same tile and read brighter at the corners.
+            var seen = new System.Collections.Generic.HashSet<(int, int)>();
+            for (int i = 0; i < expected; i++)
+            {
+                Assert.IsTrue(seen.Add((x[i], z[i])), $"tile ({x[i]}, {z[i]}) visited twice");
+            }
+
+            Assert.AreEqual(expected, seen.Count);
+        }
+
+        [Test]
+        public void BoundaryTilesAreOnTheEdgeAndNothingInsideIsIncluded()
+        {
+            const int radius = 10;
+            var x = new int[NoBreakZoneRange.BoundaryTileCount(radius)];
+            var z = new int[x.Length];
+            int count = NoBreakZoneRange.WriteBoundaryTiles(0, 0, radius, x, z);
+
+            for (int i = 0; i < count; i++)
+            {
+                // Every drawn tile is inside the protected square — the lens must never mark a tile
+                // that would not actually be protected (기획서 §7's whole purpose) ...
+                Assert.IsTrue(NoBreakZoneRange.Covers(0, 0, x[i], z[i], radius));
+
+                // ... and sits exactly on its edge, never one ring in or out.
+                int edge = System.Math.Max(System.Math.Abs(x[i]), System.Math.Abs(z[i]));
+                Assert.AreEqual(radius, edge, $"tile ({x[i]}, {z[i]}) is not on the edge");
+            }
+        }
+
+        [Test]
+        public void BoundaryWalkIsOffsetByThePylonPosition()
+        {
+            const int radius = 2;
+            var x = new int[NoBreakZoneRange.BoundaryTileCount(radius)];
+            var z = new int[x.Length];
+            int count = NoBreakZoneRange.WriteBoundaryTiles(100, -50, radius, x, z);
+
+            for (int i = 0; i < count; i++)
+            {
+                Assert.IsTrue(NoBreakZoneRange.Covers(100, -50, x[i], z[i], radius));
+            }
+        }
+
+        [Test]
+        public void ShortBufferTruncatesRatherThanOverrunning()
+        {
+            // The overlay sizes its buffer once; a later radius change from Conf/ (7단계) must not
+            // turn into an index-out-of-range in the middle of a frame.
+            var x = new int[7];
+            var z = new int[7];
+            Assert.AreEqual(7, NoBreakZoneRange.WriteBoundaryTiles(0, 0, 10, x, z));
+        }
     }
 }
