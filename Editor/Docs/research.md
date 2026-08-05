@@ -216,6 +216,26 @@ C:\Users\LeeShinYeoung\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
 ⚠️ 저장소 안에 클론하지 말 것. `.dll`·`.cs`가 modPath 루트에 있으면 번들에 실린다
 (`Editor/` 아래는 제외됨 — `ModBuilder.cs:312,403,442`).
 
+### 세션마다 다시 받는 법 (스크래치패드에서)
+
+```sh
+git clone --depth 1 --filter=blob:none https://github.com/Adrriiannn/ck-db.git ck-db
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Adrriiannn/ck-mods.git ck-mods
+(cd ck-mods && git sparse-checkout set Assets/ConveyorTunnelMod Docs)
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Pugstorm/CoreKeeperModDocs.git
+(cd CoreKeeperModDocs && git sparse-checkout set modding-documentation code-examples)
+curl -sLO https://raw.githubusercontent.com/Pugstorm/CoreKeeperModSDK/main/Assets/Examples.zip && unzip -q Examples.zip
+```
+
+가장 많이 열어보게 되는 파일들:
+
+| 무엇을 볼 때 | 어디 |
+| --- | --- |
+| 설치물 프리팹 전체 구성 | `Examples/WorkbenchExample/Workbench/MyNewWorkbenchLogic.prefab` |
+| 그래픽 프리팹 최소 구성 | `ck-mods/…/ConveyorTunnelMod/Prefabs/ConveyorTunnelVisual.prefab` |
+| 스프라이트 임포트 설정 | `ck-mods/…/ConveyorTunnelMod/Assets/ConveyorTunnelIcon.png.meta` |
+| authoring 컴포넌트 필드 | `ck-db/Pug.ECS.Authoring/*.cs` |
+
 ### 여기서 확정된 사실
 
 | 항목 | 결론 | 근거 |
@@ -282,6 +302,32 @@ fileID = int32_little_endian( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명
 | `spriteID: 5e97eb03825dee720800000000000000` | 텍스처 `.meta` 고정값 (레퍼런스 14개 전부 동일) |
 | `objectType: 800` | `ObjectType.PlaceablePrefab` |
 | 텍스처 임포트 | `textureType: 8`(Sprite) · `filterMode: 0`(Point) · `spritePixelsToUnits: 16` · `alphaIsTransparency: 1` |
+
+### ⚠️ `spritePixelsToUnits`는 월드 크기를 못 바꾼다 (2026-08-05)
+
+**월드에 그려지는 크기는 `텍스처 픽셀 ÷ 16`으로 고정이다.** 32×32 텍스처는 `spritePixelsToUnits`를
+무엇으로 두든 **2×2 타일 크기로 렌더된다.**
+
+근거 두 가지:
+
+1. `SpriteObject.PixelsPerUnit`이 코드에 박힌 `static float = 16f`다
+   (`ck-db/PugSprite/Pug/Sprite/SpriteObject.cs:1096`). 임포터 값을 읽지 않는다
+2. 구조적으로 읽을 수가 없다. `SpriteAsset.m_staticSpriteData.texture`가 가리키는 것은
+   **Texture2D 서브에셋(`fileID: 2800000`)**이고, `spritePixelsToUnits`는 그 옆의 **Sprite
+   서브에셋(`fileID: 21300000`)**에만 붙는 값이다. 월드 렌더 경로는 Sprite를 거치지 않고
+   Texture2D를 아틀라스에 직접 싣는다 (`SpriteAsset.cs`의 `staticAtlasRects`)
+
+`spritePixelsToUnits`가 실제로 영향을 주는 곳은 **인벤토리 아이콘 하나뿐**이다 —
+`InventoryItemAuthoring.icon`이 `21300000`, 즉 Sprite 서브에셋을 가리키기 때문이다.
+
+**status.md의 스프라이트 결정 (a)는 이유가 틀렸다.** "`spritePixelsToUnits`를 32로 두면 1타일로
+렌더된다"는 성립하지 않는다. 다만 *조치*(32로 둔다)는 32px 텍스처에 대해 여전히 맞다 — 아이콘
+쪽에는 그게 정확한 값이다. 바뀌는 것은 **기대하는 결과**다. 파일런은 1×1 타일을 차지하면서
+2×2 타일 크기로 보인다.
+
+초안을 16px로 줄이는 선택지의 비용도 다시 재봤다. 32px 초안은 16px 그림을 2배 확대한 것이
+**아니다** — 2×2 픽셀 블록이 단색인 비율이 73%뿐이라 나머지 27%는 진짜 서브픽셀 디테일이다.
+색 수가 11개뿐이라 축소해도 형태는 읽히지만 무손실은 아니다.
 
 ### 설치물 프리팹의 구성
 

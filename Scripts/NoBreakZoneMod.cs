@@ -6,7 +6,9 @@ using UnityEngine;
 // assembly actually loaded during in-game verification.
 public class NoBreakZoneMod : IMod
 {
-    public const string Version = "0.0.1-stage4";
+    // The suffix tracks 기획서 13장 stage numbering, which is not the repo's old numbering — the
+    // previous value said "stage4" under that older scheme (status.md explains the renumbering).
+    public const string Version = "0.0.1-stage3";
 
     public void EarlyInit()
     {
@@ -14,7 +16,7 @@ public class NoBreakZoneMod : IMod
 
     public void Init()
     {
-        Debug.Log($"[NoBreakZone] loaded ({Version}) — hardcoded installation protection active");
+        Debug.Log($"[NoBreakZone] loaded ({Version}) — protection follows placed {NoBreakZonePylonRegistrySystem.PylonObjectName}");
     }
 
     public void Shutdown()
