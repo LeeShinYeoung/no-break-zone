@@ -14,6 +14,7 @@ and will only surface in the Windows build. What it does catch:
   2. namespaces the game's mod safety check rejects at load time
   3. missing .meta files (Unity would reissue GUIDs and break every reference)
   4. asmdef references to assemblies that do not exist in this project
+  5. m_address values that disagree with the asset's own guid
 
 Check 1 works because Unity derives a MonoBehaviour's fileID deterministically from its class name:
     fileID = int32_le(MD4(b"s\\0\\0\\0" + namespace + classname)[:4])
@@ -28,6 +29,7 @@ import pathlib
 import re
 import struct
 import sys
+import uuid
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 FILEID_TABLE = REPO / "Editor" / "GameData" / "script_fileids.csv"
@@ -54,6 +56,13 @@ ASSET_ROOTS = ["Scripts", "Data", "Prefabs", "Textures", "Editor", "Localization
 META_EXEMPT_SUFFIXES = {".meta"}
 
 SCRIPT_PATTERN = re.compile(r"m_Script:\s*\{fileID:\s*(-?\d+),\s*guid:\s*(\w+)")
+
+# An asset's own m_address sits at two-space indent; the same key nested deeper belongs to something
+# else (a gradient map, a language entry) and is somebody else's id.
+OWN_ADDRESS_PATTERN = re.compile(
+    r"^  m_address:\n    m_low: (-?\d+)\n    m_high: (-?\d+)", re.MULTILINE
+)
+META_GUID_PATTERN = re.compile(r"^guid: (\w+)", re.MULTILINE)
 
 
 def md4(msg: bytes) -> bytes:
@@ -163,6 +172,43 @@ def check_meta_pairs(problems):
     return checked
 
 
+def check_data_block_addresses(problems):
+    """A ScriptableObject's m_address must equal its own file guid.
+
+    Core Keeper links sprites and text by a 128-bit address rather than by guid, so a wrong value
+    fails silently: the object loads, the sprite does not, and nothing says why. The address is that
+    asset's guid as a Microsoft-layout GUID (first three fields little-endian) split into two signed
+    longs — reversing the SDK examples through this layout reproduces their .meta guids, 18 of 18.
+
+    The game only demands uniqueness (reference mods disagree with their own guids and still work),
+    so this checks the SDK convention rather than a hard requirement. It is worth checking anyway:
+    it is the one cross-file identity a generator bug or a hand-edit could silently desync.
+    """
+    checked = 0
+    for path in REPO.rglob("*.asset"):
+        if any(part.startswith(".") for part in path.relative_to(REPO).parts):
+            continue
+
+        meta = pathlib.Path(str(path) + ".meta")
+        if not meta.exists():
+            continue  # the .meta check already reports this
+
+        found = OWN_ADDRESS_PATTERN.search(path.read_text(encoding="utf-8", errors="ignore"))
+        guid = META_GUID_PATTERN.search(meta.read_text(encoding="utf-8", errors="ignore"))
+        if not found or not guid:
+            continue  # not every .asset carries an address (the mod definition does not)
+
+        checked += 1
+        low, high = int(found.group(1)), int(found.group(2))
+        derived = uuid.UUID(bytes_le=struct.pack("<qq", low, high)).hex
+        if derived != guid.group(1):
+            problems.append(
+                f"{path.relative_to(REPO)}: m_address resolves to {derived}, "
+                f"but the asset's guid is {guid.group(1)}"
+            )
+    return checked
+
+
 def check_asmdef_references(problems):
     defined = set()
     asmdefs = []
@@ -194,6 +240,7 @@ def main():
         "scripts scanned for banned namespaces": check_banned_namespaces(problems),
         "assets checked for .meta": check_meta_pairs(problems),
         "asmdef references": check_asmdef_references(problems),
+        "data block addresses": check_data_block_addresses(problems),
     }
 
     for label, count in counts.items():

@@ -32,6 +32,7 @@ import hashlib
 import pathlib
 import struct
 import sys
+import uuid
 
 # Importing a sibling would drop a __pycache__ inside the mod path, which then trips preflight's
 # .meta check and would need a .gitignore entry to stay out of the repo. Cheaper to not create it.
@@ -112,16 +113,19 @@ def local_file_id(rel_path: str, node: str) -> int:
     return value if value != 0 else 1  # 0 means "null reference" in Unity YAML
 
 
-def data_block_address(key: str) -> tuple:
+def data_block_address(rel_path: str) -> tuple:
     """(m_low, m_high) for a DataBlockAddress — how sprites and text are linked (research.md 11장).
 
-    UNVERIFIED ASSUMPTION: we never found what the game derives m_address from, and the SDK's values
-    match neither the file guid nor a name hash. We treat it as an id the asset declares about
-    itself, which only requires that it be unique and stable. If the pylon has no sprite in game,
-    suspect this first.
+    It is the asset's own Unity guid: a 128-bit GUID laid out the Microsoft way (first three fields
+    little-endian), split into two signed 64-bit halves. DataBlockAddress is built from GUID strings
+    in the game's own code (ck-db Pug.Base/ContentBundleDataBlock.cs), and reversing the SDK
+    examples' values through this layout reproduces each file's .meta guid — 18 of 18.
+
+    Strictly the game only needs the value to be unique: the reference mods' assets do NOT match
+    their file guids and still work. Following the SDK's convention costs nothing and means our
+    assets are indistinguishable from generated ones.
     """
-    low, high = struct.unpack("<qq", _digest("address", key))
-    return low, high
+    return struct.unpack("<qq", uuid.UUID(hex=asset_guid(rel_path)).bytes_le)
 
 
 # ---------------------------------------------------------------------------------------------
