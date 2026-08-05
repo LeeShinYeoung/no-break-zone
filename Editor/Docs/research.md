@@ -203,8 +203,12 @@ C:\Users\LeeShinYeoung\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
 | `Adrriiannn/ck-db` | 게임 전체 디컴파일 소스. `.cs` **4,476개**를 어셈블리별로 정리 | 게임이 **어떻게 동작하는지** |
 | `Pugstorm/CoreKeeperModDocs` | 공식 모딩 문서 + `code-examples/` | SDK를 **어떻게 쓰는지** |
 | `Adrriiannn/ck-mods` | 같은 저자의 모드 3개(ConveyorTunnel·ChunkLoader·SmartSplitter). SDK 프로젝트 통째 사본 | **실제로 어떻게 짜는지**. 커스텀 설치물 완본 |
-| `CoreKeeperMods/CoreLib` | 모딩 라이브러리 | 대안 구현 비교 |
+| `CoreKeeperMods/CoreLib` | 모딩 라이브러리. **`Packages/` 밑에 SDK 패키지 원본**(`dev.pugstorm.mod`·`scriptabledata`·`sprite`)이 들어 있다 | 디컴파일이 아닌 원본이 필요할 때 |
 | SDK `Assets/Examples.zip` | 공식 예제 모드 10개 (Item·Workbench·Enemy·Rpc 등) | 최소 템플릿 |
+
+`ck-mods`는 sparse를 `Assets Docs`로 넓히면 모드가 **6개**다 — ConveyorTunnel·ChunkLoader·
+SmartSplitter에 더해 `Nullforge`·`ExpandNullforge`(.cs 576개)·`MPTest`. 포탈 같은 복잡한
+커스텀 오브젝트 예시는 여기 있다.
 
 **신뢰도 검증:** 8장이 디컴파일로 알아낸 심볼(`SetEntitiesDestroyedSystem`·`DontDestroyOnZeroHealthCD`·
 `IndestructibleCD`·`HealthChangeBuffer`·`TileDamageSystem`·`PlayerController.DealDamageToObject`)이
@@ -221,7 +225,8 @@ C:\Users\LeeShinYeoung\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
 ```sh
 git clone --depth 1 --filter=blob:none https://github.com/Adrriiannn/ck-db.git ck-db
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Adrriiannn/ck-mods.git ck-mods
-(cd ck-mods && git sparse-checkout set Assets/ConveyorTunnelMod Docs)
+(cd ck-mods && git sparse-checkout set Assets Docs)   # 모드 6개 전부
+git clone --depth 1 --filter=blob:none https://github.com/CoreKeeperMods/CoreLib.git CoreLib
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Pugstorm/CoreKeeperModDocs.git
 (cd CoreKeeperModDocs && git sparse-checkout set modding-documentation code-examples)
 curl -sLO https://raw.githubusercontent.com/Pugstorm/CoreKeeperModSDK/main/Assets/Examples.zip && unzip -q Examples.zip
@@ -354,9 +359,36 @@ SpriteAsset.m_address  ←──  SpriteObject.m_assetRef.m_address     (그래�
 SpriteAssetManifest.spriteAssets[] ──→ SpriteAsset  (이건 guid 참조)
 ```
 
-**미검증 가정:** `m_address`가 무엇에서 유도되는지 못 찾았다. SDK 예제의 값은 그 파일의 GUID와도,
-이름 해시와도 안 맞는다(대조해 봄). 따라서 **에셋이 스스로 선언하는 고유 ID**로 보고, 우리 것은
-한 번 생성해 고정하면 된다고 가정한다. **인게임에서 스프라이트가 안 보이면 여기를 제일 먼저 의심한다.**
+### ✅ `m_address` = 그 에셋 파일의 Unity guid (2026-08-05, 해결)
+
+**이전 판의 "미검증 가정"은 틀렸다.** 파일 GUID와 안 맞는다고 적어뒀는데, 바이트 순서를 안 맞춰본
+탓이었다.
+
+`m_address`는 128비트 GUID를 **마이크로소프트 배치**(앞 세 필드가 리틀엔디안, `bytes_le`)로
+담아 부호 있는 int64 둘로 쪼갠 것이다.
+
+```python
+low, high = struct.unpack("<qq", uuid.UUID(hex=에셋_meta_guid).bytes_le)
+```
+
+**검증: SDK 공식 예제 18/18 일치.** SpriteAsset · TextDataBlock · GradientMapDataBlock ·
+각종 SkinDataBlock 전부.
+
+```
+SDK 작업대 SpriteAsset  m_address = (1316430874294400503, -6785571713184725333)
+  → bytes_le → c9acb5f7-e6e7-1244-ab86-af757aced4a1
+  그 .asset.meta 의 guid = c9acb5f7e6e71244ab86af757aced4a1     ← 동일
+```
+
+애초에 `DataBlockAddress`가 GUID 문자열로 만드는 타입이다 —
+`Pug.Base/ContentBundleDataBlock.cs`에 `new DataBlockAddress("7507d88e-fd7a-7444-1b18-3816c6fbe382")`,
+`Pug.Other/CharacterCustomizationMenu.cs`에 `new DataBlockAddress(Guid.Parse(...))`.
+
+**게임이 요구하는 것은 유일성뿐이다.** ck-mods 계열 28건은 자기 파일 guid와 안 맞는데도 실제로
+돌아간다. 파일 guid를 쓰는 것은 **SDK 도구의 관례**이고, 맞춰두면 공짜로 확신이 하나 늘어난다.
+
+`Editor/preflight.py`가 이 대조를 검사한다. 어긋나면 에셋은 멀쩡히 로드되고 **스프라이트만
+안 나오므로** 자동 검사가 아니면 잡을 방법이 없다.
 
 ### 나머지 고정값
 
@@ -392,10 +424,73 @@ m_staticVariants: []           변형 1 이상 (파일런 켜짐 = 여기)
 발광 표현(기획서 §7 "발광 부위")은 `emissiveTexture`로 간다 — 별도 레이어 스프라이트가 아니라
 같은 SpriteAsset의 필드다.
 
+## 12. 제작 작업대를 만드는 법 (2026-08-05)
+
+### 레시피를 바닐라 오브젝트에 주입한다
+
+모드는 게임 프리팹을 못 고친다. 대신 **베이킹되는 순간 가로채서** 레시피 버퍼에 밀어 넣는다.
+
+```csharp
+[Preserve]
+public class … : SingleAuthoringComponentConverter<CraftingAuthoring>
+{
+    protected override void Convert(CraftingAuthoring authoring)
+    {
+        if ((ObjectID)ObjectIndex != ObjectID.IronWorkBench) return;
+        var id = API.Authoring.GetObjectID("NoBreakZone.Workbench");
+        if (id == ObjectID.None) return;                 // DB가 아직 안 올라옴
+        EnsureHasBuffer<CanCraftObjectsBuffer>();
+        AddToBuffer<CanCraftObjectsBuffer>(new CanCraftObjectsBuffer { objectID = id, amount = 1 });
+    }
+}
+```
+
+**숫자 대신 enum 이름을 쓴다.** `ObjectID` enum에는 명시적 값이 드문드문 박혀 있어
+(2,290개 중 205개) 서수를 세면 틀린다. ck-db 값 자체는 정확하다 — `AutomationTable = 4022`가
+ConveyorTunnelMod 하드코딩 값과 일치해 교차검증됐다. `IronWorkBench = 4010`.
+
+### 작업대 로직 프리팹 — `CraftingAuthoring`
+
+```
+canCraftObjects:
+- objectID: 0                        ← 모드 오브젝트는 0
+  moddedObjectID: NoBreakZone.Pylon  ← 이름으로 지목한다
+  amount: 1
+  craftingTime: 3
+  hasPrerequisites: 0
+  prerequisites: { contentBundlePresent/Absent, …BossKilled 6종 }
+```
+
+모드 오브젝트의 숫자 ID는 로드 전엔 존재하지 않으므로 **이름으로 건다.**
+
+### 작업대 그래픽 프리팹 — 상호작용
+
+루트가 `CraftingBuilding` 파생이어야 하고, `InteractableObject` 자식의 UnityEvent가
+루트의 `Use()`(E키) / `OnPlayerLeftBuilding()`(벗어남)을 부른다. 둘 다 public이라
+**빈 서브클래스로 충분하다** (`Pug.Other/CraftingBuilding.cs:166,173`).
+
+⚠️ **스톡 게임 클래스를 프리팹에서 지목하는 형태가 두 가지다.**
+
+| 형태 | 언제 |
+| --- | --- |
+| `{fileID: 11500000, guid: <그 .cs의 meta guid>}` | 느슨한 `.cs`. 예: `EntityMonoBehaviour` |
+| `{fileID: <이름 MD4 해시>, guid: <어셈블리 guid>}` | dll 컴파일. 예: `InteractableObject` (`-1216031652` / `548e3dd2…`) |
+
+같은 `Pug.Other` 안에서도 갈린다. **`CraftingBuilding`이 어느 쪽인지 알려주는 레퍼런스가 없다** —
+그래서 우리 서브클래스를 만들어 첫 번째 형태로 확정시킨다. SDK 예제도 서브클래스를 쓴다.
+
+⚠️ **`m_TargetAssemblyTypeName`은 `<타입>, <어셈블리>` 문자열이다.** 우리 어셈블리 이름은
+`NoBreakZone.asmdef`의 `name`, 즉 `NoBreakZone`. **SDK 예제를 그대로 베끼면 안 된다** —
+거기엔 `WorkBenchGraphical, ItemExample`이라 적혀 있는데 그 스크립트는 `WorkbenchExample.asmdef`
+밑에 있다. 옮기고 안 고친 흔적이다. `preflight.py`가 못 잡는 문자열이다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
 - [ ] 재적용에 전체 재시작이 필요한지, 부분 재로드로 되는지
 - [ ] 배포(mod.io/창작마당) 절차 — 6단계에서 조사 (UploadMod.cs / SteamWorkshopTab.cs 존재 확인만 됨)
-- [ ] **그래픽 프리팹의 나머지 참조** — `EntityMonoBehaviour`·SpriteObject 외에 SpriteAsset·
-  GradientMapDataBlock 연결이 남았다. 3단계에서 마저 규명한다
+- [x] ~~그래픽 프리팹의 나머지 참조~~ — SpriteAsset은 `m_address`(=파일 guid)로 연결된다.
+  GradientMap은 스킨용 선택 기능이라 안 쓴다 (11장)
+- [ ] 스프라이트 오프셋 규칙 — 업라이트 스프라이트의 `localPosition` y·z를 텍스처 크기에서
+  어떻게 잡는지. SDK 작업대 값 `(0, 0.0625, -0.3125)`를 그대로 쓰고 있다. 인게임에서 정렬이
+  어긋나 보이면 여기다
