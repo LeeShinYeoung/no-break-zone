@@ -36,9 +36,10 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     private ObjectID _pylonObjectID = ObjectID.None;
     private NativeList<int2> _positions;
     private bool _announced;
+    private bool _protectionNeedsRelease;
 
-    /// Tile coordinates of every live pylon. Valid for the rest of the frame once this system has
-    /// run; NoBreakZoneProtectionSystem is ordered after it and reads this directly.
+    /// Tile coordinates of every switched-on pylon. Valid for the rest of the frame once this
+    /// system has run; NoBreakZoneProtectionSystem is ordered after it and reads this directly.
     public NativeArray<int2> Positions => _positions.AsArray();
 
     protected override void OnCreate()
@@ -64,7 +65,8 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
 
         _pylons = GetEntityQuery(
             ComponentType.ReadOnly<NoBreakZonePylonCD>(),
-            ComponentType.ReadOnly<LocalTransform>());
+            ComponentType.ReadOnly<LocalTransform>(),
+            ComponentType.ReadOnly<ObjectDataCD>());
 
         _evaluated = GetEntityQuery(ComponentType.ReadOnly<NoBreakZoneEvaluatedCD>());
     }
@@ -143,48 +145,92 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
 
     private void CollectPositions()
     {
-        // 3단계 registers every pylon regardless of its variation. 기획서 §5 says a freshly placed
-        // pylon starts switched off, but nothing can switch one on until 4단계 wires up the E key,
-        // so filtering on variation here would mean no square ever exists and 체크포인트 1 could
-        // not be tested. 4단계 adds `ObjectDataCD.variation == 1` to this and to the prefab's
-        // variationIsDynamic flag together.
+        var entities = _pylons.ToEntityArray(Allocator.Temp);
         var transforms = _pylons.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+        var objectDatas = _pylons.ToComponentDataArray<ObjectDataCD>(Allocator.Temp);
+        var em = EntityManager;
 
         // Compared position by position, which assumes the query returns pylons in a stable order.
         // It does in practice: chunk order only shifts when a pylon's own component set changes,
-        // and that happens once, when it is first tagged. If the assumption ever breaks the cost is
-        // a redundant re-evaluation, not a wrong answer — re-judging can only add protection.
-        bool changed = transforms.Length != _positions.Length;
-        for (int i = 0; i < transforms.Length; i++)
+        // and that settles after the first frame it is seen. If the assumption ever breaks the cost
+        // is a redundant re-evaluation, not a wrong answer.
+        bool changed = false;
+        int active = 0;
+
+        for (int i = 0; i < entities.Length; i++)
         {
+            // 기획서 §5: only a switched-on pylon exists as far as protection is concerned. A
+            // switched-off one keeps its tag and its entity — it simply projects no square.
+            bool on = objectDatas[i].variation == NoBreakZonePylonGraphics.VariationOn;
+
+            ApplySelfProtection(em, entities[i], on);
+
+            if (!on)
+            {
+                continue;
+            }
+
             // The game resolves an entity to a tile this way too — float3 -> int2(round(x),
             // round(z)), the XZ plane (Pug.UnityExtensions/ExtensionMethods.cs:551).
             int2 tile = transforms[i].Position.RoundToInt2();
 
-            if (i < _positions.Length)
+            if (active < _positions.Length)
             {
-                if (!_positions[i].Equals(tile))
+                if (!_positions[active].Equals(tile))
                 {
                     changed = true;
-                    _positions[i] = tile;
+                    _positions[active] = tile;
                 }
             }
             else
             {
+                changed = true;
                 _positions.Add(tile);
             }
+
+            active++;
         }
 
-        if (transforms.Length < _positions.Length)
+        if (active < _positions.Length)
         {
-            _positions.Resize(transforms.Length, NativeArrayOptions.UninitializedMemory);
+            changed = true;
+            _positions.Resize(active, NativeArrayOptions.UninitializedMemory);
         }
 
+        entities.Dispose();
         transforms.Dispose();
+        objectDatas.Dispose();
 
         if (changed)
         {
             InvalidateEvaluatedObjects();
+        }
+    }
+
+    // 기획서 §6: "켜져 있는 동안 파일런은 무적이다 … 회수하려면 먼저 꺼야 한다."
+    //
+    // This is deliberately NOT routed through NoBreakZoneProtectionSystem's discriminator, which
+    // still excludes pylons. A pylon's own invulnerability has to follow its switch, not whether it
+    // happens to stand in somebody's square — otherwise two pylons covering each other would leave
+    // both permanently unrecoverable.
+    //
+    // Safe to own outright rather than checking for native indestructibility first, the way the
+    // protection system must: this is our object and it ships without IndestructibleCD.
+    private static void ApplySelfProtection(EntityManager em, Entity pylon, bool on)
+    {
+        if (!em.HasComponent<IndestructibleCD>(pylon))
+        {
+            if (!on)
+            {
+                return;  // nothing to add and nothing to clear
+            }
+
+            em.AddComponent<IndestructibleCD>(pylon);
+        }
+
+        if (em.IsComponentEnabled<IndestructibleCD>(pylon) != on)
+        {
+            em.SetComponentEnabled<IndestructibleCD>(pylon, on);
         }
     }
 
@@ -195,17 +241,30 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     // This is a heavy structural change, which is exactly why it is tied to the only event that can
     // change an answer rather than run on a timer.
     //
-    // 3단계 LIMITATION: re-judging can only ever add protection. Removing a pylon leaves everything
-    // it was covering protected, because taking protection back off is 4단계 (that is what
-    // NoBreakZoneProtectedCD was introduced for).
+    // Switching one off has to work the same way in reverse, which is what NoBreakZoneProtectedCD
+    // is for: NoBreakZoneProtectionSystem sweeps the objects it claimed and releases the ones no
+    // longer covered. Both directions hang off this one event.
     private void InvalidateEvaluatedObjects()
     {
-        if (_evaluated.IsEmpty)
+        if (!_evaluated.IsEmpty)
         {
-            return;
+            EntityManager.RemoveComponent<NoBreakZoneEvaluatedCD>(_evaluated);
         }
 
-        EntityManager.RemoveComponent<NoBreakZoneEvaluatedCD>(_evaluated);
-        Debug.Log($"[NoBreakZone] pylons changed ({_positions.Length}) — re-evaluating (world={World.Name})");
+        // Tell the protection system to re-check what it already owns, even when no candidate is
+        // waiting — switching the last pylon off has to release everything, and that path adds no
+        // new candidates at all.
+        _protectionNeedsRelease = true;
+
+        Debug.Log($"[NoBreakZone] active pylons: {_positions.Length} — re-evaluating (world={World.Name})");
+    }
+
+    /// True for one frame after the set of switched-on pylons changed. Read and cleared by
+    /// NoBreakZoneProtectionSystem, which runs immediately after this system.
+    public bool ConsumeReleaseRequest()
+    {
+        bool requested = _protectionNeedsRelease;
+        _protectionNeedsRelease = false;
+        return requested;
     }
 }
