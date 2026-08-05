@@ -421,8 +421,8 @@ SPECS = [
         # the bench belongs to the game rather than to us.
         recipe=[("IronBar", 12), ("Wood", 20), ("MechanicalPart", 1)],
         crafting_time=3.0,
-        # 기획서 §4 lists pylon, lens and remote. The remote is still to come.
-        crafts=["NoBreakZone.Pylon", "NoBreakZone.Lens"],
+        # 기획서 §4 lists exactly these three, and this completes them.
+        crafts=["NoBreakZone.Pylon", "NoBreakZone.Lens", "NoBreakZone.Remote"],
         graphics_script="Scripts/Graphics/NoBreakZoneWorkbenchGraphics.cs",
         interact_method="Use",  # CraftingBuilding.Use — opens the crafting window
         ui_titles=["gear", "crafting", "base"],  # same three terms the SDK workbench uses
@@ -443,6 +443,21 @@ SPECS = [
         stackable=False,
         rarity=3,
         recipe=[("IronBar", 6), ("AncientGemstone", 1)],  # 기획서 §4: 철 + 고대 보석 1
+        crafting_time=3.0,
+    ),
+    ObjectSpec(
+        key="NoBreakZoneRemote",
+        object_name="NoBreakZone.Remote",  # 기획서 §4. Written into saves — do not change.
+        title="Pylon Remote",
+        description="Right-click a pylon from a distance to switch it on or off.",
+        art="Editor/Docs/art/remote.png",
+        # Same shape as the lens: carried, and what it does happens in a system reading the player's
+        # input rather than through any slot behaviour the game would attach to a usable type.
+        object_type=OBJECT_TYPE_KEY_ITEM,
+        pixels_to_units=32,
+        stackable=False,  # 기획서 §4, same reasoning as the lens
+        rarity=3,
+        recipe=[("IronBar", 6), ("MechanicalPart", 2)],  # 기획서 §4: 철 + 기계부품
         crafting_time=3.0,
     ),
 ]
