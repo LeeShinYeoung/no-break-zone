@@ -28,6 +28,7 @@ the Windows build and by looking at the thing in game (CLAUDE.md §2).
 """
 
 import argparse
+import csv
 import hashlib
 import pathlib
 import re
@@ -35,12 +36,6 @@ import struct
 import sys
 import uuid
 import zlib
-
-# Importing a sibling would drop a __pycache__ inside the mod path, which then trips preflight's
-# .meta check and would need a .gitignore entry to stay out of the repo. Cheaper to not create it.
-sys.dont_write_bytecode = True
-sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from preflight import script_file_id  # noqa: E402  (same MD4 the prefab checker reverses)
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -50,19 +45,56 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 # from so a future game update can be re-checked against the same file.
 # ---------------------------------------------------------------------------------------------
 
-# Assembly guids, as they appear in reference prefabs. NOTE (research.md 11장): the guids in the
-# SDK's MetaFiles.zip do NOT match these — trust the prefabs.
-GUID_AUTHORING = "3392f4c23e1d8662d749dabb2361ee02"  # Pug.ECS.Authoring — 184 refs, all resolved
-GUID_PUGSPRITE = "292700ef68995bdb2163e35989fc7eb0"  # PugSprite: SpriteObject/SpriteAsset/Manifest
-GUID_ENTITY_MB = "6f4e9f12d8be4d048a7b574866c31a4f"  # EntityMonoBehaviour (ck-mods ConveyorTunnelVisual)
-GUID_TEXT_BLOCK = "e853a5af7d19630282ad0af7b5dabadc"  # TextDataBlock
-GUID_PHYSICS_SHAPE = "b275e5f92732148048d7b77e264ac30e"  # Unity.Physics PhysicsShapeAuthoring
-GUID_GHOST = "7c79d771cedb4794bf100ce60df5f764"  # NetCode GhostAuthoringComponent
-GUID_ANIM_SUPPORT = "f8b40f5d7f8d7c18ee25ec4e04143ad5"  # orientation/animation support (both refs)
-GUID_EMPTY_MARKER = "c16549610bfe4458aa9389201d072bb6"  # fieldless marker present on both refs
+# Script references are NOT hardcoded. They used to be — assembly guids copied out of reference
+# prefabs and the SDK examples — and every one of them named an assembly that does not exist in
+# this SDK install. Unity could not resolve the type, wrote a dangling m_Script into the bundle,
+# and the game loaded nothing while the build still reported success.
+#
+# Editor/GameData/script_guids.csv is Unity's own answer, dumped by Editor/DumpScriptGuids.cs.
+# Regenerate it after a game or SDK update and rerun this script.
+SCRIPT_GUIDS = REPO / "Editor" / "GameData" / "script_guids.csv"
+
+_script_table: "dict[str, set[tuple[int, str]]] | None" = None
+
+
+def _load_script_table() -> "dict[str, set[tuple[int, str]]]":
+    global _script_table
+    if _script_table is None:
+        if not SCRIPT_GUIDS.exists():
+            sys.exit(
+                f"missing {SCRIPT_GUIDS.relative_to(REPO)} — run Editor/DumpScriptGuids.cs first:\n"
+                "  Unity.exe -batchmode -quit -projectPath <proj> "
+                "-executeMethod NoBreakZone.EditorTools.DumpScriptGuids.Dump"
+            )
+        table: "dict[str, set[tuple[int, str]]]" = {}
+        with SCRIPT_GUIDS.open(newline="", encoding="utf-8") as handle:
+            for row in csv.DictReader(handle):
+                ref = (int(row["fileID"]), row["guid"])
+                full = row["fullName"]
+                # Reachable by full name and by short name; short names can collide, which
+                # game_script() reports rather than guessing.
+                table.setdefault(full, set()).add(ref)
+                table.setdefault(full.rsplit(".", 1)[-1], set()).add(ref)
+        _script_table = table
+    return _script_table
+
+
+def game_script(class_name: str) -> "tuple[int, str]":
+    """The exact (fileID, guid) Unity writes into m_Script for this class.
+
+    Both halves come from the same row, so the pair can never drift apart the way a hand-kept
+    fileID constant and a hand-kept assembly guid did.
+    """
+    refs = _load_script_table().get(class_name)
+    if not refs:
+        sys.exit(f"unknown class '{class_name}' — not in {SCRIPT_GUIDS.relative_to(REPO)}")
+    if len(refs) > 1:
+        listed = ", ".join(f"{fid}/{guid}" for fid, guid in sorted(refs))
+        sys.exit(f"ambiguous class '{class_name}' ({listed}) — use the namespaced name")
+    return next(iter(refs))
+
+
 GUID_SPRITE_MATERIAL = "571bf3c761ee86c4f9d8e65be27151be"  # SpriteObject.material, both refs
-GUID_PUG_OTHER = "548e3dd2d27c1e2d0bdf82f0889cb8a7"  # InteractableObject (SDK WorkbenchExample)
-FID_INTERACTABLE_OBJECT = -1216031652
 
 # The assembly our own MonoBehaviours compile into — NoBreakZone.asmdef's "name". UnityEvent stores
 # its target as "<type>, <assembly>", so this has to match or the call fails to resolve at runtime.
@@ -70,15 +102,11 @@ FID_INTERACTABLE_OBJECT = -1216031652
 # WorkbenchExample.asmdef — a stale name left behind when the script moved. Do not copy that.)
 MOD_ASSEMBLY = "NoBreakZone"
 
-# fileIDs that are not derived from a class name.
+# fileIDs that name a Unity built-in rather than a class, so game_script() does not apply.
 FID_MONOSCRIPT_CS = 11500000  # class lives in a .cs, not a .dll
 FID_SCRIPTABLE_OBJECT = 11400000  # the single object inside a .asset
 FID_TEXTURE2D = 2800000  # Texture2D subasset — what SpriteAsset.texture points at
 FID_SPRITE = 21300000  # Sprite subasset of a spriteMode:1 texture — what an item icon points at
-FID_SPRITE_OBJECT = 1908045241
-FID_SPRITE_ASSET = -217761678
-FID_SPRITE_MANIFEST = 1876717734
-FID_TEXT_DATA_BLOCK = 2108018792
 
 OBJECT_TYPE_PLACEABLE_PREFAB = 800  # ObjectType.PlaceablePrefab
 OBJECT_TYPE_KEY_ITEM = 1500  # ObjectType.KeyItem — held, no mechanical use of its own
@@ -704,7 +732,7 @@ def sprite_asset(spec: ObjectSpec) -> str:
         for suffix, _ in spec.variants
     )
     return (
-        _scriptable_header(spec.key, FID_SPRITE_ASSET, GUID_PUGSPRITE)
+        _scriptable_header(spec.key, *game_script("Pug.Sprite.SpriteAsset"))
         + "  m_overload:\n" + _null_address("    ")
         + _address("  ", low, high)
         + "  m_dynamicCollections:\n"
@@ -768,7 +796,7 @@ def text_data_block(spec: ObjectSpec) -> str:
         )
     primary_low, primary_high = LANGUAGE_ADDRESSES[PRIMARY_LANGUAGE_INDEX]
     return (
-        _scriptable_header(spec.key, FID_TEXT_DATA_BLOCK, GUID_TEXT_BLOCK)
+        _scriptable_header(spec.key, *game_script("TextDataBlock"))
         + "  m_overload:\n" + _null_address("    ")
         + _address("  ", low, high)
         + "  m_dynamicCollections:\n"
@@ -797,7 +825,7 @@ def sprite_asset_manifest(specs) -> str:
         for s in specs
     )
     return (
-        _scriptable_header("SpriteAssetManifest", FID_SPRITE_MANIFEST, GUID_PUGSPRITE)
+        _scriptable_header("SpriteAssetManifest", *game_script("Pug.Sprite.SpriteAssetManifest"))
         + "  spriteAssets:\n" + entries
         + "  gradientMaps: []\n"
         "  transformAnimations: []\n"
@@ -872,12 +900,13 @@ def _behaviour(fid: int, owner: int, script_fid: int, guid: str, body: str = "")
 
 
 def _authoring(fid: int, owner: int, class_name: str, body: str = "") -> str:
-    """A Pug.ECS.Authoring component, addressed by class name rather than a copied number.
+    """A game authoring component, addressed by class name rather than a copied number.
 
-    This is the check preflight.py reverses: a misspelled class here produces a fileID that maps to
-    no game class and fails on the Mac.
+    A misspelled class name is caught here rather than in the game: game_script() only answers for
+    classes Unity actually found, so a typo stops the generator instead of shipping a dead
+    reference that builds green.
     """
-    return _behaviour(fid, owner, script_file_id(class_name), GUID_AUTHORING, body)
+    return _behaviour(fid, owner, *game_script(class_name), body)
 
 
 PHYSICS_SHAPE_BODY = (
@@ -1128,12 +1157,12 @@ def logic_prefab(spec: ObjectSpec) -> str:
     )
     body += _authoring(ids["localization"], root, "LocalizationAuthoring",
                        f"  termKey: {spec.key}\n  languageGenders: []\n")
-    body += _behaviour(ids["animSupport"], root, 775935493, GUID_ANIM_SUPPORT,
+    body += _behaviour(ids["animSupport"], root, *game_script("AnimationAuthoring"),
                        "  orientationSupport: 0\n  largeAnimationHistorySupport: 0\n")
-    body += _behaviour(ids["physicsShape"], root, FID_MONOSCRIPT_CS, GUID_PHYSICS_SHAPE,
+    body += _behaviour(ids["physicsShape"], root, *game_script("Unity.Physics.Authoring.PhysicsShapeAuthoring"),
                        PHYSICS_SHAPE_BODY)
     body += _behaviour(
-        ids["ghost"], root, FID_MONOSCRIPT_CS, GUID_GHOST,
+        ids["ghost"], root, *game_script("Unity.NetCode.GhostAuthoringComponent"),
         "  DefaultGhostMode: 0\n"
         "  SupportedGhostModes: 3\n"
         "  OptimizationMode: 1\n"
@@ -1147,7 +1176,7 @@ def logic_prefab(spec: ObjectSpec) -> str:
         "  UsePreSerialization: 0\n"
         "  DontUsePredictionBackup: 0\n",
     )
-    body += _behaviour(ids["marker"], root, FID_MONOSCRIPT_CS, GUID_EMPTY_MARKER)
+    body += _behaviour(ids["marker"], root, *game_script("Unity.Entities.Hybrid.Baking.LinkedEntityGroupAuthoring"))
     return body
 
 
@@ -1211,7 +1240,7 @@ def graphics_prefab(spec: ObjectSpec) -> str:
     root_script = (
         (FID_MONOSCRIPT_CS, asset_guid(spec.graphics_script))
         if spec.graphics_script
-        else (FID_MONOSCRIPT_CS, GUID_ENTITY_MB)
+        else game_script("EntityMonoBehaviour")
     )
 
     # CraftingBuilding's own serialized fields sit after EntityMonoBehaviour's, in this order
@@ -1281,7 +1310,7 @@ def graphics_prefab(spec: ObjectSpec) -> str:
     body += _game_object(sprite, "SpriteObject", [sprite_tf, sprite_obj])
     body += _transform(sprite_tf, sprite, scaler_tf, position=spec.sprite_offset)
     body += _behaviour(
-        sprite_obj, sprite, FID_SPRITE_OBJECT, GUID_PUGSPRITE,
+        sprite_obj, sprite, *game_script("Pug.Sprite.SpriteObject"),
         # This address, not a guid, is how the SpriteObject finds its SpriteAsset (research.md 11장).
         "  m_assetRef:\n" + _address("    ", low, high)
         + "  skinRef:\n" + _null_address("    ")
@@ -1313,7 +1342,7 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         body += _game_object(interactable_go, "Interactable", [interactable_tf, interactable])
         body += _transform(interactable_tf, interactable_go, root_tf)
         body += _behaviour(
-            interactable, interactable_go, FID_INTERACTABLE_OBJECT, GUID_PUG_OTHER,
+            interactable, interactable_go, *game_script("InteractableObject"),
             "  weightMultiplier: 1\n"
             "  useDiscreteOutlineColor: 0\n"
             "  requiredFactionToInteract: 0\n"
