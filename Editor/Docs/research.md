@@ -668,6 +668,51 @@ tile += corner;
 원인을 인게임에서 알아낼 방법이 없다. `NoBreakZoneProtectionSystem`은 후보 판정과
 `ReleaseUncovered`가 **같은 메서드**를 부른다.
 
+## 17. 현지화와 설정 (2026-08-05)
+
+### 현지화 = TextDataBlock. `Localization.csv`는 런타임에 안 읽힌다
+
+공식 문서 `how-to-localize-your-mod.md`가 명확하다.
+
+- **런타임 조회 키는 TextDataBlock의 이름**이고, `Header`는 `Items`여야 한다
+- `.csv`는 **유니티 에디터에서 임포트할 때만** 쓰는 편의 포맷이다. 문서가 임포트 후
+  "다른 디렉터리로 옮겨 백업하라"고 안내한다
+- 13개 슬롯을 다 채우면 어느 언어에서도 이름이 뜬다 (영어로라도). 비우면 그 언어에서 빈칸
+
+**즉 `Localization/` 폴더는 만들 필요가 없다.** 기획서 §4의 "구조는 13개 언어를 받을 수 있게"는
+3단계에 이미 충족돼 있었다.
+
+### ⚠️ 어느 슬롯이 어느 언어인지 모른다 — 윈도우 필요
+
+13개 주소는 게임 번들 안 `LanguageDataBlock` 에셋의 guid다.
+
+- 13개를 전부 guid로 환원해 `ck-db`·`ck-mods`·CoreLib·SDK 예제를 검색 → **0건**
+- 레퍼런스 모드 중 **비영어로 현지화한 것이 없다**
+
+**알아내는 법:** 유니티 Scriptable Data Editor로 TextDataBlock을 열면 슬롯마다 언어 이름이 보인다.
+한국어의 0-기준 인덱스를 `genassets.py`의 `LANGUAGE_SLOTS`에 적으면 된다.
+
+### 설정은 `API.Config` — `Conf/` 폴더는 우리가 안 만든다
+
+```csharp
+IConfigEntry<T> API.Config.Register<T>(mod, section, description, key, defaultValue);
+entry.Value
+```
+
+파일 위치·형식을 게임이 관리한다. **레퍼런스 모드 중 이걸 쓰는 사례는 없다** — 공식 API지만
+실사용례 없이 문서만 보고 쓴 것이다. 등록 실패 시 상수로 폴백하게 해뒀다.
+
+### "몹 피해 차단"에 새 메커니즘이 필요 없다
+
+8·9장의 두 컴포넌트가 **서로 다른 피해 경로**를 막는다는 것이 그대로 설정이 된다.
+
+| 컴포넌트 | 막는 것 |
+| --- | --- |
+| `IndestructibleCD` | **플레이어발** 피해 (`PlayerController.DealDamageToObject`가 이것만 본다) |
+| `DontDestroyOnZeroHealthCD` | **모든** 피해원의 파괴 (`SetEntitiesDestroyedSystem` 단일 관문) |
+
+**켬 = 둘 다. 끔 = `IndestructibleCD`만.** 미검증 추론이다 — 끈 상태를 인게임에서 본 적 없다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
