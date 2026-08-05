@@ -37,5 +37,6 @@ public class NoBreakZoneMod : IMod
     public void Update()
     {
         NoBreakZoneRangeOverlay.Update();
+        NoBreakZoneRemoteFeedback.Update();
     }
 }
