@@ -30,6 +30,7 @@ using UnityEngine;
 public partial class NoBreakZoneProtectionSystem : SystemBase
 {
     private EntityQuery _candidates;
+    private EntityQuery _ours;
     private NoBreakZonePylonRegistrySystem _registry;
     private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
 
@@ -65,21 +66,38 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 ComponentType.ReadOnly<NoBreakZonePylonCD>(),
             },
         });
+
+        // Everything this mod made indestructible, and nothing else. Switching a pylon off has to
+        // give these back — see ReleaseUncovered.
+        _ours = GetEntityQuery(
+            ComponentType.ReadOnly<NoBreakZoneProtectedCD>(),
+            ComponentType.ReadOnly<LocalTransform>());
     }
 
     protected override void OnUpdate()
     {
+        var pylons = _registry.Positions;
+        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter);
+
+        // Before judging anything new: if the set of switched-on pylons just changed, hand back
+        // whatever fell outside it. This has to run before the early exits below — switching the
+        // last pylon off leaves no squares and no new candidates, and is exactly the case where
+        // releasing matters most.
+        if (_registry.ConsumeReleaseRequest())
+        {
+            ReleaseUncovered(pylons, radius);
+        }
+
         if (_candidates.IsEmpty)
         {
             return;
         }
 
-        var pylons = _registry.Positions;
         if (pylons.Length == 0)
         {
-            // No pylon means no square, so nothing can qualify (기획서 §6). Leaving early also
-            // leaves the candidates untagged, so they get judged properly once one is placed
-            // rather than being written off now.
+            // No switched-on pylon means no square, so nothing can qualify (기획서 §6). Leaving
+            // early also leaves the candidates untagged, so they get judged properly once one is
+            // switched on rather than being written off now.
             return;
         }
 
@@ -90,7 +108,6 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         var objectDatas = _candidates.ToComponentDataArray<ObjectDataCD>(Allocator.Temp);
         var transforms = _candidates.ToComponentDataArray<LocalTransform>(Allocator.Temp);
         var em = EntityManager;
-        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneRange.DefaultDiameter);
 
         for (int i = 0; i < entities.Length; i++)
         {
@@ -126,6 +143,70 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         objectTypes.Dispose();
         objectDatas.Dispose();
         transforms.Dispose();
+    }
+
+    // STAGE 4 — the other half of the switch (기획서 §6: "기지를 수정하려면 파일런을 끄면 된다").
+    //
+    // Up to 3단계 this system only ever added protection, which made the toggle pointless: turning a
+    // pylon off left every chest around it just as indestructible as before. This gives them back.
+    //
+    // ONLY ENTITIES CARRYING NoBreakZoneProtectedCD ARE TOUCHED, and that tag is only ever applied
+    // to something that was destructible when we found it (see Protect). Objects the game ships
+    // indestructible — the Core, boss-arena scenery — never receive it, so no amount of pylon
+    // switching can make them breakable. That is the whole reason the tag exists.
+    //
+    // An object still covered by some other switched-on pylon keeps everything, so overlapping
+    // squares behave the way 기획서 §6 describes when only one of them is switched off.
+    private void ReleaseUncovered(NativeArray<int2> pylons, int radius)
+    {
+        if (_ours.IsEmpty)
+        {
+            return;
+        }
+
+        var entities = _ours.ToEntityArray(Allocator.Temp);
+        var transforms = _ours.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+        var em = EntityManager;
+        int released = 0;
+
+        for (int i = 0; i < entities.Length; i++)
+        {
+            int2 tile = transforms[i].Position.RoundToInt2();
+            if (IsInsideAnyPylon(pylons, tile, radius))
+            {
+                continue;
+            }
+
+            Release(em, entities[i]);
+            released++;
+        }
+
+        entities.Dispose();
+        transforms.Dispose();
+
+        if (released > 0)
+        {
+            Debug.Log($"[NoBreakZone] released {released} object(s) (world={World.Name})");
+        }
+    }
+
+    private static void Release(EntityManager em, Entity entity)
+    {
+        // Disable rather than remove: NetCode fixes a ghost's component set at bake time, and the
+        // enable flag is the part the damage path actually reads (research.md 9장).
+        if (em.HasComponent<IndestructibleCD>(entity))
+        {
+            em.SetComponentEnabled<IndestructibleCD>(entity, false);
+        }
+
+        if (em.HasComponent<DontDestroyOnZeroHealthCD>(entity))
+        {
+            em.SetComponentData(entity, new DontDestroyOnZeroHealthCD { disabled = true });
+        }
+
+        // Dropping the claim last, so a mid-way failure leaves the object still marked as ours and
+        // therefore still releasable, rather than stranded as indestructible with nobody owning it.
+        em.RemoveComponent<NoBreakZoneProtectedCD>(entity);
     }
 
     // 기획서 §6: overlapping squares are fine — being inside any one active pylon is enough.
