@@ -81,20 +81,23 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         // — it decides whether a whole base can be broken — so it gets a ring that reads at a
         // glance, a burst inside it, and the portal sound the game uses when something ancient
         // moves you somewhere.
-        // Landed between the two tries: 10 AncientBurst particles read as nothing, a ring plus 24
-        // AncientEnergyBurst read as too much. The ring alone is the part that says "this switched
-        // on" — it is one puff, it is legible at a glance, and it does not bury the pylon.
+        // SIZE IS THE PUFF, NOT THE COUNT. PlayPuff(puffId, position, particleCount) only takes a
+        // number of particles; how big the effect is belongs to the puff itself. Cutting the count
+        // twice on AncientEnergyRing changed nothing visible because one ring is one ring, which is
+        // why it kept reading as too much. Picking a smaller puff is the only lever there is.
+        //
+        // With the lit sprite finally switching, the picture is what says "this is on" and the
+        // effect only has to mark the moment.
         if (switchedOn)
         {
-            API.Effects.PlayPuff((int)PuffID.AncientEnergyRing, transform.position, 1);
-            API.Effects.PlayPuff((int)PuffID.SmallAncientEnergy, transform.position, 6);
+            API.Effects.PlayPuff((int)PuffID.AncientSparks, transform.position, 6);
             API.Audio.PlaySfx((int)SfxID.AF_portal_teleport, transform.position);
             return;
         }
 
         // 기획서 §7 wants the off state to fade rather than pop, so this stays deliberately smaller
         // than its counterpart rather than mirroring it.
-        API.Effects.PlayPuff((int)PuffID.SmallAncientEnergy, transform.position, 4);
+        API.Effects.PlayPuff((int)PuffID.SmallAncientSmoke, transform.position, 4);
         API.Audio.PlaySfx((int)SfxID.AF_portal_collapse, transform.position);
     }
 }

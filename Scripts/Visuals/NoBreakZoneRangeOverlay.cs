@@ -33,9 +33,11 @@ public static class NoBreakZoneRangeOverlay
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
-    // DIAGNOSTIC, remove with the two log lines below.
+    // DIAGNOSTIC, remove once the lens is confirmed visible in game.
     private static ObjectID _lastLoggedHeld = (ObjectID)(-1);
     private static bool _loggedFirstDraw;
+    private static bool _warnedNoIcon;
+    private static bool _loggedMarkerSetup;
 
     // One tile is 16 texture pixels — SpriteObject.PixelsPerUnit is a hardcoded 16f and the marker
     // texture is one tile wide, so the sprite has to be built at the same scale or every edge comes
@@ -322,16 +324,36 @@ public static class NoBreakZoneRangeOverlay
         var icon = Object.FindObjectOfType<PlacementIcon>(true);
         if (icon == null || icon.SR == null)
         {
+            // Said out loud rather than returned from silently: a marker left on Unity's default
+            // sprite material is one of the two ways "the lens does nothing" can happen, and it used
+            // to leave no trace at all.
+            if (!_warnedNoIcon)
+            {
+                _warnedNoIcon = true;
+                Debug.LogWarning("[NoBreakZone] no PlacementIcon to copy from — the range markers "
+                                 + "keep Unity's default sprite material and may not draw");
+            }
+
             return;
         }
 
         renderer.sharedMaterial = icon.SR.sharedMaterial;
         renderer.sortingLayerID = icon.SR.sortingLayerID;
-        // Below the placement icon itself: the outline is background information, and should never
-        // sit on top of what the player is actively aiming.
-        renderer.sortingOrder = icon.SR.sortingOrder - 1;
+        // Above the placement icon rather than below it. Below was the tidier choice — an outline is
+        // background information — but it also put the marker behind whatever the game draws at
+        // ground level, which is one of the two ways it could have gone missing. Order first, taste
+        // afterwards.
+        renderer.sortingOrder = icon.SR.sortingOrder + 1;
         renderer.maskInteraction = icon.SR.maskInteraction;
         renderer.gameObject.layer = icon.SR.gameObject.layer;
+
+        if (!_loggedMarkerSetup)
+        {
+            _loggedMarkerSetup = true;
+            Debug.Log($"[NoBreakZone] marker material={renderer.sharedMaterial.name} "
+                      + $"sortingLayer={renderer.sortingLayerID} order={renderer.sortingOrder} "
+                      + $"layer={renderer.gameObject.layer}");
+        }
     }
 
     private static void HideAll()

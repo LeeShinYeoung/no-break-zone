@@ -887,6 +887,74 @@ SDK 예제에서는 이게 안 드러난다 — `objectName`·`termKey`·TextDat
 번들 내부 참조라 위 경로와 다를 수 있어 **단정하지 않는다** — 아이콘이 실제로 그려지는지는
 인게임에서 눈으로 확인한다.
 
+## 20. 디컴파일로 확정한 네 가지 (2026-08-07)
+
+**이 장은 추측으로 세 판을 날린 뒤에 썼다.** 파일런 텍스처 하나에 사람 플레이 세션 세 번을 썼고,
+세 번 다 원인은 YAML을 보고 세운 그럴듯한 가설이었다. 게임 DLL은 `Assets/Plugins/CoreKeeper/`에
+처음부터 있었다. **`dotnet tool install -g ilspycmd` 한 줄이면 30분 만에 끝났을 일이다.**
+
+> 교훈: 게임의 동작이 걸린 문제는 **레퍼런스에 사례가 없으면 코드를 열어본다.**
+> "레퍼런스 어디에도 이렇게 하는 것이 없다"는 반증이 아니라 **신호**다.
+
+### 20-1. 모드 오브젝트에는 `ObjectTypeCD`가 없다
+
+`Pug.ECS.Conversion.dll`에 `ObjectTypeCD`를 붙이는 곳은 **한 군데뿐**이다.
+
+| 컨버터 | 붙이는 것 | 누가 타는가 |
+| --- | --- | --- |
+| `EntityMonoBehaviourDataConverter` | `ObjectDataCD` · `ObjectCategoryTagsCD` · **`ObjectTypeCD`** | 바닐라 (`EntityMonoBehaviourData`) |
+| `ObjectConverter` | `ObjectDataCD` · `ObjectCategoryTagsCD` | **모드 (`ObjectAuthoring`)** |
+
+보호 시스템 쿼리가 `ObjectTypeCD`를 `All`에 두고 있어서 **이 모드가 추가한 모든 오브젝트가 규칙이
+돌기도 전에 걸러졌다.** 제작대가 자기 파일런 범위 안에서 부서지는데 `PROTECT`도 `skip`도 안 찍히던
+이유다. → 오브젝트 타입은 **`PugDatabase`에서** 읽는다. 바닐라·모드 양쪽에 답한다.
+
+### 20-2. 변형은 프리팹 하나당 하나다 — 그리고 없으면 0으로 폴백한다
+
+```
+PugDatabase.TryGetObjectInfo(id, out info, variation):
+    (id, amount, variation) 조회 → 있으면 반환
+    variation = 0 으로 다시 조회 → 반환        ← 조용한 폴백
+```
+
+`UpdateEntityMonos`가 `objectsByType`를 채우는 단위는 **authoring 프리팹 하나**다.
+우리는 프리팹이 하나(variation 0)뿐이어서 `GetObjectInfo(파일런, 1)`이 **variation 0짜리를
+돌려줬고**, 그래서 `EntityMonoBehaviour`가 보는 `info.variation`은 언제나 0이었다.
+DB 실측도 같다 — `objectInfos=2880` vs `unique=2283`, 차이가 변형 항목이다.
+
+**변형 하나당 로직 프리팹 하나.** 같은 `objectName`을 쓰면 같은 ObjectID를 받는다
+(`ObjectAuthoring.TryGetPreferredObjectIndex`가 이름으로 조회). `ObjectConverter`가 "name" 속성을
+`variation == 0`일 때만 쓰는 것이 이 구조를 반대편에서 말해준다.
+
+### 20-3. 변형된 모습은 스프라이트 슬롯이 아니라 **GameObject**다
+
+`SpriteAsset.m_staticVariantLookup`은 `StringToHash(변형.GetName(...))` — **이름 해시**로 만들어지고,
+`SetVariant`를 부르는 것은 **스프라이트 방향과 애니메이션**이다. 오브젝트의 `variation`은 여기 안 닿는다.
+
+변형이 그래픽에 닿는 유일한 지점인 `EntityMonoBehaviour.UpdateGraphicsFromObjectInfo`는
+`objectVariants`만 훑는다 — **일치하는 항목의 GameObject를 켜고 나머지는 끈다.** 스프라이트는
+건드리지 않는다.
+
+→ 변형마다 **SpriteObject 하나 + SpriteAsset 하나**를 두고 `objectVariants`로 갈아끼운다.
+(SDK 예제의 `m_staticVariants`는 **방향** 변형이고 `SpriteVariationFromEntityDirection`이 쓴다)
+
+### 20-4. 타일은 `IndestructibleCD`를 안 본다 — 그래서 오히려 안전하다
+
+`TileDamageSystem` (`Pug.Other.dll`):
+
+- **`IndestructibleCD` 참조 0건.** 설치물에 쓰는 그 컴포넌트는 벽·바닥에 안 통한다
+- `HealthChange`를 공용 `HealthChangeBuffer`에 넣는다 → 설치물과 **같은
+  `SetEntitiesDestroyedSystem` 관문** → `DontDestroyOnZeroHealthCD{disabled=false}`로 막힌다
+- `[UpdateInGroup(PredictedSimulationSystemGroup)]` — **클라이언트에서도 예측 실행**.
+  9장의 유령 상자와 같은 조건이라 반드시 양쪽 월드에 걸어야 한다
+
+**복제가 안 나는 이유**: 벽 41종은 `lootTable=1`·`lootOnDmg=0` — 전리품이 **파괴 시점**에만 나온다.
+파괴를 막으면 전리품이 아예 안 나온다. 복제는 "안 죽으면서 계속 뱉는" 것이라야 성립하고,
+그건 `DropsLootWhenDamagedCD`·드릴 대상·광석의 성질이다. 그 넷을 계속 제외한다.
+
+기타: `API.Effects.PlayPuff(puffId, position, particleCount)` — **크기는 puff 종류에 내장**돼 있고
+인자로 조절되는 것은 입자 수뿐이다. `TileType`은 `PugTilemap` 네임스페이스(`ore = 129`).
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)

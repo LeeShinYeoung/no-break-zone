@@ -304,9 +304,13 @@ def check_same_silhouette(base_art: pathlib.Path, lit_art: pathlib.Path) -> None
 RANGE_MARKER_TEXTURE = "Textures/NoBreakZoneRangeMarker.png"
 
 MARKER_TILE_PIXELS = 16  # one tile; SpriteObject.PixelsPerUnit is a hardcoded 16f
-MARKER_THICKNESS_PIXELS = 2
+# LOUD ON PURPOSE, FOR NOW. The first version was 2px at alpha 90 and nothing appeared in game — and
+# with nothing on screen there is no way to tell "drawn too faint" from "not drawn". The log proves
+# the markers are placed (four of them, with the right sprite), so this makes them unmissable and
+# 기획서 §7's "아주 옅은 윤곽" is reached by turning these two numbers down once they are seen.
+MARKER_THICKNESS_PIXELS = 3
 MARKER_COLOUR = (150, 220, 255)  # pale cyan, to read as "information" rather than as decoration
-MARKER_ALPHA = 90  # out of 255
+MARKER_ALPHA = 200  # out of 255
 
 
 def range_marker_png() -> bytes:
@@ -454,6 +458,28 @@ class ObjectSpec:
     @property
     def logic_path(self):
         return f"Prefabs/{self.key}.prefab"
+
+    def variation_logic_path(self, suffix):
+        return f"Prefabs/{self.key}{suffix}.prefab"
+
+    @property
+    def logic_prefabs(self):
+        """(variation, prefab path) for every variation this object has.
+
+        ONE AUTHORING PREFAB PER VARIATION — that is the game's structure, not a choice.
+        PugDatabase.UpdateEntityMonos fills objectsByType with one entry per authoring prefab, keyed
+        by (objectID, amount, variation), and PugDatabase.TryGetObjectInfo falls back to variation 0
+        when it finds no entry for the variation asked for. With a single prefab the pylon's lit
+        state therefore resolved to variation 0's ObjectInfo, and EntityMonoBehaviour saw
+        info.variation == 0 however the pylon was switched — so the lit sprite never appeared.
+
+        The extra prefabs carry the same objectName and so are handed the same ObjectID
+        (ObjectAuthoring.TryGetPreferredObjectIndex looks it up by name). ObjectConverter writing the
+        "name" property only when variation == 0 is the same structure seen from the other side.
+        """
+        yield 0, self.logic_path
+        for index, (suffix, _art) in enumerate(self.variants, start=1):
+            yield index, self.variation_logic_path(suffix)
 
     @property
     def graphics_path(self):
@@ -1030,7 +1056,7 @@ def _crafting_authoring_body(spec: ObjectSpec) -> str:
     )
 
 
-def logic_prefab(spec: ObjectSpec) -> str:
+def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
     """The ECS side: what the object IS.
 
     A placeable follows the SDK workbench, minus RotationAuthoring (nothing we make turns to face
@@ -1038,7 +1064,6 @@ def logic_prefab(spec: ObjectSpec) -> str:
     Sword1 carries — everything below them describes a thing that exists in the world, which an item
     in a bag does not.
     """
-    path = spec.logic_path
     fid = lambda node: local_file_id(path, node)  # noqa: E731
 
     root = fid("root")
@@ -1073,9 +1098,11 @@ def logic_prefab(spec: ObjectSpec) -> str:
         ]
     ids = {name: fid(name) for name, _ in parts}
 
+    # Only variation 0 carries the recipe. Every variation is a separate authoring prefab of the same
+    # object, and a recipe on each would offer the player the same pylon twice in the crafting window.
     recipe_block = "  requiredObjectsToCraft:" + (
         " []\n"
-        if not spec.recipe
+        if not spec.recipe or variation != 0
         else "\n" + "".join(
             f"  - objectName: {name}\n    amount: {amount}\n" for name, amount in spec.recipe
         )
@@ -1093,7 +1120,7 @@ def logic_prefab(spec: ObjectSpec) -> str:
         "  initialAmount: 1\n"
         # 기획서 §5: a freshly placed pylon starts off, which is variation 0. The two fields below
         # declare that this object's variation changes at runtime and what it toggles between.
-        "  variation: 0\n"
+        f"  variation: {variation}\n"
         f"  variationIsDynamic: {1 if spec.variation_is_dynamic else 0}\n"
         f"  variationToToggleTo: {spec.variation_to_toggle_to}\n"
         f"  objectType: {spec.object_type}\n"
@@ -1475,8 +1502,9 @@ def build_outputs():
             out[variant + ".meta"] = texture_meta(variant, spec.pixels_to_units)
         out[spec.text_path] = text_data_block(spec)
         out[spec.text_path + ".meta"] = asset_meta(spec.text_path)
-        out[spec.logic_path] = logic_prefab(spec)
-        out[spec.logic_path + ".meta"] = prefab_meta(spec.logic_path)
+        for variation, logic_path in spec.logic_prefabs:
+            out[logic_path] = logic_prefab(spec, variation, logic_path)
+            out[logic_path + ".meta"] = prefab_meta(logic_path)
 
         # A SpriteAsset exists to draw something in the world, and a graphics prefab to hold it.
         # An item has neither: its icon points straight at the PNG's sprite, the way Sword1's does.

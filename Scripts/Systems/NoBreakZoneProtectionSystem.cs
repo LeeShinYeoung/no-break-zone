@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Pug.UnityExtensions;
+using PugTilemap;  // TileType — the tile enum lives here, not beside TileCD
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
@@ -33,10 +34,6 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     private EntityQuery _ours;
     private NoBreakZonePylonRegistrySystem _registry;
     private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
-
-    // DIAGNOSTIC, remove with Report(). Separate from _logged so a refusal is still reported for an
-    // object that was protected earlier under a different pylon layout.
-    private readonly HashSet<ObjectID> _loggedSkips = new HashSet<ObjectID>();
 
     // The registry hands out int2s; NoBreakZoneRange takes parallel int arrays so it can stay free
     // of Unity types and be unit tested. Copied into reusable buffers once per frame rather than
@@ -82,7 +79,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             },
             None = new[]
             {
-                ComponentType.ReadOnly<TileCD>(),
+                // TileCD used to be excluded here. Walls and floors are part of a base too
+                // (design.md §4), and the rule now judges them rather than the query dropping them —
+                // see NoBreakZoneProtectionRule's tile branch for how resource duplication stays
+                // impossible.
                 ComponentType.ReadOnly<NoBreakZoneEvaluatedCD>(),
 
                 // A pylon stands inside its own square, so without this it would protect itself.
@@ -159,24 +159,22 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             bool destructible = em.HasComponent<DestructibleObjectCD>(entity);
             bool lootTable = em.HasComponent<DropsLootFromLootTableCD>(entity);
             bool lootOnDamage = em.HasComponent<DropsLootWhenDamagedCD>(entity);
+            bool isTile = em.HasComponent<TileCD>(entity);
             int objectType = ObjectTypeOf(objectDatas[i]);
 
             bool qualifies = NoBreakZoneProtectionRule.ShouldProtect(
                 objectType,
                 true, // HealthCD is in the query's All list
-                false, // TileCD is in the query's None list
+                isTile,
                 destructible,
                 lootTable,
-                lootOnDamage);
+                lootOnDamage,
+                isOreTile: isTile && em.GetComponentData<TileCD>(entity).tileType == TileType.ore,
+                requiresDrill: em.HasComponent<RequiresDrillCD>(entity),
+                isPlant: em.HasComponent<PlantCD>(entity) || em.HasComponent<GrowingCD>(entity));
 
             if (!qualifies)
             {
-                // DIAGNOSTIC — the mod's own workbench stood inside a switched-on pylon's square and
-                // broke anyway, and the PROTECT lines could not say why because they only ever
-                // reported success. Reporting the inputs of a refusal turns "it did not work" into a
-                // row of flags. Once per object id, so this cannot become a per-frame sweep.
-                Report(objectDatas[i].objectID, "rule",
-                       objectType, destructible, lootTable, lootOnDamage);
                 continue;
             }
 
@@ -184,14 +182,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             // transform sits at.
             if (!IsFootprintCovered(em, entity, transforms[i], objectDatas[i], radius))
             {
-                // Distinguishes "the rule said no" from "it was simply outside the square", which
-                // are the same silent `continue` from the outside and want opposite fixes.
-                Report(objectDatas[i].objectID, "outside",
-                       objectType, destructible, lootTable, lootOnDamage);
                 continue;
             }
 
-            Protect(em, entity, objectDatas[i].objectID);
+            Protect(em, entity, objectDatas[i].objectID, isTile);
         }
 
         entities.Dispose();
@@ -343,35 +337,38 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         return info == null ? 0 : (int)info.objectType;
     }
 
-    // DIAGNOSTIC, remove once 제작대 보호 is understood. Once per object id per world, the same way
-    // Protect's log is capped, so a base full of furniture costs a handful of lines rather than one
-    // per entity. A modded id prints as its number (32770 is the workbench) because ObjectID's enum
-    // has no name for it — that is also why the existing PROTECT lines looked all-vanilla.
-    private void Report(ObjectID objectID, string why,
-                        int objectType, bool destructible, bool lootTable, bool lootOnDamage)
+    private void Protect(EntityManager em, Entity entity, ObjectID objectID, bool isTile)
     {
-        if (!_loggedSkips.Add(objectID))
+        // A TILE IS NOT REACHED THROUGH IndestructibleCD. Mining a wall or a floor goes through
+        // TileDamageSystem, and that system does not read IndestructibleCD at all — it writes a
+        // HealthChange into the shared buffer and lets SetEntitiesDestroyedSystem decide. So for a
+        // tile the DontDestroyOnZeroHealthCD below is the whole mechanism, and adding the other
+        // component would be dead weight on a great many entities.
+        //
+        // TileDamageSystem runs in PredictedSimulationSystemGroup, so the client predicts the break
+        // too — the same trap that made chests into ghosts in 9장. This system already runs in both
+        // worlds, so both refuse alike.
+        if (!isTile)
         {
-            return;
+            // Leave objects that were already indestructible alone, and do not claim them as ours —
+            // otherwise 4단계 would "restore" them to destructible when a pylon switches off.
+            bool alreadyNativelyIndestructible =
+                em.HasComponent<IndestructibleCD>(entity)
+                && em.IsComponentEnabled<IndestructibleCD>(entity);
+
+            if (!alreadyNativelyIndestructible)
+            {
+                em.AddComponent<IndestructibleCD>(entity);
+                em.SetComponentEnabled<IndestructibleCD>(entity, true);
+                em.AddComponent<NoBreakZoneProtectedCD>(entity);
+            }
         }
-
-        Debug.Log($"[NoBreakZone] skip {objectID} ({why}): type={objectType} "
-                  + $"destructible={destructible} lootTable={lootTable} lootOnDamage={lootOnDamage} "
-                  + $"(world={World.Name})");
-    }
-
-    private void Protect(EntityManager em, Entity entity, ObjectID objectID)
-    {
-        // Leave objects that were already indestructible alone, and do not claim them as ours —
-        // otherwise 4단계 would "restore" them to destructible when a pylon switches off.
-        bool alreadyNativelyIndestructible =
-            em.HasComponent<IndestructibleCD>(entity)
-            && em.IsComponentEnabled<IndestructibleCD>(entity);
-
-        if (!alreadyNativelyIndestructible)
+        else if (!em.HasComponent<DontDestroyOnZeroHealthCD>(entity)
+                 || em.GetComponentData<DontDestroyOnZeroHealthCD>(entity).disabled)
         {
-            em.AddComponent<IndestructibleCD>(entity);
-            em.SetComponentEnabled<IndestructibleCD>(entity, true);
+            // Same discipline as above, read through the component that actually guards a tile:
+            // claim it only if it was breakable when we found it, so switching a pylon off can
+            // never turn a natively indestructible tile into rubble.
             em.AddComponent<NoBreakZoneProtectedCD>(entity);
         }
 
@@ -380,7 +377,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // single gate every damage source passes through (research.md 8·9장). Leaving it off is
         // therefore exactly "끄면 플레이어발 피해만 막음" — mobs and explosions can still finish
         // something off.
-        bool blockEverything = NoBreakZoneConfig.BlockMobDamage;
+        //
+        // A tile has no other guard, so its protection is not optional in the same way: the setting
+        // decides what may finish off an installation, not whether a wall stands.
+        bool blockEverything = NoBreakZoneConfig.BlockMobDamage || isTile;
         if (!em.HasComponent<DontDestroyOnZeroHealthCD>(entity))
         {
             if (blockEverything)

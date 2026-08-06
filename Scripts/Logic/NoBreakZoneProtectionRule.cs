@@ -15,23 +15,48 @@ public static class NoBreakZoneProtectionRule
     // the value is stable because object types are written into saves.
     public const int PlaceablePrefabObjectType = 800;
 
-    /// <param name="objectType">ObjectTypeCD.Value as an int.</param>
+    /// <param name="objectType">ObjectType from the database (ObjectTypeCD is absent on modded objects).</param>
     /// <param name="hasHealth">HealthCD — the entity is on the damage/destroy pipeline at all.</param>
-    /// <param name="isTile">TileCD — terrain, walls, floors. Never ours to protect.</param>
+    /// <param name="isTile">TileCD — terrain, walls, floors. Judged by the tile branch below.</param>
     /// <param name="isDestructibleObject">DestructibleObjectCD — world destructibles (ore, pots, barrels).</param>
     /// <param name="dropsLootFromTable">DropsLootFromLootTableCD — pots, ancient destructibles, walls.</param>
     /// <param name="dropsLootWhenDamaged">DropsLootWhenDamagedCD — ore boulders. The resource-dupe flag.</param>
+    /// <param name="isOreTile">TileCD.tileType == ore. Mined for material and never a wall.</param>
+    /// <param name="requiresDrill">RequiresDrillCD — the drill's targets, i.e. resources.</param>
+    /// <param name="isPlant">PlantCD or GrowingCD — crops, harvested rather than destroyed.</param>
     public static bool ShouldProtect(
         int objectType,
         bool hasHealth,
         bool isTile,
         bool isDestructibleObject,
         bool dropsLootFromTable,
-        bool dropsLootWhenDamaged)
+        bool dropsLootWhenDamaged,
+        bool isOreTile = false,
+        bool requiresDrill = false,
+        bool isPlant = false)
     {
-        if (!hasHealth || isTile)
+        if (!hasHealth)
         {
             return false;
+        }
+
+        if (isTile)
+        {
+            // A WALL AND A FLOOR ARE PART OF A BASE, AND A PLAYER WHO WALLED THEIR BASE IN EXPECTS
+            // THE WALL TO SURVIVE (design.md §4's decision record). Tiles were excluded outright
+            // until now for fear of resource duplication, and the fear was aimed at the wrong thing:
+            // a wall's loot comes from its loot table on death, not while it is being hit
+            // (object_flags.csv: all 41 walls are lootTable=1, lootOnDmg=0). Blocking the death
+            // therefore yields nothing at all rather than yielding forever.
+            //
+            // What must never be protected is anything mined FOR its material, because those are the
+            // ones that can pay out while refusing to die. Ore is excluded by tile type, drill
+            // targets by their own component, and anything that drops while damaged by the flag that
+            // says so — the same flag that has always guarded this rule.
+            //
+            // 기획서 §6: "자원 복제는 절대 발생해서는 안 된다." This branch is the only place in the
+            // mod where that could go wrong, so it refuses on any one of the four.
+            return !isOreTile && !requiresDrill && !isPlant && !dropsLootWhenDamaged;
         }
 
         if (objectType != PlaceablePrefabObjectType)
