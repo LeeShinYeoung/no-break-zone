@@ -33,9 +33,20 @@ public static class NoBreakZoneRangeOverlay
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
-    /// Called from NoBreakZoneMod.ModObjectLoaded for every asset in the bundle. Matching a sprite
-    /// by name is how the reference mod picks up its own helper sprites — the mod never gets a path
-    /// or a guid at runtime, only the loaded objects.
+    // DIAGNOSTIC, remove once the lens is confirmed visible in game.
+    private static ObjectID _lastLoggedHeld = (ObjectID)(-1);
+    private static bool _loggedFirstDraw;
+    private static bool _warnedNoIcon;
+    private static bool _loggedMarkerSetup;
+
+    // One tile is 16 texture pixels — SpriteObject.PixelsPerUnit is a hardcoded 16f and the marker
+    // texture is one tile wide, so the sprite has to be built at the same scale or every edge comes
+    // out the wrong length. genassets.py draws the texture at MARKER_TILE_PIXELS for the same reason.
+    private const float MarkerPixelsPerUnit = 16f;
+
+    /// Called from NoBreakZoneMod.ModObjectLoaded for every asset in the bundle. Matching by name is
+    /// how the reference mod picks up its own helper sprites — the mod never gets a path or a guid
+    /// at runtime, only the loaded objects.
     public static void RegisterLoadedObject(Object obj)
     {
         // A mod never sees a path or a guid, so "the sprite is missing" is indistinguishable from
@@ -54,6 +65,25 @@ public static class NoBreakZoneRangeOverlay
         if (obj is Sprite sprite && sprite.name == MarkerSpriteName)
         {
             _markerSprite = sprite;
+            return;
+        }
+
+        // NO SPRITE EVER ARRIVES. Logging the whole inventory showed what the bundle actually hands
+        // a mod: Texture2D, GameObject and ScriptableObject, and not one Sprite — so waiting for the
+        // Sprite subasset the .meta's spriteMode:1 produces meant waiting forever, and the lens drew
+        // nothing while the log said "no 'NoBreakZoneRangeMarker' sprite loaded".
+        //
+        // The texture does arrive, and a Sprite is only a rect and a pivot over one. Building it
+        // here needs no read/write access — Sprite.Create references the texture rather than reading
+        // its pixels — and it is the same picture the importer would have made.
+        if (_markerSprite == null && obj is Texture2D texture && texture.name == MarkerSpriteName)
+        {
+            _markerSprite = Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                MarkerPixelsPerUnit);
+            _markerSprite.name = MarkerSpriteName;
         }
     }
 
@@ -104,6 +134,18 @@ public static class NoBreakZoneRangeOverlay
             PlaceEdge(used++, pylon.x, pylon.y - half, length, horizontal: true);
             PlaceEdge(used++, pylon.x - half, pylon.y, length, horizontal: false);
             PlaceEdge(used++, pylon.x + half, pylon.y, length, horizontal: false);
+        }
+
+        // DIAGNOSTIC, remove once the lens is understood. If this line appears and the player still
+        // saw nothing, the markers exist and the problem is how they are drawn —
+        // CopyAppearanceFromPlacementIcon is the first suspect. If it never appears, the lens was
+        // never detected in hand and the check above is what to fix.
+        if (!_loggedFirstDraw && used > 0)
+        {
+            _loggedFirstDraw = true;
+            Debug.Log($"[NoBreakZone] lens drew {used} marker(s), radius={radius}, "
+                      + $"sprite={_markerSprite.name} {_markerSprite.rect.width}x"
+                      + $"{_markerSprite.rect.height}px ppu={_markerSprite.pixelsPerUnit}");
         }
 
         // Everything the pool still holds beyond what this frame needed.
@@ -181,7 +223,23 @@ public static class NoBreakZoneRangeOverlay
             }
         }
 
-        return player.visuallyEquippedContainedObject.objectData.objectID == _lensObjectID;
+        ObjectID held = player.visuallyEquippedContainedObject.objectData.objectID;
+
+        // DIAGNOSTIC, remove once the lens is understood. Holding the lens changed nothing in game,
+        // and there are only two ways that happens: this test never became true, or it did and the
+        // markers were drawn invisibly. One line each settles it.
+        //
+        // A KeyItem may never be "visually equipped" at all — the field is paired with an
+        // EquipmentSlotType — so the equipped slot's own contents are printed beside it. If they
+        // disagree, the fix is to read the slot instead.
+        if (held != _lastLoggedHeld)
+        {
+            _lastLoggedHeld = held;
+            Debug.Log($"[NoBreakZone] lens check: visuallyEquipped={held} lens={_lensObjectID} "
+                      + $"equippedSlot={player.equippedSlotIndex}");
+        }
+
+        return held == _lensObjectID;
     }
 
     // 기획서 §7 shows the range of pylons that are ON. The registry already filters to those, so a
@@ -266,16 +324,36 @@ public static class NoBreakZoneRangeOverlay
         var icon = Object.FindObjectOfType<PlacementIcon>(true);
         if (icon == null || icon.SR == null)
         {
+            // Said out loud rather than returned from silently: a marker left on Unity's default
+            // sprite material is one of the two ways "the lens does nothing" can happen, and it used
+            // to leave no trace at all.
+            if (!_warnedNoIcon)
+            {
+                _warnedNoIcon = true;
+                Debug.LogWarning("[NoBreakZone] no PlacementIcon to copy from — the range markers "
+                                 + "keep Unity's default sprite material and may not draw");
+            }
+
             return;
         }
 
         renderer.sharedMaterial = icon.SR.sharedMaterial;
         renderer.sortingLayerID = icon.SR.sortingLayerID;
-        // Below the placement icon itself: the outline is background information, and should never
-        // sit on top of what the player is actively aiming.
-        renderer.sortingOrder = icon.SR.sortingOrder - 1;
+        // Above the placement icon rather than below it. Below was the tidier choice — an outline is
+        // background information — but it also put the marker behind whatever the game draws at
+        // ground level, which is one of the two ways it could have gone missing. Order first, taste
+        // afterwards.
+        renderer.sortingOrder = icon.SR.sortingOrder + 1;
         renderer.maskInteraction = icon.SR.maskInteraction;
         renderer.gameObject.layer = icon.SR.gameObject.layer;
+
+        if (!_loggedMarkerSetup)
+        {
+            _loggedMarkerSetup = true;
+            Debug.Log($"[NoBreakZone] marker material={renderer.sharedMaterial.name} "
+                      + $"sortingLayer={renderer.sortingLayerID} order={renderer.sortingOrder} "
+                      + $"layer={renderer.gameObject.layer}");
+        }
     }
 
     private static void HideAll()

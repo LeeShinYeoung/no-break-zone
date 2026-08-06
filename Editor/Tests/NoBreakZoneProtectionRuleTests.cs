@@ -20,7 +20,9 @@ namespace NoBreakZone.Tests
         private const int SomeOtherObjectType = 500; // ObjectType.Sword — anything that is not placeable
 
         private const int ExpectedRowCount = 2282;
-        private const int ExpectedProtectedCount = 569;
+        // 569 installations plus the 123 tiles the rule started protecting when walls and floors
+        // came in (41 of them walls). Zero of the ten ore tiles, which is the number that matters.
+        private const int ExpectedProtectedCount = 692;
 
         [Test]
         public void AChestIsProtected()
@@ -55,15 +57,36 @@ namespace NoBreakZone.Tests
         }
 
         [Test]
-        public void TerrainAndNonPlaceablesAndHealthlessThingsAreAllRejected()
+        public void NonPlaceablesAndHealthlessThingsAreRejected()
         {
-            Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
-                PlaceablePrefab, true, isTile: true, false, false, false), "tiles are terrain");
             Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
                 SomeOtherObjectType, true, false, false, false, false), "not a placeable");
             Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
                 PlaceablePrefab, hasHealth: false, isTile: false, false, false, false),
                 "seeds and crops have no health and must stay harvestable");
+        }
+
+        [Test]
+        public void AWallIsProtectedButAnythingMinedForMaterialIsNot()
+        {
+            // A wall's loot comes from its table when it dies, so blocking the death yields nothing
+            // rather than yielding forever — which is why walls can be protected at all.
+            Assert.IsTrue(NoBreakZoneProtectionRule.ShouldProtect(
+                PlaceablePrefab, true, isTile: true, false, dropsLootFromTable: true, false),
+                "a wall is part of a base");
+
+            Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
+                PlaceablePrefab, true, isTile: true, false, false, false, isOreTile: true),
+                "ore is mined for its material");
+            Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
+                PlaceablePrefab, true, isTile: true, false, false, false, requiresDrill: true),
+                "a drill target is a resource");
+            Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
+                PlaceablePrefab, true, isTile: true, false, false, false, isPlant: true),
+                "crops are harvested, not destroyed");
+            Assert.IsFalse(NoBreakZoneProtectionRule.ShouldProtect(
+                PlaceablePrefab, true, isTile: true, false, false, dropsLootWhenDamaged: true),
+                "anything that pays out while being hit would duplicate");
         }
 
         [Test]
@@ -81,7 +104,10 @@ namespace NoBreakZone.Tests
                     row["tileCD"] == "1",
                     row["destructible"] == "1",
                     row["lootTable"] == "1",
-                    row["lootOnDmg"] == "1");
+                    row["lootOnDmg"] == "1",
+                    isOreTile: row["tileType"] == "ore",
+                    requiresDrill: row["requiresDrill"] == "1",
+                    isPlant: row["plant"] == "1" || row["growing"] == "1");
 
                 if (!result)
                 {
@@ -91,17 +117,24 @@ namespace NoBreakZone.Tests
                 string id = row["id"];
                 protectedIds.Add(id);
 
-                // The two invariants that matter more than the count. A single leak here is a
-                // resource duplication bug in a live save.
-                Assert.AreNotEqual("1", row["tileCD"], id + ": terrain must never be protected");
-                Assert.AreNotEqual("1", row["lootOnDmg"], id + ": ore boulders must stay mineable");
+                // The invariant that matters more than the count: a single leak here is a resource
+                // duplication bug in a live save, and 기획서 §6 forbids that outright. Terrain is no
+                // longer on this list — walls and floors are protected on purpose now — so what
+                // guards it is the set of things mined FOR their material.
+                Assert.AreNotEqual("1", row["lootOnDmg"], id + ": pays out while damaged");
+                Assert.AreNotEqual("ore", row["tileType"], id + ": ore must stay mineable");
+                Assert.AreNotEqual("1", row["requiresDrill"], id + ": drill targets are resources");
+                Assert.AreNotEqual("1", row["plant"], id + ": crops must stay harvestable");
+                Assert.AreNotEqual("1", row["growing"], id + ": crops must stay harvestable");
             }
 
             Assert.AreEqual(ExpectedProtectedCount, protectedIds.Count,
                 "the set of protected objects changed — re-derive the rule before updating this number");
             CollectionAssert.Contains(protectedIds, "WoodenWorkBench");
             CollectionAssert.Contains(protectedIds, "BossChest");
+            CollectionAssert.Contains(protectedIds, "WallStoneBlock");
             CollectionAssert.DoesNotContain(protectedIds, "CopperOreBoulder");
+            CollectionAssert.DoesNotContain(protectedIds, "CopperOre");
         }
 
         // Located through AssetDatabase rather than a hardcoded path: this repository is checked out

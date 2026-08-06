@@ -94,5 +94,5 @@ MonoBehaviour:
   m_Script: {fileID: 1596865243, guid: 9a1db145e9314404d8da91bdc1557235, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  termKey: NoBreakZoneRemote
+  termKey: NoBreakZone.Remote
   languageGenders: []

@@ -183,13 +183,12 @@ def data_block_address(rel_path: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------------------------
-# Deriving the glow layer from the two draft sprites.
+# Guarding 기획서 §7's promise about the lit state.
 #
-# 기획서 §7 wants one sprite with a glow layer switched on and off, "이렇게 하면 두 상태의
-# 실루엣이 완전히 동일해 전환 시 튀지 않는다". The drafts already satisfy that — pylon_off and
-# pylon_on have byte-identical alpha and differ in 36 of 1024 pixels, all inside the gem — so the
-# emissive layer is just their difference, and deriving it keeps the silhouettes identical by
-# construction rather than by the artist remembering.
+# §7 wants the two states to share a silhouette: "이렇게 하면 두 상태의 실루엣이 완전히 동일해
+# 전환 시 튀지 않는다." The drafts satisfy it — pylon_off and pylon_on come out of one shape
+# function and differ only in colour — and the check below refuses to generate anything that stops
+# satisfying it.
 # ---------------------------------------------------------------------------------------------
 
 def _read_png_rgba(path: pathlib.Path):
@@ -254,29 +253,39 @@ def _write_png_rgba(width: int, height: int, rows) -> bytes:
     )
 
 
-def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
-    """Pixels the lit sprite changed, on a transparent field — the glow layer, nothing else."""
+def check_same_silhouette(base_art: pathlib.Path, lit_art: pathlib.Path) -> None:
+    """Fail unless a variation's art has the same outline as variation 0's, and differs somewhere.
+
+    기획서 §7 asks for one sprite whose lit state cannot shift the shape: "이렇게 하면 두 상태의
+    실루엣이 완전히 동일해 전환 시 튀지 않는다." Since a variation now carries its own texture
+    rather than an emissive overlay, nothing structural enforces that any more — so it is checked.
+    Alpha equal everywhere is exactly "same silhouette", and it is free to verify.
+
+    Both textures come out of the same shape function in Editor/Docs/art/sprites.py, which only ever
+    recolours opaque pixels for the lit state, so this passes by construction. It is here to catch
+    the day somebody draws one of them by hand.
+    """
     width, height, base = _read_png_rgba(base_art)
     lit_width, lit_height, lit = _read_png_rgba(lit_art)
     if (width, height) != (lit_width, lit_height):
         raise ValueError(f"{base_art.name} is {width}x{height} but {lit_art.name} is "
                          f"{lit_width}x{lit_height}; they must line up pixel for pixel")
 
-    rows = []
     changed = 0
     for y in range(height):
-        row = bytearray(width * 4)
         for x in range(width):
             span = slice(x * 4, x * 4 + 4)
             if base[y][span] != lit[y][span]:
-                row[span] = lit[y][span]
                 changed += 1
-        rows.append(bytes(row))
+            if base[y][x * 4 + 3] != lit[y][x * 4 + 3]:
+                raise ValueError(
+                    f"{lit_art.name} differs from {base_art.name} in alpha at ({x},{y}) — the two "
+                    "states would have different silhouettes and the object would jump when it "
+                    "switched (기획서 §7)")
 
     if changed == 0:
-        raise ValueError(f"{lit_art.name} is identical to {base_art.name} — no glow to extract")
-
-    return _write_png_rgba(width, height, rows)
+        raise ValueError(f"{lit_art.name} is identical to {base_art.name} — switching the object on "
+                         "would look like nothing happened")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -295,9 +304,13 @@ def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
 RANGE_MARKER_TEXTURE = "Textures/NoBreakZoneRangeMarker.png"
 
 MARKER_TILE_PIXELS = 16  # one tile; SpriteObject.PixelsPerUnit is a hardcoded 16f
-MARKER_THICKNESS_PIXELS = 2
+# LOUD ON PURPOSE, FOR NOW. The first version was 2px at alpha 90 and nothing appeared in game — and
+# with nothing on screen there is no way to tell "drawn too faint" from "not drawn". The log proves
+# the markers are placed (four of them, with the right sprite), so this makes them unmissable and
+# 기획서 §7's "아주 옅은 윤곽" is reached by turning these two numbers down once they are seen.
+MARKER_THICKNESS_PIXELS = 3
 MARKER_COLOUR = (150, 220, 255)  # pale cyan, to read as "information" rather than as decoration
-MARKER_ALPHA = 90  # out of 255
+MARKER_ALPHA = 200  # out of 255
 
 
 def range_marker_png() -> bytes:
@@ -332,13 +345,15 @@ class ObjectSpec:
                  object_type=OBJECT_TYPE_PLACEABLE_PREFAB,
                  tile_size=(1, 1), pixels_to_units=16, stackable=True, rarity=3,
                  health=10, recipe=(), crafting_time=3.0,
-                 sprite_offset=(0, 0.0625, -0.3125),
+                 sprite_offset=(0, 0.5625, -0.3125),
                  crafts=(), graphics_script=None, ui_titles=(),
                  variants=(), interact_method=None,
                  variation_is_dynamic=False, variation_to_toggle_to=0,
                  localized=None):
-        self.key = key  # asset base name; also the localization termKey
-        self.object_name = object_name  # ObjectID string — 기획서 §4, never change (CLAUDE.md §5)
+        self.key = key  # asset base name, for everything the game finds by guid or by address
+        # ObjectID string — 기획서 §4, never change (CLAUDE.md §5). Also the localization term: the
+        # game looks item text up by this, so the TextDataBlock and termKey are named from it too.
+        self.object_name = object_name
         self.title = title  # English, and the fallback for every slot without a translation
         self.description = description
         # {language code: (title, description)}. 기획서 §4 ships English and Korean, and wants the
@@ -355,9 +370,16 @@ class ObjectSpec:
         self.health = health
         self.recipe = list(recipe)  # [(objectName, amount)] — where it is craftable is 6단계
         self.crafting_time = crafting_time
-        # Nudge of the sprite quad relative to the object. Copied from the SDK workbench, whose art
-        # is 16x18 rather than our size, so this is a starting point to eyeball at 체크포인트 1 —
-        # not a value anybody verified for this sprite.
+        # Where the sprite quad sits relative to the object. The quad is centred on its pivot
+        # (0.5, 0.5) and is texture_height/16 units tall, so for the 16x18 art it reaches 0.5625
+        # units either side of this point — meaning y has to be 0.5625 for the bottom row to land on
+        # the ground.
+        #
+        # The SDK workbench's 0.0625 was copied verbatim and put the bottom half a unit UNDER the
+        # floor: in game the pylon and the workbench were both sliced off across the middle, showing
+        # roughly their top ten rows of eighteen, which is exactly 0.5 units of sinking. That example
+        # has never been built by anyone (research.md 11장 records the same lesson about its guids),
+        # so its numbers are not evidence.
         self.sprite_offset = sprite_offset
 
         # A crafting station. Non-empty means the logic prefab gets CraftingAuthoring and the
@@ -370,11 +392,9 @@ class ObjectSpec:
         # I2 localization terms for the crafting window header, as the SDK example uses them.
         self.ui_titles = list(ui_titles)
 
-        # Extra looks the object can switch between, as [(suffix, lit art)], becoming variation
-        # 1, 2, ... in SpriteAsset.m_staticVariants. Each keeps the base texture and adds an
-        # emissive layer derived from the difference against it, which is 기획서 §7's "스프라이트는
-        # 한 종류만 만들고 발광 레이어를 켜고 끄는 방식" — the silhouette cannot drift because both
-        # variations literally are the same texture.
+        # Extra looks the object can switch between, as [(suffix, art)], becoming variation 1, 2, …
+        # in SpriteAsset.m_staticVariants. Each is a whole texture of its own, the way every variant
+        # in the SDK example is; check_same_silhouette keeps them the same shape as variation 0.
         self.variants = list(variants)
         # Method on graphics_script's class that InteractableObject calls on E. None means the
         # object cannot be interacted with at all.
@@ -405,14 +425,61 @@ class ObjectSpec:
     def sprite_asset_path(self):
         return f"Data/SpriteAsset/{self.key}.asset"
 
+    def variant_sprite_asset_path(self, suffix):
+        return f"Data/SpriteAsset/{self.key}{suffix}.asset"
+
+    @property
+    def variations(self):
+        """(suffix, texture path, sprite asset path) for variation 0, 1, … in that order.
+
+        Variation 0 is the object's plain look; the rest come from `variants`. Each gets a whole
+        SpriteAsset of its own because a SpriteObject resolves exactly one, and the switch is made
+        by turning SpriteObjects on and off — see graphics_prefab.
+        """
+        yield "", self.texture_path, self.sprite_asset_path
+        for suffix, _ in self.variants:
+            yield (suffix, self.variant_texture_path(suffix),
+                   self.variant_sprite_asset_path(suffix))
+
     @property
     def text_path(self):
         # Both reference mods put item text under TextDataBlock/Items/, so we match them.
-        return f"Data/TextDataBlock/Items/{self.key}.asset"
+        #
+        # NAMED AFTER object_name, NOT key. The game looks an item's text up by the object's own
+        # name: with a TextDataBlock called NoBreakZoneWorkbench the game asked for
+        # "Items/NoBreakZone.Workbench" and drew "missing: Items/NoBreakZone.Workbench" in the
+        # tooltip. The SDK example never showed this up because its objectName, its termKey, its
+        # TextDataBlock's m_Name and that asset's filename are all the one string
+        # ("MyNewWorkbench1"), and nothing anywhere references the block by guid -- the name is the
+        # only link there is. So all four have to agree, and object_name is the one we cannot move
+        # (CLAUDE.md §5: it is written into saves).
+        return f"Data/TextDataBlock/Items/{self.object_name}.asset"
 
     @property
     def logic_path(self):
         return f"Prefabs/{self.key}.prefab"
+
+    def variation_logic_path(self, suffix):
+        return f"Prefabs/{self.key}{suffix}.prefab"
+
+    @property
+    def logic_prefabs(self):
+        """(variation, prefab path) for every variation this object has.
+
+        ONE AUTHORING PREFAB PER VARIATION — that is the game's structure, not a choice.
+        PugDatabase.UpdateEntityMonos fills objectsByType with one entry per authoring prefab, keyed
+        by (objectID, amount, variation), and PugDatabase.TryGetObjectInfo falls back to variation 0
+        when it finds no entry for the variation asked for. With a single prefab the pylon's lit
+        state therefore resolved to variation 0's ObjectInfo, and EntityMonoBehaviour saw
+        info.variation == 0 however the pylon was switched — so the lit sprite never appeared.
+
+        The extra prefabs carry the same objectName and so are handed the same ObjectID
+        (ObjectAuthoring.TryGetPreferredObjectIndex looks it up by name). ObjectConverter writing the
+        "name" property only when variation == 0 is the same structure seen from the other side.
+        """
+        yield 0, self.logic_path
+        for index, (suffix, _art) in enumerate(self.variants, start=1):
+            yield index, self.variation_logic_path(suffix)
 
     @property
     def graphics_path(self):
@@ -428,10 +495,10 @@ SPECS = [
         localized={"ko": ("파일런",
                           "주변의 물건을 보호한다. 켜져 있는 동안에는 어떤 충격도 그 안의 것들을 부수지 못한다.")},
         art="Editor/Docs/art/pylon_off.png",
-        # 기획서 §4: 1x1 tiles. The draft art is 32px where a tile is 16px; see the note in
-        # status.md about keeping it for now and looking at it in game first.
+        # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
+        # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
         tile_size=(1, 1),
-        pixels_to_units=32,
+        pixels_to_units=16,
         stackable=True,
         rarity=3,
         health=10,
@@ -444,10 +511,10 @@ SPECS = [
         # all of it — see Scripts/Graphics/NoBreakZonePylonGraphics.cs.
         variation_is_dynamic=True,
         variation_to_toggle_to=1,
-        # 기획서 §7: one sprite, glow layer switched on and off. The lit draft differs from the
-        # base in 36 pixels — the gem — and has identical alpha, so the difference is exactly the
-        # glow and the two states cannot end up with different silhouettes.
-        variants=[("Glow", "Editor/Docs/art/pylon_on.png")],
+        # Variation 1 is the lit pylon: the gem burns and the light spreads into the body, which is
+        # what makes the switch readable across a base. Same silhouette as variation 0 — same shape
+        # function, only recoloured — and check_same_silhouette proves it every run (기획서 §7).
+        variants=[("On", "Editor/Docs/art/pylon_on.png")],
         graphics_script="Scripts/Graphics/NoBreakZonePylonGraphics.cs",
         interact_method="Toggle",
     ),
@@ -458,11 +525,12 @@ SPECS = [
         description="Where the pylon and its tools are made.",
         localized={"ko": ("파일런 작업대", "파일런과 그에 딸린 도구를 만드는 곳.")},
         art="Editor/Docs/art/workbench.png",
-        # 기획서 §4: 2x1 tiles. The draft art is 64x32, so it will draw four tiles wide and two
-        # tall over a two-tile footprint — the same sprite question as the pylon, decided the same
-        # way: look at it in game first.
-        tile_size=(2, 1),
-        pixels_to_units=32,
+        # ONE TILE, not 기획서 §4's original 2x1 — changed with the user's approval after seeing it
+        # placed, and design.md §4 carries the decision record. The 64x32 draft drew four tiles wide
+        # and two tall over a two-tile footprint; a bench that reaches past its own footprint is
+        # worse in a cramped base than a smaller one, and 1x1 is what the SDK's own workbench is.
+        tile_size=(1, 1),
+        pixels_to_units=16,
         stackable=True,
         rarity=3,
         health=10,
@@ -489,7 +557,9 @@ SPECS = [
         # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
         # type for exactly that: carried, no mechanical use of its own.
         object_type=OBJECT_TYPE_KEY_ITEM,
-        pixels_to_units=32,
+        # 16, matching the 16x16 art. This one really is only the inventory icon — a KeyItem never
+        # stands in the world — but the whole set is drawn to one scale so the icons match.
+        pixels_to_units=16,
         # 기획서 §4: "렌즈와 리모콘은 스택되지 않는다. 여러 개를 가질 이유가 없는 물건이고,
         # 겹쳐지면 인벤토리에서 개수만 헷갈린다."
         stackable=False,
@@ -507,7 +577,7 @@ SPECS = [
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.
         object_type=OBJECT_TYPE_KEY_ITEM,
-        pixels_to_units=32,
+        pixels_to_units=16,  # same as the lens
         stackable=False,  # 기획서 §4, same reasoning as the lens
         rarity=3,
         recipe=[("IronBar", 6), ("MechanicalPart", 2)],  # 기획서 §4: 철 + 기계부품
@@ -708,31 +778,25 @@ def _null_address(indent: str) -> str:
     return _address(indent, 0, 0)
 
 
-def sprite_asset(spec: ObjectSpec) -> str:
-    """SpriteAsset: the thing a graphics prefab's SpriteObject resolves through its m_address.
+def sprite_asset(spec: ObjectSpec, texture_path: str, asset_path: str) -> str:
+    """One SpriteAsset: the thing a graphics prefab's SpriteObject resolves through its m_address.
 
-    m_staticSpriteData is variation 0; m_staticVariants holds variation 1 upwards, which is how the
-    pylon's on state is drawn (기획서 §5). 기획서 §7's glow will go in emissiveTexture rather than a
-    separate sprite (research.md 11장).
+    ONE PER VARIATION, not one with m_staticVariants. Variation 1 used to live in this asset's
+    m_staticVariants list, and in game the pylon kept variation 0's picture however it was switched.
+    m_staticVariants is not reachable from an object's variation at all: the game builds
+    m_staticVariantLookup from a hash of each variant's *name*, and SetVariant is driven by sprite
+    orientation and animations. EntityMonoBehaviour.UpdateGraphicsFromObjectInfo — the one place a
+    variation reaches the graphics — never touches it (research.md 20장).
+
+    What a variation does reach is objectVariants: a list of GameObjects to switch on. So each look
+    is a SpriteAsset of its own, worn by a SpriteObject of its own, and the variation decides which
+    of those objects is active.
     """
-    low, high = data_block_address(spec.sprite_asset_path)
-    texture_guid = asset_guid(spec.texture_path)
-    variants = "".join(
-        # Same base texture as variation 0 — only the emissive layer differs (기획서 §7).
-        f"  - texture: {{fileID: {FID_TEXTURE2D}, guid: {texture_guid}, type: 3}}\n"
-        f"    emissiveTexture: {{fileID: {FID_TEXTURE2D}, "
-        f"guid: {asset_guid(spec.variant_texture_path(suffix))}, type: 3}}\n"
-        "    normalTexture: {fileID: 0}\n"
-        "    pivot: {x: 0.5, y: 0.5}\n"
-        "    positionalData: []\n"
-        # Unlike the SDK example's variants, we inherit the base pivot: every variation of ours is
-        # the same art at the same size, so a variant that centred itself differently would make the
-        # pylon jump when switched on.
-        "    inheritPivot: 1\n"
-        for suffix, _ in spec.variants
-    )
+    low, high = data_block_address(asset_path)
+    texture_guid = asset_guid(texture_path)
     return (
-        _scriptable_header(spec.key, *game_script("Pug.Sprite.SpriteAsset"))
+        _scriptable_header(pathlib.PurePosixPath(asset_path).stem,
+                           *game_script("Pug.Sprite.SpriteAsset"))
         + "  m_overload:\n" + _null_address("    ")
         + _address("  ", low, high)
         + "  m_dynamicCollections:\n"
@@ -753,8 +817,8 @@ def sprite_asset(spec: ObjectSpec) -> str:
         "    pivot: {x: 0.5, y: 0.5}\n"
         "    positionalData: []\n"
         "    inheritPivot: 1\n"
-        + ("  m_staticVariants: []\n" if not variants else "  m_staticVariants:\n" + variants)
-        + "  m_animations: []\n"
+        "  m_staticVariants: []\n"
+        "  m_animations: []\n"
         "  m_events: []\n"
         "  m_positionalData: []\n"
         "  references:\n"
@@ -796,7 +860,9 @@ def text_data_block(spec: ObjectSpec) -> str:
         )
     primary_low, primary_high = LANGUAGE_ADDRESSES[PRIMARY_LANGUAGE_INDEX]
     return (
-        _scriptable_header(spec.key, *game_script("TextDataBlock"))
+        # m_Name is what the runtime sees (a mod is handed loaded objects, never paths), and it is
+        # the half of the lookup that has to match the object's name. See ObjectSpec.text_path.
+        _scriptable_header(spec.object_name, *game_script("TextDataBlock"))
         + "  m_overload:\n" + _null_address("    ")
         + _address("  ", low, high)
         + "  m_dynamicCollections:\n"
@@ -820,9 +886,12 @@ def text_data_block(spec: ObjectSpec) -> str:
 
 def sprite_asset_manifest(specs) -> str:
     """The mod's index of its SpriteAssets. Both reference mods keep it at the mod root."""
+    # Every variation's asset, not just variation 0's — each is a SpriteAsset in its own right and
+    # an unlisted one would not be loaded.
     entries = "".join(
-        f"  - {{fileID: {FID_SCRIPTABLE_OBJECT}, guid: {asset_guid(s.sprite_asset_path)}, type: 2}}\n"
+        f"  - {{fileID: {FID_SCRIPTABLE_OBJECT}, guid: {asset_guid(asset_path)}, type: 2}}\n"
         for s in specs
+        for _suffix, _texture, asset_path in s.variations
     )
     return (
         _scriptable_header("SpriteAssetManifest", *game_script("Pug.Sprite.SpriteAssetManifest"))
@@ -834,7 +903,7 @@ def sprite_asset_manifest(specs) -> str:
 
 # --- prefab building blocks ------------------------------------------------------------------
 
-def _game_object(fid: int, name: str, components, layer=0, tag="Untagged") -> str:
+def _game_object(fid: int, name: str, components, layer=0, tag="Untagged", active=True) -> str:
     listed = "".join(f"  - component: {{fileID: {c}}}\n" for c in components)
     return (
         f"--- !u!1 &{fid}\n"
@@ -851,7 +920,7 @@ def _game_object(fid: int, name: str, components, layer=0, tag="Untagged") -> st
         "  m_Icon: {fileID: 0}\n"
         "  m_NavMeshLayer: 0\n"
         "  m_StaticEditorFlags: 0\n"
-        "  m_IsActive: 1\n"
+        f"  m_IsActive: {1 if active else 0}\n"
     )
 
 
@@ -987,7 +1056,7 @@ def _crafting_authoring_body(spec: ObjectSpec) -> str:
     )
 
 
-def logic_prefab(spec: ObjectSpec) -> str:
+def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
     """The ECS side: what the object IS.
 
     A placeable follows the SDK workbench, minus RotationAuthoring (nothing we make turns to face
@@ -995,7 +1064,6 @@ def logic_prefab(spec: ObjectSpec) -> str:
     Sword1 carries — everything below them describes a thing that exists in the world, which an item
     in a bag does not.
     """
-    path = spec.logic_path
     fid = lambda node: local_file_id(path, node)  # noqa: E731
 
     root = fid("root")
@@ -1018,6 +1086,8 @@ def logic_prefab(spec: ObjectSpec) -> str:
             ("deathState", None),
             ("damageReduction", None),
         ]
+    if spec.is_placeable and spec.interact_method:
+        parts.append(("interactable", None))
     parts.append(("localization", None))
     if spec.is_placeable:
         parts += [
@@ -1028,9 +1098,11 @@ def logic_prefab(spec: ObjectSpec) -> str:
         ]
     ids = {name: fid(name) for name, _ in parts}
 
+    # Only variation 0 carries the recipe. Every variation is a separate authoring prefab of the same
+    # object, and a recipe on each would offer the player the same pylon twice in the crafting window.
     recipe_block = "  requiredObjectsToCraft:" + (
         " []\n"
-        if not spec.recipe
+        if not spec.recipe or variation != 0
         else "\n" + "".join(
             f"  - objectName: {name}\n    amount: {amount}\n" for name, amount in spec.recipe
         )
@@ -1048,7 +1120,7 @@ def logic_prefab(spec: ObjectSpec) -> str:
         "  initialAmount: 1\n"
         # 기획서 §5: a freshly placed pylon starts off, which is variation 0. The two fields below
         # declare that this object's variation changes at runtime and what it toggles between.
-        "  variation: 0\n"
+        f"  variation: {variation}\n"
         f"  variationIsDynamic: {1 if spec.variation_is_dynamic else 0}\n"
         f"  variationToToggleTo: {spec.variation_to_toggle_to}\n"
         f"  objectType: {spec.object_type}\n"
@@ -1081,7 +1153,7 @@ def logic_prefab(spec: ObjectSpec) -> str:
         # Everything past here describes something standing in the world. An item ends with its
         # name, exactly as the SDK's Sword1 does.
         body += _authoring(ids["localization"], root, "LocalizationAuthoring",
-                           f"  termKey: {spec.key}\n  languageGenders: []\n")
+                           f"  termKey: {spec.object_name}\n  languageGenders: []\n")
         return body
 
     body += _authoring(
@@ -1155,8 +1227,19 @@ def logic_prefab(spec: ObjectSpec) -> str:
         "  ignoreReductionWhenDamagedByDrill: 0\n"
         "  level: {fileID: 0}\n",
     )
+    if spec.interact_method:
+        # THE ECS HALF OF "E DOES SOMETHING". The graphics prefab's InteractableObject only says
+        # which method to call; this is what puts the entity on the interaction path at all, and
+        # without it the workbench and the pylon both ignored E entirely. Found by diffing this
+        # prefab's components against the SDK's working workbench: it and RotationAuthoring (which
+        # we drop on purpose, nothing of ours turns) were the only two it had and we did not.
+        #
+        # useSecondInteraction stays 0: that is right-click, and the remote reaches a pylon through
+        # ClientInput rather than through the pylon's own interactable (research.md 15장).
+        body += _authoring(ids["interactable"], root, "Interaction.LocalInteractableAuthoring",
+                           "  useSecondInteraction: 0\n  interactSubIndex: 0\n")
     body += _authoring(ids["localization"], root, "LocalizationAuthoring",
-                       f"  termKey: {spec.key}\n  languageGenders: []\n")
+                       f"  termKey: {spec.object_name}\n  languageGenders: []\n")
     body += _behaviour(ids["animSupport"], root, *game_script("AnimationAuthoring"),
                        "  orientationSupport: 0\n  largeAnimationHistorySupport: 0\n")
     body += _behaviour(ids["physicsShape"], root, *game_script("Unity.Physics.Authoring.PhysicsShapeAuthoring"),
@@ -1226,10 +1309,21 @@ def graphics_prefab(spec: ObjectSpec) -> str:
 
     root, root_tf, emb = fid("root"), fid("rootTransform"), fid("entityMonoBehaviour")
     scaler, scaler_tf = fid("xscaler"), fid("xscalerTransform")
-    sprite, sprite_tf, sprite_obj = fid("sprite"), fid("spriteTransform"), fid("spriteObject")
     interactable_go, interactable_tf = fid("interactable"), fid("interactableTransform")
     interactable = fid("interactableObject")
-    low, high = data_block_address(spec.sprite_asset_path)
+
+    # ONE SpriteObject PER VARIATION, and the variation decides which one is active. See
+    # sprite_asset's note: m_staticVariants cannot be reached from an object's variation, and
+    # objectVariants — a list of GameObjects to switch on — is the mechanism that can.
+    looks = [
+        {
+            "asset": asset_path,
+            "go": fid(f"sprite{index}"),
+            "tf": fid(f"spriteTransform{index}"),
+            "obj": fid(f"spriteObject{index}"),
+        }
+        for index, (_suffix, _texture, asset_path) in enumerate(spec.variations)
+    ]
 
     # Two independent traits: anything with a method to call gets an InteractableObject, but only a
     # crafting station also carries CraftingBuilding's fields. The pylon is the first object that is
@@ -1264,6 +1358,25 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         "  craftingCategoryWindowInfos: []\n"
     ) if is_station else ""
 
+    # 기획서 §5's on/off look, in the shape EntityMonoBehaviour.UpdateGraphicsFromObjectInfo reads:
+    # the entry whose variation matches has its objects switched on, every other entry's are switched
+    # off. worksForAnyObjectID because a mod's numeric id does not exist when this is written, and
+    # the prefab belongs to one object anyway. An object with a single look emits nothing here.
+    object_variants = "  objectVariants: []\n" if len(looks) < 2 else (
+        "  objectVariants:\n"
+        + "".join(
+            "  - worksForAnyObjectID: 1\n"
+            "    objectID: 0\n"
+            "    dependsOnVariation: 1\n"
+            f"    variation: {index}\n"
+            "    dependsOnDirection: 0\n"
+            "    direction: 0\n"
+            "    objectsToEnable:\n"
+            f"    - {{fileID: {look['go']}}}\n"
+            for index, look in enumerate(looks)
+        )
+    )
+
     body = YAML_HEADER
     body += _game_object(root, f"{spec.key}Graphics", [root_tf, emb])
     body += _transform(root_tf, root, 0, children=root_children)
@@ -1276,8 +1389,8 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         + (f"  interactable: {{fileID: {interactable}}}\n" if is_interactive
            else "  interactable: {fileID: 0}\n")
         + "  spriteObjects:\n"
-        f"  - {{fileID: {sprite_obj}}}\n"
-        "  useSharedTransformAnimations: 1\n"
+        + "".join(f"  - {{fileID: {look['obj']}}}\n" for look in looks)
+        + "  useSharedTransformAnimations: 1\n"
         "  reskinOptions: []\n"
         "  paintableOptions:\n"
         "    spriteRenderers: []\n"
@@ -1291,8 +1404,8 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         "    particlesToSpawn: []\n"
         "    particleSpawnLocations: []\n"
         "    particlesToDisableOnLowQuality: []\n"
-        "  objectVariants: []\n"
-        "  spritesToRandomlyFlip: []\n"
+        + object_variants
+        + "  spritesToRandomlyFlip: []\n"
         "  gameObjectsToRandomlyFlip: []\n"
         "  optionalHealthBar: {fileID: 0}\n"
         "  optionalLightOptimizer: {fileID: 0}\n"
@@ -1306,11 +1419,18 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         + crafting_fields,
     )
     body += _game_object(scaler, "XScaler", [scaler_tf])
-    body += _transform(scaler_tf, scaler, root_tf, children=[sprite_tf])
-    body += _game_object(sprite, "SpriteObject", [sprite_tf, sprite_obj])
-    body += _transform(sprite_tf, sprite, scaler_tf, position=spec.sprite_offset)
-    body += _behaviour(
-        sprite_obj, sprite, *game_script("Pug.Sprite.SpriteObject"),
+    body += _transform(scaler_tf, scaler, root_tf, children=[look["tf"] for look in looks])
+
+    for index, look in enumerate(looks):
+        low, high = data_block_address(look["asset"])
+        # Only variation 0 starts on. The others are switched in by UpdateGraphicsFromObjectInfo when
+        # the object's variation says so — and a pylon is placed switched off (기획서 §5), so a
+        # freshly placed one must not flash its lit look for the frame before that runs.
+        body += _game_object(look["go"], f"SpriteObject{index}", [look["tf"], look["obj"]],
+                             active=(index == 0))
+        body += _transform(look["tf"], look["go"], scaler_tf, position=spec.sprite_offset)
+        body += _behaviour(
+            look["obj"], look["go"], *game_script("Pug.Sprite.SpriteObject"),
         # This address, not a guid, is how the SpriteObject finds its SpriteAsset (research.md 11장).
         "  m_assetRef:\n" + _address("    ", low, high)
         + "  skinRef:\n" + _null_address("    ")
@@ -1377,18 +1497,21 @@ def build_outputs():
         out[spec.texture_path + ".meta"] = texture_meta(spec.texture_path, spec.pixels_to_units)
         for suffix, lit_art in spec.variants:
             variant = spec.variant_texture_path(suffix)
-            out[variant] = derive_emissive(REPO / spec.art, REPO / lit_art)
+            check_same_silhouette(REPO / spec.art, REPO / lit_art)
+            out[variant] = (REPO / lit_art).read_bytes()
             out[variant + ".meta"] = texture_meta(variant, spec.pixels_to_units)
         out[spec.text_path] = text_data_block(spec)
         out[spec.text_path + ".meta"] = asset_meta(spec.text_path)
-        out[spec.logic_path] = logic_prefab(spec)
-        out[spec.logic_path + ".meta"] = prefab_meta(spec.logic_path)
+        for variation, logic_path in spec.logic_prefabs:
+            out[logic_path] = logic_prefab(spec, variation, logic_path)
+            out[logic_path + ".meta"] = prefab_meta(logic_path)
 
         # A SpriteAsset exists to draw something in the world, and a graphics prefab to hold it.
         # An item has neither: its icon points straight at the PNG's sprite, the way Sword1's does.
         if spec.is_placeable:
-            out[spec.sprite_asset_path] = sprite_asset(spec)
-            out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
+            for _suffix, texture_path, asset_path in spec.variations:
+                out[asset_path] = sprite_asset(spec, texture_path, asset_path)
+                out[asset_path + ".meta"] = asset_meta(asset_path)
             out[spec.graphics_path] = graphics_prefab(spec)
             out[spec.graphics_path + ".meta"] = prefab_meta(spec.graphics_path)
 

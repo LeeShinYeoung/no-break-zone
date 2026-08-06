@@ -10,15 +10,15 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 2108018792, guid: d00b036db31ed324f99d4111c393f019, type: 3}
-  m_Name: NoBreakZoneLens
+  m_Name: NoBreakZone.Lens
   m_EditorClassIdentifier: 
   m_overload:
     m_address:
       m_low: 0
       m_high: 0
   m_address:
-    m_low: 2039271114507110966
-    m_high: -2708279577054608909
+    m_low: 2215897166474949628
+    m_high: 259393043862282722
   m_dynamicCollections:
     m_list: []
   m_localizedTexts:

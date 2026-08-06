@@ -1,4 +1,10 @@
+import pathlib
+
 from PIL import Image
+
+# Beside this script. It used to be an absolute path on the machine that first ran it, which meant
+# the generator could not be re-run anywhere else -- including the Windows box that does the builds.
+OUT = pathlib.Path(__file__).resolve().parent
 
 T = (0, 0, 0, 0)
 OUTLINE = (36, 31, 46, 255)
@@ -145,15 +151,34 @@ def build_image(c, regions, shifts, glow_on):
             else:
                 out[y][x] = pal["mid"]
     if glow_on:
-        allglow = {p for g in groups.values() for p in g}
-        for x, y in allglow:
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < c.w and 0 <= ny < c.h:
+        # The lit state has to read at a glance from across a base, and one pixel of bleed did not:
+        # in game the pylon looked identical switched on and off. The light now travels out from the
+        # gem in rings that fade, so the body itself warms up.
+        #
+        # ONLY RGB CHANGES, NEVER ALPHA — that is what keeps 기획서 §7's promise that the two states
+        # have the same silhouette. It holds by construction here rather than by anyone remembering.
+        frontier = {p for g in groups.values() for p in g}
+        reached = set(frontier)
+        for red, green, blue in ((96, 62, -26), (64, 41, -18), (38, 24, -11), (18, 11, -5)):
+            nxt = set()
+            for x, y in frontier:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if not (0 <= nx < c.w and 0 <= ny < c.h) or (nx, ny) in reached:
+                        continue
                     n = c.r[ny][nx]
-                    if n and not n.startswith("glow") and out[ny][nx] != OUTLINE:
-                        b = out[ny][nx]
-                        out[ny][nx] = (min(255, b[0] + 60), min(255, b[1] + 38), max(0, b[2] - 18), 255)
+                    if not n or n.startswith("glow"):
+                        continue
+                    reached.add((nx, ny))
+                    nxt.add((nx, ny))
+                    # The silhouette edge stays dark — light spreading onto it would blur the shape
+                    # against the background — but the glow still travels past it to cells beyond.
+                    if out[ny][nx] == OUTLINE:
+                        continue
+                    b = out[ny][nx]
+                    out[ny][nx] = (min(255, b[0] + red), min(255, b[1] + green),
+                                   max(0, b[2] + blue), 255)
+            frontier = nxt
 
     img = Image.new("RGBA", (c.w, c.h), T)
     ac = c.all_cells()
@@ -170,52 +195,61 @@ def build_image(c, regions, shifts, glow_on):
     return img
 
 
+# FILL THE CANVAS. The SDK's own 1x1 workbench uses all 16x18 of it (rows 0..17, cols 0..15), and
+# that is what makes a one-tile object look like it occupies its tile. Ours left margins and read as
+# small and half-sunk in game.
 def pylon(c):
-    rect(c, 5, 26, 26, 29, "base")
-    trapezoid(c, 8, 26, 12, 19, 10, 21, "shaft")
-    trapezoid(c, 3, 8, 15, 16, 12, 19, "tip")
-    diamond(c, 15.5, 16.5, 2.6, 4.0, "glow_gem")
+    rect(c, 0, 13, 15, 17, "base")
+    trapezoid(c, 5, 13, 4, 11, 2, 13, "shaft")
+    trapezoid(c, 0, 5, 5, 10, 3, 12, "tip")
+    diamond(c, 7.5, 8.0, 2.2, 3.2, "glow_gem")
 
 
 def lens(c):
-    rect(c, 14, 19, 17, 30, "handle")
-    rect(c, 12, 23, 19, 26, "grip")
-    ring(c, 15.5, 12.0, 9.2, 6.2, "frame")
-    disc(c, 15.5, 12.0, 6.2, "glow_lens")
+    # The ring has to be thick enough to survive the outline pass, which turns every cell touching
+    # empty space dark. A 1.7px rim left about half a pixel of visible frame and the lens read as a
+    # bare blob, so the glass is small and the rim wide rather than the other way round.
+    rect(c, 7, 10, 8, 14, "handle")
+    rect(c, 6, 10, 9, 11, "grip")
+    ring(c, 7.5, 5.5, 5.0, 2.4, "frame")
+    disc(c, 7.5, 5.5, 2.4, "glow_lens")
 
 
 def bench(c):
-    rect(c, 7, 24, 15, 30, "legs")
-    rect(c, 48, 24, 56, 30, "legs")
-    rect(c, 2, 18, 61, 24, "top")
-    rect(c, 15, 8, 48, 19, "back")
-    rect(c, 11, 5, 52, 9, "hood")
-    rect(c, 18, 11, 25, 17, "panel")
-    rect(c, 38, 11, 45, 17, "panel")
-    disc(c, 31.5, 13.5, 4.6, "glow_socket")
-    rect(c, 20, 13, 23, 14, "glow_l")
-    rect(c, 40, 13, 43, 14, "glow_r")
+    rect(c, 1, 12, 4, 17, "legs")
+    rect(c, 11, 12, 14, 17, "legs")
+    rect(c, 1, 3, 14, 9, "back")
+    rect(c, 0, 0, 15, 4, "hood")
+    rect(c, 3, 5, 12, 8, "panel")
+    rect(c, 0, 9, 15, 13, "top")
+    disc(c, 7.5, 6.5, 1.9, "glow_socket")
 
 
 HILITE = (255, 242, 205, 255)
-HIGHLIGHTS = {"lens": [(12, 8), (13, 8), (11, 9), (12, 9), (11, 10)]}
+HIGHLIGHTS = {"lens": [(6, 4), (7, 4), (6, 5)]}
 
 def remote(c):
-    rect(c, 16, 1, 20, 3, "tip")
-    rect(c, 17, 3, 19, 9, "ant")
-    rect(c, 8, 8, 24, 29, "body")
-    rect(c, 10, 11, 22, 17, "glow_screen")
-    rect(c, 10, 21, 15, 24, "btn")
-    rect(c, 17, 21, 22, 24, "btn")
-    rect(c, 10, 26, 12, 27, "glow_led")
+    rect(c, 7, 0, 9, 1, "tip")
+    rect(c, 8, 1, 9, 4, "ant")
+    rect(c, 3, 4, 12, 14, "body")
+    rect(c, 5, 6, 10, 8, "glow_screen")
+    rect(c, 4, 10, 6, 11, "btn")
+    rect(c, 9, 10, 11, 11, "btn")
+    rect(c, 4, 13, 5, 13, "glow_led")
 
 
+# 1 tile is 16px in world (SpriteObject.PixelsPerUnit is a hardcoded 16f), so a placeable's art is
+# 16 wide or it draws wider than the tiles it occupies. Height 18 rather than 16 is what the SDK's
+# own 1x1 workbench uses (Examples/WorkbenchExample/Workbench/MyNewWorkbench1_down.png): the extra
+# two rows let the object stand up out of its tile, and it is the size genassets.py's sprite_offset
+# was copied for. Lens and remote never stand in the world -- they are inventory icons only -- so
+# they are a plain 16x16.
 DESIGNS = {
-    "pylon": (32, 32, pylon, ["base", "shaft", "tip"], {"base": -2, "tip": 1}),
-    "remote": (32, 32, remote, ["tip", "ant", "body", "btn"],
+    "pylon": (16, 18, pylon, ["base", "shaft", "tip"], {"base": -2, "tip": 1}),
+    "remote": (16, 16, remote, ["tip", "ant", "body", "btn"],
                {"tip": 1, "ant": 0, "body": 0, "btn": 2}),
-    "lens": (32, 32, lens, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
-    "workbench": (64, 32, bench, ["legs", "top", "back", "hood", "panel"],
+    "lens": (16, 16, lens, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
+    "workbench": (16, 18, bench, ["legs", "top", "back", "hood", "panel"],
                   {"legs": -2, "top": 2, "back": 0, "hood": 1, "panel": -2}),
 }
 
@@ -229,19 +263,20 @@ for name, (w, h, fn, regs, sh) in DESIGNS.items():
         for hx, hy in HIGHLIGHTS.get(name, []):
             im.putpixel((hx, hy), HILITE)
         key = f"{name}_{st}" if name == "pylon" else name
-        im.save(f"/home/claude/out/{key}.png")
+        im.save(OUT / f"{key}.png")
         made[key] = im
 
 SC, PAD = 8, 20
 BG = (30, 29, 27, 255)
 order = ["pylon_off", "pylon_on", "lens", "remote", "workbench"]
 w = PAD * (len(order) + 1) + sum(made[n].width for n in order) * SC
-h = PAD * 2 + 32 * SC
+# Tallest of the set rather than a constant: the designs are no longer all the same height.
+h = PAD * 2 + max(made[n].height for n in order) * SC
 sheet = Image.new("RGBA", (w, h), BG)
 ox = PAD
 for n in order:
     im = made[n]
     sheet.alpha_composite(im.resize((im.width * SC, im.height * SC), Image.NEAREST), (ox, PAD))
     ox += im.width * SC + PAD
-sheet.save("/home/claude/out/preview.png")
+sheet.save(OUT / "preview.png")
 print("ok", sheet.size)
