@@ -21,6 +21,7 @@ GameObject:
   - component: {fileID: -2869381987807497816}
   - component: {fileID: 7627884720135197317}
   - component: {fileID: -567941598861710883}
+  - component: {fileID: 3221594050118185168}
   - component: {fileID: 6230096364184786246}
   - component: {fileID: -6098452312216236705}
   - component: {fileID: 6123360612414198796}
@@ -247,7 +248,7 @@ MonoBehaviour:
   m_Script: {fileID: 1739311503, guid: 9a1db145e9314404d8da91bdc1557235, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  prefabTileSize: {x: 2, y: 1}
+  prefabTileSize: {x: 1, y: 1}
   prefabCornerOffset: {x: 0, y: 0}
   centerIsAtEntityPosition: 0
   objectCanBeToggledToNewNonRotationOption: 0
@@ -359,6 +360,20 @@ MonoBehaviour:
   minDamagePerHit: 0
   ignoreReductionWhenDamagedByDrill: 0
   level: {fileID: 0}
+--- !u!114 &3221594050118185168
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: -435107673804278030}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -2043779946, guid: a25fd8c6d4fbb824e9d4fe4466f12a15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  useSecondInteraction: 0
+  interactSubIndex: 0
 --- !u!114 &6230096364184786246
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -371,7 +386,7 @@ MonoBehaviour:
   m_Script: {fileID: 1596865243, guid: 9a1db145e9314404d8da91bdc1557235, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  termKey: NoBreakZoneWorkbench
+  termKey: NoBreakZone.Workbench
   languageGenders: []
 --- !u!114 &-6098452312216236705
 MonoBehaviour:

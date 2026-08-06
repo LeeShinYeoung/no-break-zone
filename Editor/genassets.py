@@ -337,8 +337,10 @@ class ObjectSpec:
                  variants=(), interact_method=None,
                  variation_is_dynamic=False, variation_to_toggle_to=0,
                  localized=None):
-        self.key = key  # asset base name; also the localization termKey
-        self.object_name = object_name  # ObjectID string — 기획서 §4, never change (CLAUDE.md §5)
+        self.key = key  # asset base name, for everything the game finds by guid or by address
+        # ObjectID string — 기획서 §4, never change (CLAUDE.md §5). Also the localization term: the
+        # game looks item text up by this, so the TextDataBlock and termKey are named from it too.
+        self.object_name = object_name
         self.title = title  # English, and the fallback for every slot without a translation
         self.description = description
         # {language code: (title, description)}. 기획서 §4 ships English and Korean, and wants the
@@ -355,9 +357,9 @@ class ObjectSpec:
         self.health = health
         self.recipe = list(recipe)  # [(objectName, amount)] — where it is craftable is 6단계
         self.crafting_time = crafting_time
-        # Nudge of the sprite quad relative to the object. Copied from the SDK workbench, whose art
-        # is 16x18 rather than our size, so this is a starting point to eyeball at 체크포인트 1 —
-        # not a value anybody verified for this sprite.
+        # Nudge of the sprite quad relative to the object. Copied from the SDK workbench, and now
+        # drawn against art the same 16x18 that value was authored for, so it is the offset a
+        # working object uses rather than one carried over from a different sprite size.
         self.sprite_offset = sprite_offset
 
         # A crafting station. Non-empty means the logic prefab gets CraftingAuthoring and the
@@ -408,7 +410,16 @@ class ObjectSpec:
     @property
     def text_path(self):
         # Both reference mods put item text under TextDataBlock/Items/, so we match them.
-        return f"Data/TextDataBlock/Items/{self.key}.asset"
+        #
+        # NAMED AFTER object_name, NOT key. The game looks an item's text up by the object's own
+        # name: with a TextDataBlock called NoBreakZoneWorkbench the game asked for
+        # "Items/NoBreakZone.Workbench" and drew "missing: Items/NoBreakZone.Workbench" in the
+        # tooltip. The SDK example never showed this up because its objectName, its termKey, its
+        # TextDataBlock's m_Name and that asset's filename are all the one string
+        # ("MyNewWorkbench1"), and nothing anywhere references the block by guid -- the name is the
+        # only link there is. So all four have to agree, and object_name is the one we cannot move
+        # (CLAUDE.md §5: it is written into saves).
+        return f"Data/TextDataBlock/Items/{self.object_name}.asset"
 
     @property
     def logic_path(self):
@@ -428,10 +439,10 @@ SPECS = [
         localized={"ko": ("파일런",
                           "주변의 물건을 보호한다. 켜져 있는 동안에는 어떤 충격도 그 안의 것들을 부수지 못한다.")},
         art="Editor/Docs/art/pylon_off.png",
-        # 기획서 §4: 1x1 tiles. The draft art is 32px where a tile is 16px; see the note in
-        # status.md about keeping it for now and looking at it in game first.
+        # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
+        # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
         tile_size=(1, 1),
-        pixels_to_units=32,
+        pixels_to_units=16,
         stackable=True,
         rarity=3,
         health=10,
@@ -458,11 +469,12 @@ SPECS = [
         description="Where the pylon and its tools are made.",
         localized={"ko": ("파일런 작업대", "파일런과 그에 딸린 도구를 만드는 곳.")},
         art="Editor/Docs/art/workbench.png",
-        # 기획서 §4: 2x1 tiles. The draft art is 64x32, so it will draw four tiles wide and two
-        # tall over a two-tile footprint — the same sprite question as the pylon, decided the same
-        # way: look at it in game first.
-        tile_size=(2, 1),
-        pixels_to_units=32,
+        # ONE TILE, not 기획서 §4's original 2x1 — changed with the user's approval after seeing it
+        # placed, and design.md §4 carries the decision record. The 64x32 draft drew four tiles wide
+        # and two tall over a two-tile footprint; a bench that reaches past its own footprint is
+        # worse in a cramped base than a smaller one, and 1x1 is what the SDK's own workbench is.
+        tile_size=(1, 1),
+        pixels_to_units=16,
         stackable=True,
         rarity=3,
         health=10,
@@ -489,7 +501,9 @@ SPECS = [
         # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
         # type for exactly that: carried, no mechanical use of its own.
         object_type=OBJECT_TYPE_KEY_ITEM,
-        pixels_to_units=32,
+        # 16, matching the 16x16 art. This one really is only the inventory icon — a KeyItem never
+        # stands in the world — but the whole set is drawn to one scale so the icons match.
+        pixels_to_units=16,
         # 기획서 §4: "렌즈와 리모콘은 스택되지 않는다. 여러 개를 가질 이유가 없는 물건이고,
         # 겹쳐지면 인벤토리에서 개수만 헷갈린다."
         stackable=False,
@@ -507,7 +521,7 @@ SPECS = [
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.
         object_type=OBJECT_TYPE_KEY_ITEM,
-        pixels_to_units=32,
+        pixels_to_units=16,  # same as the lens
         stackable=False,  # 기획서 §4, same reasoning as the lens
         rarity=3,
         recipe=[("IronBar", 6), ("MechanicalPart", 2)],  # 기획서 §4: 철 + 기계부품
@@ -796,7 +810,9 @@ def text_data_block(spec: ObjectSpec) -> str:
         )
     primary_low, primary_high = LANGUAGE_ADDRESSES[PRIMARY_LANGUAGE_INDEX]
     return (
-        _scriptable_header(spec.key, *game_script("TextDataBlock"))
+        # m_Name is what the runtime sees (a mod is handed loaded objects, never paths), and it is
+        # the half of the lookup that has to match the object's name. See ObjectSpec.text_path.
+        _scriptable_header(spec.object_name, *game_script("TextDataBlock"))
         + "  m_overload:\n" + _null_address("    ")
         + _address("  ", low, high)
         + "  m_dynamicCollections:\n"
@@ -1018,6 +1034,8 @@ def logic_prefab(spec: ObjectSpec) -> str:
             ("deathState", None),
             ("damageReduction", None),
         ]
+    if spec.is_placeable and spec.interact_method:
+        parts.append(("interactable", None))
     parts.append(("localization", None))
     if spec.is_placeable:
         parts += [
@@ -1081,7 +1099,7 @@ def logic_prefab(spec: ObjectSpec) -> str:
         # Everything past here describes something standing in the world. An item ends with its
         # name, exactly as the SDK's Sword1 does.
         body += _authoring(ids["localization"], root, "LocalizationAuthoring",
-                           f"  termKey: {spec.key}\n  languageGenders: []\n")
+                           f"  termKey: {spec.object_name}\n  languageGenders: []\n")
         return body
 
     body += _authoring(
@@ -1155,8 +1173,19 @@ def logic_prefab(spec: ObjectSpec) -> str:
         "  ignoreReductionWhenDamagedByDrill: 0\n"
         "  level: {fileID: 0}\n",
     )
+    if spec.interact_method:
+        # THE ECS HALF OF "E DOES SOMETHING". The graphics prefab's InteractableObject only says
+        # which method to call; this is what puts the entity on the interaction path at all, and
+        # without it the workbench and the pylon both ignored E entirely. Found by diffing this
+        # prefab's components against the SDK's working workbench: it and RotationAuthoring (which
+        # we drop on purpose, nothing of ours turns) were the only two it had and we did not.
+        #
+        # useSecondInteraction stays 0: that is right-click, and the remote reaches a pylon through
+        # ClientInput rather than through the pylon's own interactable (research.md 15장).
+        body += _authoring(ids["interactable"], root, "Interaction.LocalInteractableAuthoring",
+                           "  useSecondInteraction: 0\n  interactSubIndex: 0\n")
     body += _authoring(ids["localization"], root, "LocalizationAuthoring",
-                       f"  termKey: {spec.key}\n  languageGenders: []\n")
+                       f"  termKey: {spec.object_name}\n  languageGenders: []\n")
     body += _behaviour(ids["animSupport"], root, *game_script("AnimationAuthoring"),
                        "  orientationSupport: 0\n  largeAnimationHistorySupport: 0\n")
     body += _behaviour(ids["physicsShape"], root, *game_script("Unity.Physics.Authoring.PhysicsShapeAuthoring"),

@@ -20,6 +20,7 @@ GameObject:
   - component: {fileID: -128848246605106380}
   - component: {fileID: -4647123587257427407}
   - component: {fileID: -4254367789302298179}
+  - component: {fileID: 6282143927463174556}
   - component: {fileID: 3829252064489148421}
   - component: {fileID: 109248539292613913}
   - component: {fileID: 5876618485753668083}
@@ -257,6 +258,20 @@ MonoBehaviour:
   minDamagePerHit: 0
   ignoreReductionWhenDamagedByDrill: 0
   level: {fileID: 0}
+--- !u!114 &6282143927463174556
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3842353461738065549}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: -2043779946, guid: a25fd8c6d4fbb824e9d4fe4466f12a15, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  useSecondInteraction: 0
+  interactSubIndex: 0
 --- !u!114 &3829252064489148421
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -269,7 +284,7 @@ MonoBehaviour:
   m_Script: {fileID: 1596865243, guid: 9a1db145e9314404d8da91bdc1557235, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  termKey: NoBreakZonePylon
+  termKey: NoBreakZone.Pylon
   languageGenders: []
 --- !u!114 &109248539292613913
 MonoBehaviour:
