@@ -81,17 +81,20 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         // — it decides whether a whole base can be broken — so it gets a ring that reads at a
         // glance, a burst inside it, and the portal sound the game uses when something ancient
         // moves you somewhere.
+        // Landed between the two tries: 10 AncientBurst particles read as nothing, a ring plus 24
+        // AncientEnergyBurst read as too much. The ring alone is the part that says "this switched
+        // on" — it is one puff, it is legible at a glance, and it does not bury the pylon.
         if (switchedOn)
         {
             API.Effects.PlayPuff((int)PuffID.AncientEnergyRing, transform.position, 1);
-            API.Effects.PlayPuff((int)PuffID.AncientEnergyBurst, transform.position, 24);
+            API.Effects.PlayPuff((int)PuffID.SmallAncientEnergy, transform.position, 6);
             API.Audio.PlaySfx((int)SfxID.AF_portal_teleport, transform.position);
             return;
         }
 
         // 기획서 §7 wants the off state to fade rather than pop, so this stays deliberately smaller
         // than its counterpart rather than mirroring it.
-        API.Effects.PlayPuff((int)PuffID.SmallAncientEnergy, transform.position, 8);
+        API.Effects.PlayPuff((int)PuffID.SmallAncientEnergy, transform.position, 4);
         API.Audio.PlaySfx((int)SfxID.AF_portal_collapse, transform.position);
     }
 }

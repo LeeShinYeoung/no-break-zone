@@ -61,12 +61,22 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // LocalTransform is required now: it is how the game itself resolves an entity to a tile
         // (Position.RoundToInt2(), see DetectRoomSystem). Anything without one has no place on the
         // grid and cannot be inside a square.
+        // NO ObjectTypeCD HERE, THOUGH THE RULE IS ABOUT OBJECT TYPE. A mod's objects never have it.
+        // Vanilla objects are authored with EntityMonoBehaviourData and EntityMonoBehaviourDataConverter
+        // gives them ObjectTypeCD; a mod authors with ObjectAuthoring, and ObjectConverter — the only
+        // other path — adds IsObjectCD, ObjectDataCD and ObjectCategoryTagsCD but no ObjectTypeCD.
+        // Those two converters are the only places in the game that add it (verified by decompiling
+        // Pug.ECS.Conversion.dll; research.md 20장).
+        //
+        // So requiring it here quietly excluded every object this mod adds — which is why the mod's
+        // own workbench broke inside its own protected square, with no PROTECT and no skip line to
+        // show for it. The type now comes from the object database, which answers for vanilla and
+        // modded objects alike.
         _candidates = GetEntityQuery(new EntityQueryDesc
         {
             All = new[]
             {
                 ComponentType.ReadOnly<HealthCD>(),
-                ComponentType.ReadOnly<ObjectTypeCD>(),
                 ComponentType.ReadOnly<ObjectDataCD>(),
                 ComponentType.ReadOnly<LocalTransform>(),
             },
@@ -134,7 +144,6 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // Copy first: adding components below is a structural change that would invalidate live
         // chunk iteration.
         var entities = _candidates.ToEntityArray(Allocator.Temp);
-        var objectTypes = _candidates.ToComponentDataArray<ObjectTypeCD>(Allocator.Temp);
         var objectDatas = _candidates.ToComponentDataArray<ObjectDataCD>(Allocator.Temp);
         var transforms = _candidates.ToComponentDataArray<LocalTransform>(Allocator.Temp);
         var em = EntityManager;
@@ -150,9 +159,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             bool destructible = em.HasComponent<DestructibleObjectCD>(entity);
             bool lootTable = em.HasComponent<DropsLootFromLootTableCD>(entity);
             bool lootOnDamage = em.HasComponent<DropsLootWhenDamagedCD>(entity);
+            int objectType = ObjectTypeOf(objectDatas[i]);
 
             bool qualifies = NoBreakZoneProtectionRule.ShouldProtect(
-                (int)objectTypes[i].Value,
+                objectType,
                 true, // HealthCD is in the query's All list
                 false, // TileCD is in the query's None list
                 destructible,
@@ -166,7 +176,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 // reported success. Reporting the inputs of a refusal turns "it did not work" into a
                 // row of flags. Once per object id, so this cannot become a per-frame sweep.
                 Report(objectDatas[i].objectID, "rule",
-                       (int)objectTypes[i].Value, destructible, lootTable, lootOnDamage);
+                       objectType, destructible, lootTable, lootOnDamage);
                 continue;
             }
 
@@ -177,7 +187,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 // Distinguishes "the rule said no" from "it was simply outside the square", which
                 // are the same silent `continue` from the outside and want opposite fixes.
                 Report(objectDatas[i].objectID, "outside",
-                       (int)objectTypes[i].Value, destructible, lootTable, lootOnDamage);
+                       objectType, destructible, lootTable, lootOnDamage);
                 continue;
             }
 
@@ -185,7 +195,6 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         }
 
         entities.Dispose();
-        objectTypes.Dispose();
         objectDatas.Dispose();
         transforms.Dispose();
     }
@@ -316,6 +325,22 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         return NoBreakZoneRange.AllTilesCovered(
             _pylonX, _pylonZ, _pylonCount, minX, minZ, maxX, maxZ, radius);
+    }
+
+    /// The object's type, from the database rather than from a component on the entity.
+    ///
+    /// ObjectTypeCD would be the obvious source and is the wrong one: only the vanilla authoring path
+    /// produces it, so reading it there classified every modded object as "not a placeable" — see the
+    /// note on the candidate query. The database is populated from ObjectInfo for vanilla and modded
+    /// objects alike, which is how the [NBZDB] audit could report our workbench as PlaceablePrefab
+    /// while the system saw nothing at all.
+    ///
+    /// A missing entry means "not something we know how to judge", so it falls back to a type the
+    /// rule refuses. That is the safe direction: an unknown object stays breakable.
+    private static int ObjectTypeOf(ObjectDataCD data)
+    {
+        var info = PugDatabase.GetObjectInfo(data.objectID, data.variation);
+        return info == null ? 0 : (int)info.objectType;
     }
 
     // DIAGNOSTIC, remove once 제작대 보호 is understood. Once per object id per world, the same way

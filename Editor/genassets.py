@@ -341,7 +341,7 @@ class ObjectSpec:
                  object_type=OBJECT_TYPE_PLACEABLE_PREFAB,
                  tile_size=(1, 1), pixels_to_units=16, stackable=True, rarity=3,
                  health=10, recipe=(), crafting_time=3.0,
-                 sprite_offset=(0, 0.0625, -0.3125),
+                 sprite_offset=(0, 0.5625, -0.3125),
                  crafts=(), graphics_script=None, ui_titles=(),
                  variants=(), interact_method=None,
                  variation_is_dynamic=False, variation_to_toggle_to=0,
@@ -366,9 +366,16 @@ class ObjectSpec:
         self.health = health
         self.recipe = list(recipe)  # [(objectName, amount)] — where it is craftable is 6단계
         self.crafting_time = crafting_time
-        # Nudge of the sprite quad relative to the object. Copied from the SDK workbench, and now
-        # drawn against art the same 16x18 that value was authored for, so it is the offset a
-        # working object uses rather than one carried over from a different sprite size.
+        # Where the sprite quad sits relative to the object. The quad is centred on its pivot
+        # (0.5, 0.5) and is texture_height/16 units tall, so for the 16x18 art it reaches 0.5625
+        # units either side of this point — meaning y has to be 0.5625 for the bottom row to land on
+        # the ground.
+        #
+        # The SDK workbench's 0.0625 was copied verbatim and put the bottom half a unit UNDER the
+        # floor: in game the pylon and the workbench were both sliced off across the middle, showing
+        # roughly their top ten rows of eighteen, which is exactly 0.5 units of sinking. That example
+        # has never been built by anyone (research.md 11장 records the same lesson about its guids),
+        # so its numbers are not evidence.
         self.sprite_offset = sprite_offset
 
         # A crafting station. Non-empty means the logic prefab gets CraftingAuthoring and the
