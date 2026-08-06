@@ -33,9 +33,14 @@ public static class NoBreakZoneRangeOverlay
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
-    /// Called from NoBreakZoneMod.ModObjectLoaded for every asset in the bundle. Matching a sprite
-    /// by name is how the reference mod picks up its own helper sprites — the mod never gets a path
-    /// or a guid at runtime, only the loaded objects.
+    // One tile is 16 texture pixels — SpriteObject.PixelsPerUnit is a hardcoded 16f and the marker
+    // texture is one tile wide, so the sprite has to be built at the same scale or every edge comes
+    // out the wrong length. genassets.py draws the texture at MARKER_TILE_PIXELS for the same reason.
+    private const float MarkerPixelsPerUnit = 16f;
+
+    /// Called from NoBreakZoneMod.ModObjectLoaded for every asset in the bundle. Matching by name is
+    /// how the reference mod picks up its own helper sprites — the mod never gets a path or a guid
+    /// at runtime, only the loaded objects.
     public static void RegisterLoadedObject(Object obj)
     {
         // A mod never sees a path or a guid, so "the sprite is missing" is indistinguishable from
@@ -54,6 +59,25 @@ public static class NoBreakZoneRangeOverlay
         if (obj is Sprite sprite && sprite.name == MarkerSpriteName)
         {
             _markerSprite = sprite;
+            return;
+        }
+
+        // NO SPRITE EVER ARRIVES. Logging the whole inventory showed what the bundle actually hands
+        // a mod: Texture2D, GameObject and ScriptableObject, and not one Sprite — so waiting for the
+        // Sprite subasset the .meta's spriteMode:1 produces meant waiting forever, and the lens drew
+        // nothing while the log said "no 'NoBreakZoneRangeMarker' sprite loaded".
+        //
+        // The texture does arrive, and a Sprite is only a rect and a pivot over one. Building it
+        // here needs no read/write access — Sprite.Create references the texture rather than reading
+        // its pixels — and it is the same picture the importer would have made.
+        if (_markerSprite == null && obj is Texture2D texture && texture.name == MarkerSpriteName)
+        {
+            _markerSprite = Sprite.Create(
+                texture,
+                new Rect(0f, 0f, texture.width, texture.height),
+                new Vector2(0.5f, 0.5f),
+                MarkerPixelsPerUnit);
+            _markerSprite.name = MarkerSpriteName;
         }
     }
 
