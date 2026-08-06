@@ -421,6 +421,22 @@ class ObjectSpec:
     def sprite_asset_path(self):
         return f"Data/SpriteAsset/{self.key}.asset"
 
+    def variant_sprite_asset_path(self, suffix):
+        return f"Data/SpriteAsset/{self.key}{suffix}.asset"
+
+    @property
+    def variations(self):
+        """(suffix, texture path, sprite asset path) for variation 0, 1, … in that order.
+
+        Variation 0 is the object's plain look; the rest come from `variants`. Each gets a whole
+        SpriteAsset of its own because a SpriteObject resolves exactly one, and the switch is made
+        by turning SpriteObjects on and off — see graphics_prefab.
+        """
+        yield "", self.texture_path, self.sprite_asset_path
+        for suffix, _ in self.variants:
+            yield (suffix, self.variant_texture_path(suffix),
+                   self.variant_sprite_asset_path(suffix))
+
     @property
     def text_path(self):
         # Both reference mods put item text under TextDataBlock/Items/, so we match them.
@@ -736,40 +752,25 @@ def _null_address(indent: str) -> str:
     return _address(indent, 0, 0)
 
 
-def sprite_asset(spec: ObjectSpec) -> str:
-    """SpriteAsset: the thing a graphics prefab's SpriteObject resolves through its m_address.
+def sprite_asset(spec: ObjectSpec, texture_path: str, asset_path: str) -> str:
+    """One SpriteAsset: the thing a graphics prefab's SpriteObject resolves through its m_address.
 
-    m_staticSpriteData is variation 0; m_staticVariants holds variation 1 upwards, which is how the
-    pylon's on state is drawn (기획서 §5). 기획서 §7's glow will go in emissiveTexture rather than a
-    separate sprite (research.md 11장).
+    ONE PER VARIATION, not one with m_staticVariants. Variation 1 used to live in this asset's
+    m_staticVariants list, and in game the pylon kept variation 0's picture however it was switched.
+    m_staticVariants is not reachable from an object's variation at all: the game builds
+    m_staticVariantLookup from a hash of each variant's *name*, and SetVariant is driven by sprite
+    orientation and animations. EntityMonoBehaviour.UpdateGraphicsFromObjectInfo — the one place a
+    variation reaches the graphics — never touches it (research.md 20장).
+
+    What a variation does reach is objectVariants: a list of GameObjects to switch on. So each look
+    is a SpriteAsset of its own, worn by a SpriteObject of its own, and the variation decides which
+    of those objects is active.
     """
-    low, high = data_block_address(spec.sprite_asset_path)
-    texture_guid = asset_guid(spec.texture_path)
-    variants = "".join(
-        # A VARIATION SWAPS THE WHOLE TEXTURE. It used to keep variation 0's texture and add an
-        # emissiveTexture holding just the lit pixels, on the reading that 기획서 §7's "스프라이트는
-        # 한 종류만 만들고 발광 레이어를 켜고 끄는 방식" meant the emissive slot. In game the pylon
-        # looked exactly the same switched on and off. Every variant in the SDK example swaps
-        # `texture` and leaves emissiveTexture at 0, and no reference anywhere drives a variation
-        # through the emissive slot — so this follows the shape that is known to work.
-        #
-        # §7's actual promise is that the two states share a silhouette, and that still holds by
-        # construction: both textures come out of the same shape function in sprites.py, so their
-        # alpha is identical to the byte (asserted below in build_outputs).
-        f"  - texture: {{fileID: {FID_TEXTURE2D}, "
-        f"guid: {asset_guid(spec.variant_texture_path(suffix))}, type: 3}}\n"
-        "    emissiveTexture: {fileID: 0}\n"
-        "    normalTexture: {fileID: 0}\n"
-        "    pivot: {x: 0.5, y: 0.5}\n"
-        "    positionalData: []\n"
-        # Unlike the SDK example's variants, we inherit the base pivot: every variation of ours is
-        # the same art at the same size, so a variant that centred itself differently would make the
-        # pylon jump when switched on.
-        "    inheritPivot: 1\n"
-        for suffix, _ in spec.variants
-    )
+    low, high = data_block_address(asset_path)
+    texture_guid = asset_guid(texture_path)
     return (
-        _scriptable_header(spec.key, *game_script("Pug.Sprite.SpriteAsset"))
+        _scriptable_header(pathlib.PurePosixPath(asset_path).stem,
+                           *game_script("Pug.Sprite.SpriteAsset"))
         + "  m_overload:\n" + _null_address("    ")
         + _address("  ", low, high)
         + "  m_dynamicCollections:\n"
@@ -790,8 +791,8 @@ def sprite_asset(spec: ObjectSpec) -> str:
         "    pivot: {x: 0.5, y: 0.5}\n"
         "    positionalData: []\n"
         "    inheritPivot: 1\n"
-        + ("  m_staticVariants: []\n" if not variants else "  m_staticVariants:\n" + variants)
-        + "  m_animations: []\n"
+        "  m_staticVariants: []\n"
+        "  m_animations: []\n"
         "  m_events: []\n"
         "  m_positionalData: []\n"
         "  references:\n"
@@ -859,9 +860,12 @@ def text_data_block(spec: ObjectSpec) -> str:
 
 def sprite_asset_manifest(specs) -> str:
     """The mod's index of its SpriteAssets. Both reference mods keep it at the mod root."""
+    # Every variation's asset, not just variation 0's — each is a SpriteAsset in its own right and
+    # an unlisted one would not be loaded.
     entries = "".join(
-        f"  - {{fileID: {FID_SCRIPTABLE_OBJECT}, guid: {asset_guid(s.sprite_asset_path)}, type: 2}}\n"
+        f"  - {{fileID: {FID_SCRIPTABLE_OBJECT}, guid: {asset_guid(asset_path)}, type: 2}}\n"
         for s in specs
+        for _suffix, _texture, asset_path in s.variations
     )
     return (
         _scriptable_header("SpriteAssetManifest", *game_script("Pug.Sprite.SpriteAssetManifest"))
@@ -873,7 +877,7 @@ def sprite_asset_manifest(specs) -> str:
 
 # --- prefab building blocks ------------------------------------------------------------------
 
-def _game_object(fid: int, name: str, components, layer=0, tag="Untagged") -> str:
+def _game_object(fid: int, name: str, components, layer=0, tag="Untagged", active=True) -> str:
     listed = "".join(f"  - component: {{fileID: {c}}}\n" for c in components)
     return (
         f"--- !u!1 &{fid}\n"
@@ -890,7 +894,7 @@ def _game_object(fid: int, name: str, components, layer=0, tag="Untagged") -> st
         "  m_Icon: {fileID: 0}\n"
         "  m_NavMeshLayer: 0\n"
         "  m_StaticEditorFlags: 0\n"
-        "  m_IsActive: 1\n"
+        f"  m_IsActive: {1 if active else 0}\n"
     )
 
 
@@ -1278,10 +1282,21 @@ def graphics_prefab(spec: ObjectSpec) -> str:
 
     root, root_tf, emb = fid("root"), fid("rootTransform"), fid("entityMonoBehaviour")
     scaler, scaler_tf = fid("xscaler"), fid("xscalerTransform")
-    sprite, sprite_tf, sprite_obj = fid("sprite"), fid("spriteTransform"), fid("spriteObject")
     interactable_go, interactable_tf = fid("interactable"), fid("interactableTransform")
     interactable = fid("interactableObject")
-    low, high = data_block_address(spec.sprite_asset_path)
+
+    # ONE SpriteObject PER VARIATION, and the variation decides which one is active. See
+    # sprite_asset's note: m_staticVariants cannot be reached from an object's variation, and
+    # objectVariants — a list of GameObjects to switch on — is the mechanism that can.
+    looks = [
+        {
+            "asset": asset_path,
+            "go": fid(f"sprite{index}"),
+            "tf": fid(f"spriteTransform{index}"),
+            "obj": fid(f"spriteObject{index}"),
+        }
+        for index, (_suffix, _texture, asset_path) in enumerate(spec.variations)
+    ]
 
     # Two independent traits: anything with a method to call gets an InteractableObject, but only a
     # crafting station also carries CraftingBuilding's fields. The pylon is the first object that is
@@ -1316,6 +1331,25 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         "  craftingCategoryWindowInfos: []\n"
     ) if is_station else ""
 
+    # 기획서 §5's on/off look, in the shape EntityMonoBehaviour.UpdateGraphicsFromObjectInfo reads:
+    # the entry whose variation matches has its objects switched on, every other entry's are switched
+    # off. worksForAnyObjectID because a mod's numeric id does not exist when this is written, and
+    # the prefab belongs to one object anyway. An object with a single look emits nothing here.
+    object_variants = "  objectVariants: []\n" if len(looks) < 2 else (
+        "  objectVariants:\n"
+        + "".join(
+            "  - worksForAnyObjectID: 1\n"
+            "    objectID: 0\n"
+            "    dependsOnVariation: 1\n"
+            f"    variation: {index}\n"
+            "    dependsOnDirection: 0\n"
+            "    direction: 0\n"
+            "    objectsToEnable:\n"
+            f"    - {{fileID: {look['go']}}}\n"
+            for index, look in enumerate(looks)
+        )
+    )
+
     body = YAML_HEADER
     body += _game_object(root, f"{spec.key}Graphics", [root_tf, emb])
     body += _transform(root_tf, root, 0, children=root_children)
@@ -1328,8 +1362,8 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         + (f"  interactable: {{fileID: {interactable}}}\n" if is_interactive
            else "  interactable: {fileID: 0}\n")
         + "  spriteObjects:\n"
-        f"  - {{fileID: {sprite_obj}}}\n"
-        "  useSharedTransformAnimations: 1\n"
+        + "".join(f"  - {{fileID: {look['obj']}}}\n" for look in looks)
+        + "  useSharedTransformAnimations: 1\n"
         "  reskinOptions: []\n"
         "  paintableOptions:\n"
         "    spriteRenderers: []\n"
@@ -1343,8 +1377,8 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         "    particlesToSpawn: []\n"
         "    particleSpawnLocations: []\n"
         "    particlesToDisableOnLowQuality: []\n"
-        "  objectVariants: []\n"
-        "  spritesToRandomlyFlip: []\n"
+        + object_variants
+        + "  spritesToRandomlyFlip: []\n"
         "  gameObjectsToRandomlyFlip: []\n"
         "  optionalHealthBar: {fileID: 0}\n"
         "  optionalLightOptimizer: {fileID: 0}\n"
@@ -1358,11 +1392,18 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         + crafting_fields,
     )
     body += _game_object(scaler, "XScaler", [scaler_tf])
-    body += _transform(scaler_tf, scaler, root_tf, children=[sprite_tf])
-    body += _game_object(sprite, "SpriteObject", [sprite_tf, sprite_obj])
-    body += _transform(sprite_tf, sprite, scaler_tf, position=spec.sprite_offset)
-    body += _behaviour(
-        sprite_obj, sprite, *game_script("Pug.Sprite.SpriteObject"),
+    body += _transform(scaler_tf, scaler, root_tf, children=[look["tf"] for look in looks])
+
+    for index, look in enumerate(looks):
+        low, high = data_block_address(look["asset"])
+        # Only variation 0 starts on. The others are switched in by UpdateGraphicsFromObjectInfo when
+        # the object's variation says so — and a pylon is placed switched off (기획서 §5), so a
+        # freshly placed one must not flash its lit look for the frame before that runs.
+        body += _game_object(look["go"], f"SpriteObject{index}", [look["tf"], look["obj"]],
+                             active=(index == 0))
+        body += _transform(look["tf"], look["go"], scaler_tf, position=spec.sprite_offset)
+        body += _behaviour(
+            look["obj"], look["go"], *game_script("Pug.Sprite.SpriteObject"),
         # This address, not a guid, is how the SpriteObject finds its SpriteAsset (research.md 11장).
         "  m_assetRef:\n" + _address("    ", low, high)
         + "  skinRef:\n" + _null_address("    ")
@@ -1440,8 +1481,9 @@ def build_outputs():
         # A SpriteAsset exists to draw something in the world, and a graphics prefab to hold it.
         # An item has neither: its icon points straight at the PNG's sprite, the way Sword1's does.
         if spec.is_placeable:
-            out[spec.sprite_asset_path] = sprite_asset(spec)
-            out[spec.sprite_asset_path + ".meta"] = asset_meta(spec.sprite_asset_path)
+            for _suffix, texture_path, asset_path in spec.variations:
+                out[asset_path] = sprite_asset(spec, texture_path, asset_path)
+                out[asset_path + ".meta"] = asset_meta(asset_path)
             out[spec.graphics_path] = graphics_prefab(spec)
             out[spec.graphics_path + ".meta"] = prefab_meta(spec.graphics_path)
 
