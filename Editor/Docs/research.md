@@ -351,13 +351,19 @@ MD4 유도식과 `script_fileids.csv`는 그대로 유효하다. 틀린 것은 *
 `InventoryItemAuthoring.icon`이 `21300000`, 즉 Sprite 서브에셋을 가리키기 때문이다.
 
 **status.md의 스프라이트 결정 (a)는 이유가 틀렸다.** "`spritePixelsToUnits`를 32로 두면 1타일로
-렌더된다"는 성립하지 않는다. 다만 *조치*(32로 둔다)는 32px 텍스처에 대해 여전히 맞다 — 아이콘
-쪽에는 그게 정확한 값이다. 바뀌는 것은 **기대하는 결과**다. 파일런은 1×1 타일을 차지하면서
-2×2 타일 크기로 보인다.
+렌더된다"는 성립하지 않는다. 32px 텍스처는 무슨 값을 넣어도 2×2 타일로 보인다.
 
-초안을 16px로 줄이는 선택지의 비용도 다시 재봤다. 32px 초안은 16px 그림을 2배 확대한 것이
-**아니다** — 2×2 픽셀 블록이 단색인 비율이 73%뿐이라 나머지 27%는 진짜 서브픽셀 디테일이다.
-색 수가 11개뿐이라 축소해도 형태는 읽히지만 무손실은 아니다.
+**결말 (2026-08-06): 인게임에서 확인하고 전부 16px로 다시 그렸다.** 작업대(64×32)가 4×2 타일로
+그려지는 것이 눈에 띄어 사용자가 지적했고, 그 자리에서 규격을 확정했다 — 월드에 서는 설치물은
+**16×18**, 인벤토리 전용 아이템은 **16×16**, `spritePixelsToUnits`는 전부 **16**.
+
+18은 SDK 예제 작업대(`WorkbenchExample/Workbench/MyNewWorkbench1_down.png`)와 같은 값이다.
+그 예제는 `prefabTileSize 1×1`이고, `genassets.py`의 `sprite_offset`이 원래 그 프리팹에서
+복사해 온 값이라 **아트 크기를 맞추자 그 오프셋이 비로소 맞는 값이 됐다.**
+
+축소가 아니라 **다시 그렸다.** 32px 초안은 16px 그림을 2배 확대한 것이 **아니다** — 2×2 픽셀
+블록이 단색인 비율이 73%뿐이라 나머지 27%는 진짜 서브픽셀 디테일이고, 기계적 축소는 형태를
+뭉갠다. `Editor/Docs/art/sprites.py`의 좌표를 새로 잡았다.
 
 ### 설치물 프리팹의 구성
 
@@ -685,7 +691,8 @@ tile += corner;
 | 겹침 | "**어느 하나**의 켜진 파일런 범위 안에 있으면 보호된다" |
 
 **타일마다 따로 판정하고, 모든 타일이 어느 파일런이든 하나에 덮이면 보호한다.**
-두 파일런의 이음매에 걸친 2×1 작업대는 보호된다. 파일런이 하나면 "한 파일런 기준"과 결과가 같다.
+두 파일런의 이음매에 걸친 다중 타일 설치물(상자·침대 등)은 보호된다. 파일런이 하나면
+"한 파일런 기준"과 결과가 같다.
 
 ### 거는 쪽과 푸는 쪽이 같은 판정을 써야 한다
 
@@ -822,6 +829,64 @@ null을 반환하므로 **구역이 없다** — 즉 붙이기가 통한다. `bu
 18칸**이고 대상 ID만 다르다. 자판기(`VendingMachineItemBuffer`)는 별개 구조지만 여기 쓰는
 모드가 GitHub 전체에 0건이다.
 
+## 19. 이름·상호작용·번들이 넘겨주는 것 (2026-08-06)
+
+작업대를 처음 설치해보고 드러난 세 가지. 전부 **인게임 로그와 SDK 예제 대조**로 확정했다.
+
+### 19-1. 아이템 텍스트는 오브젝트 이름으로 찾는다 — 넷이 같아야 한다
+
+툴팁에 `missing: Items/NoBreakZone.Workbench`가 떴다. **그 문자열이 게임이 요구한 term이고,
+`NoBreakZone.Workbench`는 우리 `ObjectAuthoring.objectName`이다.** 우리 TextDataBlock은
+`NoBreakZoneWorkbench`(점 없음)라 답할 수 없었다.
+
+SDK 예제에서는 이게 안 드러난다 — `objectName`·`termKey`·TextDataBlock의 `m_Name`·그 에셋의
+**파일명이 전부 `MyNewWorkbench1` 하나**다.
+
+> **그 TextDataBlock을 guid로 참조하는 파일은 예제 전체에 없다** — 자기 `.meta`뿐이다
+> (`grep -rl <guid>`로 확인). 즉 프리팹과 텍스트를 잇는 것은 **이름뿐**이고, 이름이 다르면
+> 연결 자체가 없다. 17장의 "TextDataBlock이 곧 현지화"에 이 조건이 빠져 있었다.
+
+**규칙: `objectName` = `termKey` = TextDataBlock `m_Name` = 그 에셋 파일명.**
+넷 중 `objectName`만은 못 바꾼다 — 세이브에 들어간다(CLAUDE.md §5). 나머지 셋을 거기 맞춘다.
+
+### 19-2. E가 먹으려면 로직 프리팹에 `Interaction.LocalInteractableAuthoring`이 있어야 한다
+
+설치한 작업대에 E를 눌러도 아무 반응이 없었고, **예외도 로그도 없었다.**
+
+찾은 방법: SDK의 동작하는 작업대(`Examples/WorkbenchExample/Workbench/MyNewWorkbenchLogic.prefab`)와
+우리 로직 프리팹의 `m_Script` 참조를 `GameData/script_guids.csv`로 역해석해 전수 대조했다.
+19개 vs 17개, 차이는 딱 둘 — `RotationAuthoring`(우리가 의도적으로 뺀 것)과
+**`Interaction.LocalInteractableAuthoring`**.
+
+| 어디 | 무엇을 하는가 |
+| --- | --- |
+| 그래픽 프리팹 `InteractableObject` | E를 눌렀을 때 **무엇을 부를지** (UnityEvent) |
+| 로직 프리팹 `Interaction.LocalInteractableAuthoring` | **이 엔티티가 상호작용 대상이라는 것 자체** |
+
+우리는 앞의 것만 갖고 있었다. 필드는 두 개(`useSecondInteraction`, `interactSubIndex`),
+어셈블리는 `Interaction.Authoring`.
+
+> **`m_TargetAssemblyTypeName`은 범인이 아니다.** UnityEvent의 persistent call은 `m_Target`이
+> 살아 있으면 **그 객체의 실제 타입**에서 메서드를 찾고 이 문자열을 쓰지 않는다. SDK 예제 자신이
+> `WorkBenchGraphical, ItemExample`이라는 틀린 어셈블리명을 달고도 동작한다(그 스크립트는
+> `WorkbenchExample` 아래에 있다). **이 문자열을 다시 용의선상에 올리지 않는다.**
+
+### 19-3. 번들은 모드에 Sprite를 하나도 넘겨주지 않는다
+
+`IMod.ModObjectLoaded`로 들어오는 오브젝트를 **전량 찍어봤다.** 나오는 것은
+**Texture2D · GameObject · ScriptableObject뿐이고 Sprite는 0건**이다.
+
+`.meta`의 `spriteMode: 1`이 에디터에서 만드는 Sprite 서브에셋은 **이 경로로 오지 않는다.**
+그래서 이름으로 Sprite를 기다리던 렌즈의 범위 마커는 영원히 못 받는다
+(`no 'NoBreakZoneRangeMarker' sprite loaded`).
+
+→ Texture2D를 받아 `Sprite.Create`로 직접 만든다. 텍스처를 **참조**할 뿐 픽셀을 읽지 않으므로
+임포터의 `isReadable: 0`과 무관하다. `pixelsPerUnit`은 16이어야 한다(11장).
+
+⚠️ **`InventoryItemAuthoring.icon`은 `fileID: 21300000`, 즉 그 Sprite 서브에셋을 가리킨다.**
+번들 내부 참조라 위 경로와 다를 수 있어 **단정하지 않는다** — 아이콘이 실제로 그려지는지는
+인게임에서 눈으로 확인한다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
@@ -829,6 +894,8 @@ null을 반환하므로 **구역이 없다** — 즉 붙이기가 통한다. `bu
 - [ ] 배포(mod.io/창작마당) 절차 — 6단계에서 조사 (UploadMod.cs / SteamWorkshopTab.cs 존재 확인만 됨)
 - [x] ~~그래픽 프리팹의 나머지 참조~~ — SpriteAsset은 `m_address`(=파일 guid)로 연결된다.
   GradientMap은 스킨용 선택 기능이라 안 쓴다 (11장)
-- [ ] 스프라이트 오프셋 규칙 — 업라이트 스프라이트의 `localPosition` y·z를 텍스처 크기에서
-  어떻게 잡는지. SDK 작업대 값 `(0, 0.0625, -0.3125)`를 그대로 쓰고 있다. 인게임에서 정렬이
-  어긋나 보이면 여기다
+- [~] 스프라이트 오프셋 규칙 — 업라이트 스프라이트의 `localPosition` y·z를 텍스처 크기에서
+  어떻게 잡는지. SDK 작업대 값 `(0, 0.0625, -0.3125)`를 그대로 쓰는데, **아트를 그 예제와 같은
+  16×18로 맞추면서 같은 조건이 됐다**(19장·11장). 그래도 어긋나 보이면 여기다
+- [ ] 인벤토리 아이콘이 실제로 그려지는가 — 번들이 Sprite를 안 넘겨준다는 사실(19-3)이
+  `icon`(`fileID: 21300000`)에도 해당되는지. 번들 내부 참조라 다를 수 있어 미확정
