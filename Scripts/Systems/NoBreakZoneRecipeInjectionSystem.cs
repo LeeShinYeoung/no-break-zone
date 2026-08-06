@@ -1,29 +1,33 @@
 using System;
+using System.Text;
 using PugMod;
 using Unity.Entities;
 using UnityEngine;
 
-// Puts the Pylon Workbench recipe on the vanilla iron workbench, after the database exists.
+// Safety net and diagnostics for the Pylon Workbench recipe, after the database exists.
 //
-// The converter cannot finish this job. Conversion visits the vanilla workbench before it visits
-// the mod's own objects -- Player.log shows IronWorkBench (4010) converted, and our workbench
-// arriving as 32770 only afterwards -- so at the moment the converter runs there is no number to
-// point at. API.Authoring.GetObjectID answers None and the recipe used to be dropped in silence.
+// The converter beside this (NoBreakZoneWorkbenchRecipeInjectionConverter) is what normally lands
+// the recipe: it writes our object's NAME into the authoring list and the game's own bake resolves
+// it. That works no matter what order conversion visits things in, which the converter alone could
+// not manage while it tried to resolve a numeric id — conversion reaches the vanilla bench before
+// the mod's objects exist, so API.Authoring.GetObjectID answered None and the recipe was dropped in
+// silence.
 //
-// The recipe list is a buffer on the workbench's prefab entity, and that entity is still there once
-// the database is up, by which time the mod's objects do have ids. So the entry is appended here
-// instead, where both halves exist at the same time.
+// This system runs once the database is up, by which point both halves exist. It appends the recipe
+// if it somehow is not there, and — more usefully now — it reports what the target bench actually
+// looks like, so a recipe that fails to appear is diagnosed from Player.log instead of guessed at.
 //
 // WITHOUT A WORKING RECIPE THE MOD IS UNREACHABLE. 기획서 §4 has the pylon crafted at our own
-// workbench and the workbench itself at an iron-tier bench, and only the game owns that bench.
+// workbench and the workbench itself at a vanilla bench, and only the game owns that bench.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
 {
-    // 기획서 §4: "철 계열 작업대". The real gate on the pylon is ancient gemstones and mechanical
-    // parts from the Forgotten Ruins, so hanging it off a lower bench would show players a recipe
-    // they cannot fill for a long stretch.
-    private const ObjectID TargetWorkbench = ObjectID.IronWorkBench;
+    // Must match the converter's target. research.md 18장 records why this is the Automation Table
+    // and not the iron workbench 기획서 §4 first named: the iron bench authors all 18 of the slots
+    // the UI can show, and it absorbs three lower benches, which splits its recipe list into ranges
+    // that are drawn one at a time. The Automation Table holds 6 of 18 and absorbs nobody.
+    private const ObjectID TargetWorkbench = ObjectID.AutomationTable;
 
     private bool _done;
 
@@ -94,27 +98,23 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
 
                 // The converter may already have landed this by name. Adding it twice would show
                 // the player the same recipe in two slots.
-                var present = false;
+                var ours = -1;
                 for (int r = 0; r < recipes.Length; r++)
                 {
                     if (recipes[r].objectID == workbench)
                     {
-                        present = true;
+                        ours = r;
                         break;
                     }
                 }
 
-                if (present)
+                if (ours >= 0)
                 {
                     alreadyThere++;
                 }
                 else
                 {
-                    // Says how long the vanilla list was, which separates "our entry never arrived"
-                    // from "it arrived and the interface did not show it".
-                    Debug.Log($"[NoBreakZone] {TargetWorkbench} prefab {p} has {recipes.Length} recipe(s) "
-                              + $"before ours (world={World.Name})");
-
+                    ours = recipes.Length;
                     recipes.Add(new CanCraftObjectsBuffer
                     {
                         objectID = workbench,
@@ -123,10 +123,7 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
                     injected++;
                 }
 
-                // Runs whichever way the recipe got here. The converter lands it by name before this
-                // system ever sees the workbench, so gating the category on our own insert meant it
-                // was never added at all.
-                AddCategoryFor(entity, workbench);
+                Report(em, entity, recipes, p, ours);
             }
         }
 
@@ -137,58 +134,47 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
         return targets > 0;
     }
 
-    /// Gives our recipe a category of its own on the target workbench.
+    /// Writes down everything that decides whether the recipe is drawn, so a failure is read off
+    /// Player.log rather than guessed at. Three things settle it (research.md 18장):
     ///
-    /// Appending to CanCraftObjectsBuffer alone is not enough, and the reason is in
-    /// SimpleCraftingUIContainer.ShowCraftingUI: it walks the *current category's* slot range in
-    /// steps of six and opens a window for every chunk holding an available recipe. It owns three
-    /// windows. The iron workbench's 72 recipes already spread across three chunks, so a recipe
-    /// appended at slot 72 asked for a fourth and the game logged
-    /// "Not enough SimpleCraftingUIs ... Needed at least 4, but only have 3" and drew nothing.
+    ///   slots       — the UI shows three windows of six, so 18 is the ceiling for one bench.
+    ///   ours        — where our recipe sits. Past the end of a range means it is never drawn.
+    ///   categories  — a bench that absorbs other benches splits its list into ranges and draws one
+    ///                 at a time (the up/down arrows beside the panel). Zero means the whole list is
+    ///                 drawn, which is the case appending relies on.
     ///
-    /// Categories are not authored in the UI: CraftingBuilding.OnOccupied builds them from
-    /// IncludedCraftingBuildingsBuffer, one category per element, deriving startSlotIndex and
-    /// endSlotIndex by accumulating amountOfCraftingOptions in buffer order. Appending an element
-    /// there gives our single recipe its own category, whose range is one slot wide and therefore
-    /// one chunk and one window.
-    ///
-    /// Both appends have to stay in step: the categories' amounts are summed to locate each range,
-    /// so a category added without its recipe (or the other way round) would point at somebody
-    /// else's slot.
-    private void AddCategoryFor(Entity workbenchPrefab, ObjectID ours)
+    /// Empty slots are listed because they are the other way in, and because their presence says the
+    /// bench is progression-filtered — AvailableRecipesFromContentBundlesSystem blanks unmet recipes
+    /// every 0.2s over the authored range, and would overwrite anything written into one.
+    private static void Report(
+        EntityManager em,
+        Entity prefab,
+        DynamicBuffer<CanCraftObjectsBuffer> recipes,
+        int prefabIndex,
+        int ours)
     {
-        var em = EntityManager;
+        var categories = em.HasBuffer<IncludedCraftingBuildingsBuffer>(prefab)
+            ? em.GetBuffer<IncludedCraftingBuildingsBuffer>(prefab).Length
+            : 0;
 
-        if (!em.HasBuffer<IncludedCraftingBuildingsBuffer>(workbenchPrefab))
+        var empties = new StringBuilder();
+        for (int r = 0; r < recipes.Length; r++)
         {
-            // No categories at all means the whole recipe list is shown as one range, which is the
-            // case this fix does not apply to.
-            Debug.Log($"[NoBreakZone] {TargetWorkbench} has no crafting categories — nothing to add to");
-            return;
-        }
-
-        var categories = em.GetBuffer<IncludedCraftingBuildingsBuffer>(workbenchPrefab);
-
-        var covered = 0;
-        for (int c = 0; c < categories.Length; c++)
-        {
-            if (categories[c].objectID == ours)
+            if (recipes[r].objectID != ObjectID.None)
             {
-                return;
+                continue;
             }
 
-            covered += categories[c].amountOfCraftingOptions;
+            if (empties.Length > 0)
+            {
+                empties.Append(' ');
+            }
+
+            empties.Append(r);
         }
 
-        categories.Add(new IncludedCraftingBuildingsBuffer
-        {
-            objectID = ours,
-            amountOfCraftingOptions = 1,
-        });
-
-        // If the existing categories do not add up to where our recipe actually sits, the new
-        // category points at the wrong slot and would show somebody else's recipe.
-        Debug.Log($"[NoBreakZone] added crafting category on {TargetWorkbench}: "
-                  + $"{categories.Length} categories, earlier ones cover {covered} slot(s)");
+        Debug.Log($"[NoBreakZone] {TargetWorkbench} prefab {prefabIndex}: slots={recipes.Length}, "
+                  + $"ours={ours}, categories={categories}, "
+                  + $"empty=[{(empties.Length > 0 ? empties.ToString() : "none")}]");
     }
 }

@@ -3,30 +3,35 @@ using PugMod;
 using UnityEngine;
 using UnityEngine.Scripting;
 
-// Makes the Pylon Workbench craftable at a vanilla iron workbench.
+// Makes the Pylon Workbench craftable at the vanilla Automation Table.
 //
 // A mod cannot edit the game's own prefabs, so a recipe is added by converting them as they bake:
 // this runs once per authoring object that carries CraftingAuthoring, and appends to the recipe
 // buffer of the one we want. The pattern is ConveyorTunnelMod's
-// (ck-mods/.../ConveyorTunnelRecipeInjectionConverter.cs), which does the same to the Automation
-// Table.
+// (ck-mods/.../ConveyorTunnelRecipeInjectionConverter.cs), which appends to this very bench.
 //
 // WITHOUT THIS THE MOD IS UNREACHABLE. 기획서 §4 has the pylon crafted at our own workbench, and the
-// workbench itself at an iron-tier bench — but only the game owns that bench. Nothing else in the
-// mod can put a recipe there, so this is the single door into everything the mod adds.
+// workbench itself at a vanilla bench that only the game owns. Nothing else in the mod can put a
+// recipe there, so this is the single door into everything the mod adds.
 //
-// 기획서 §4 chose iron tier deliberately: the real gate on the pylon is ancient gemstones and
-// mechanical parts from the Forgotten Ruins, so hanging the workbench off a lower bench would show
-// players a recipe they cannot fill for a long stretch.
+// WHY NOT THE IRON WORKBENCH, WHICH 기획서 §4 ORIGINALLY NAMED: it is full. A bench shows three
+// windows of six, so 18 recipes is the ceiling, and the iron workbench authors exactly 18. Worse,
+// it absorbs the basic, copper and tin benches, and an absorbed bench splits the recipe list into
+// ranges that the UI draws one at a time (research.md 18장) — so a recipe appended past the end
+// falls outside every range and is never drawn. That is what the player was seeing.
+//
+// The Automation Table holds 6 of its 18 and absorbs nobody, so appending is enough. Two shipped
+// mods do exactly this (ConveyorTunnelMod, limoka's DummyMod). Its subject matter fits too: the
+// pylon is a machine and takes mechanical parts.
 [Preserve]
 public class NoBreakZoneWorkbenchRecipeInjectionConverter
     : SingleAuthoringComponentConverter<CraftingAuthoring>
 {
-    // 기획서 §4: "철 계열 작업대". Named rather than cast from a number — the number is resolved
-    // against the real game assembly at build time, so it cannot drift the way a literal can.
-    // (ConveyorTunnelMod hardcodes (ObjectID)4022; that value still matches the current game, but
-    // only because nothing has shifted it yet.)
-    private const ObjectID TargetWorkbench = ObjectID.IronWorkBench;
+    // Named rather than cast from a number — the number is resolved against the real game assembly
+    // at build time, so it cannot drift the way a literal can. (ConveyorTunnelMod hardcodes
+    // (ObjectID)4022; that value still matches the current game, but only because nothing has
+    // shifted it yet.)
+    private const ObjectID TargetWorkbench = ObjectID.AutomationTable;
 
     protected override void Convert(CraftingAuthoring authoring)
     {
