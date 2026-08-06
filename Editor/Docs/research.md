@@ -738,6 +738,90 @@ entry.Value
 
 **켬 = 둘 다. 끔 = `IndestructibleCD`만.** 미검증 추론이다 — 끈 상태를 인게임에서 본 적 없다.
 
+## 18. 제작창은 벤치당 18칸이고, 화살표가 있으면 붙일 수 없다 (2026-08-06)
+
+작업대 레시피가 인게임에서 안 뜨는 문제를 며칠 붙잡았다. **원인은 우리 코드가 아니라 제작 UI의
+구조였다.** 다시 헤매지 않으려면 이 장이 필요하다.
+
+### 창 3개 × 6칸 = 벤치당 18개가 상한
+
+`SimpleCraftingUIContainer`는 `List<SimpleCraftingUI>`를 3개 들고 있고, `MAX_RECIPES_PER_UI = 6`
+이다. `ShowCraftingUI`가 슬롯 범위를 6칸씩 끊어 **사용 가능한 레시피가 있는 청크마다** 창을
+하나 연다. 창이 모자라면 이렇게 찍고 그 청크만 안 그린다(패널 전체가 죽지는 않는다):
+
+```
+Not enough SimpleCraftingUIs in SimpleCraftingUIContainer to show all recipes.
+Needed at least 4, but only have 3.
+```
+
+공식 모딩 문서도 같은 말을 한다 — *"each workbench can have AT MOST 18 slots. You cannot exceed
+this value. As such this approach isn't too scaleable."*
+
+### 화살표 = `IncludedCraftingBuildingsBuffer`
+
+제작창 왼쪽의 ▲▼와 그 사이 아이콘이다. **다른 작업대의 레시피 묶음을 페이지처럼 넘긴다.**
+
+`CraftingBuilding.OnOccupied`가 이 버퍼를 순회하며 구역을 만들고, `amountOfCraftingOptions`를
+누적해 `startSlotIndex`/`endSlotIndex`를 잡는다. `ShowCraftingUI`는 **선택된 구역의 범위만**
+걷는다(`Manager.ui.GetCraftingCategoryWindowInfo()`).
+
+**결론: 화살표가 있는 벤치에는 목록 끝에 붙여봐야 소용없다.** 어느 구역에도 안 들어가서 걸리지
+않는다. 화살표가 없으면 범위가 `0 ~ recipes.Length` 전체라 붙이면 그려진다.
+
+구역이 어떻게 채워지는지는 `CoreLib`의 베이커 재구현본이 보여준다
+(`CoreLib/.../ModCraftingAuthoring.cs`) — **첫 항목이 그 벤치 자신**이고 이어서 흡수한 벤치들이
+붙는다. `moorowl/ItemBrowser`가 `.Skip(1)`로 읽는 것도 같은 이유다. 굽는 시점에 정해지므로
+**근접성과 무관하다.**
+
+### 벤치별 실측 (위키 본문 직접 카운트, 2026-08-06)
+
+| 벤치 | 자기 레시피 | 화살표 | 비고 |
+| --- | --- | --- | --- |
+| Basic Workbench | 17 / 18 | 없음 | |
+| Copper Workbench | 18 / 18 | 있음 | Basic 흡수 |
+| Tin Workbench | 18 / 18 | 있음 | Basic·Copper 흡수 |
+| **Iron Workbench** | **18 / 18** | **있음** | Basic·Copper·Tin 흡수 → 버퍼 72 |
+| Electronics Table | 18 / 18 | 없음 | |
+| **Automation Table** | **6 / 18** | **없음** | 우리가 쓰는 벤치 |
+| Jewelry Workbench | 6 / 18 | 없음 | 철 단계 |
+| Key Casting Table | 7 / 18 | 없음 | 철 단계 |
+
+**18이 게임이 벤치를 채우는 기준값이다.** 네 벤치가 정확히 18에서 멈춘다.
+
+### 손 제작도 같은 UI, 같은 18칸
+
+`OpenPlayerInventory()`가 `SetActiveCraftingHandler(playerCraftingHandler)` 후 같은
+`CraftingType.Simple` 경로를 탄다. 다만 `UIManager.GetCraftingBuilding()`이 플레이어 제작에서는
+null을 반환하므로 **구역이 없다** — 즉 붙이기가 통한다. `budak7273/HandCraftWoodBridges`가
+`[EntityModification(ObjectID.Player)]`로 여기에 넣는다.
+
+### 빈칸에 끼워넣기보다 끝에 붙이는 쪽이 안전하다
+
+공식 문서와 여러 모드(`limoka/DummyMod`, `Foxcapades/ck-tweaks`, `germanoeich/Cornucopia`)는
+`ObjectID.None`인 슬롯을 찾아 `buffer[i] = ...`로 덮어쓴다. 하지만 **그 빈칸은 진행도 필터가
+만든 자리일 수 있다** — `AvailableRecipesFromContentBundlesSystem`이 0.2초마다
+`ObjectPropertiesCD`의 `Crafting/unfilteredRecipes`를 읽어 `[0, 원본길이)` 구간을 다시 쓰면서
+조건 미달 레시피를 `None`으로 만든다. 거기에 우리 것을 꽂으면 되돌려진다.
+
+**끝에 `Add`하면 그 구간 밖이라 안 덮인다.** ConveyorTunnelMod가 자동화 테이블에 그렇게 한다.
+
+### 레퍼런스 위치
+
+| 무엇 | 어디 |
+| --- | --- |
+| 공식 권장 방식 | `CoreKeeperMods/Core-Keeper-Docs` → `.../obtaining-items/adding-your-items-to-crafters.md` |
+| 자동화 테이블에 붙이는 컨버터 | `ck-mods/.../ConveyorTunnelRecipeInjectionConverter.cs` |
+| 카테고리를 직접 만드는 예 | `ck-mods/.../ConveyorTunnelAdvancedAutomationRecipeInjector.cs`, `ck-mods/.../DimensionPortalRecipeInjector.cs` |
+| 베이커 재구현본 | `CoreKeeperMods/CoreLib` → `.../Entity/Scripts/Component/ModCraftingAuthoring.cs` |
+| 몹 드롭으로 주는 길 | `CoreLib` LootDrop 모듈, `ReishyouSose/.../DropTrophySystem.cs` |
+
+### 상인은 탈출구가 아니다
+
+재료를 주고 물건을 받는 NPC는 `CraftingCD{Simple}` + `CanCraftObjectsBuffer`를 가진
+`ObjectType.Creature`다(`ItemBrowser/.../Trading.cs`의 판별식). **작업대와 같은 버퍼·같은 UI·같은
+18칸**이고 대상 ID만 다르다. 자판기(`VendingMachineItemBuffer`)는 별개 구조지만 여기 쓰는
+모드가 GitHub 전체에 0건이다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
