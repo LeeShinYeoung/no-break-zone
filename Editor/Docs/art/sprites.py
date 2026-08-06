@@ -1,4 +1,10 @@
+import pathlib
+
 from PIL import Image
+
+# Beside this script. It used to be an absolute path on the machine that first ran it, which meant
+# the generator could not be re-run anywhere else -- including the Windows box that does the builds.
+OUT = pathlib.Path(__file__).resolve().parent
 
 T = (0, 0, 0, 0)
 OUTLINE = (36, 31, 46, 255)
@@ -171,51 +177,57 @@ def build_image(c, regions, shifts, glow_on):
 
 
 def pylon(c):
-    rect(c, 5, 26, 26, 29, "base")
-    trapezoid(c, 8, 26, 12, 19, 10, 21, "shaft")
-    trapezoid(c, 3, 8, 15, 16, 12, 19, "tip")
-    diamond(c, 15.5, 16.5, 2.6, 4.0, "glow_gem")
+    rect(c, 3, 13, 12, 15, "base")
+    trapezoid(c, 6, 13, 5, 10, 4, 11, "shaft")
+    trapezoid(c, 1, 6, 6, 9, 5, 10, "tip")
+    diamond(c, 7.5, 8.5, 1.7, 2.6, "glow_gem")
 
 
 def lens(c):
-    rect(c, 14, 19, 17, 30, "handle")
-    rect(c, 12, 23, 19, 26, "grip")
-    ring(c, 15.5, 12.0, 9.2, 6.2, "frame")
-    disc(c, 15.5, 12.0, 6.2, "glow_lens")
+    # The ring has to be thick enough to survive the outline pass, which turns every cell touching
+    # empty space dark. A 1.7px rim left about half a pixel of visible frame and the lens read as a
+    # bare blob, so the glass is small and the rim wide rather than the other way round.
+    rect(c, 7, 10, 8, 14, "handle")
+    rect(c, 6, 10, 9, 11, "grip")
+    ring(c, 7.5, 5.5, 5.0, 2.4, "frame")
+    disc(c, 7.5, 5.5, 2.4, "glow_lens")
 
 
 def bench(c):
-    rect(c, 7, 24, 15, 30, "legs")
-    rect(c, 48, 24, 56, 30, "legs")
-    rect(c, 2, 18, 61, 24, "top")
-    rect(c, 15, 8, 48, 19, "back")
-    rect(c, 11, 5, 52, 9, "hood")
-    rect(c, 18, 11, 25, 17, "panel")
-    rect(c, 38, 11, 45, 17, "panel")
-    disc(c, 31.5, 13.5, 4.6, "glow_socket")
-    rect(c, 20, 13, 23, 14, "glow_l")
-    rect(c, 40, 13, 43, 14, "glow_r")
+    rect(c, 2, 13, 4, 15, "legs")
+    rect(c, 11, 13, 13, 15, "legs")
+    rect(c, 1, 9, 14, 12, "top")
+    rect(c, 3, 4, 12, 9, "back")
+    rect(c, 2, 2, 13, 5, "hood")
+    rect(c, 4, 6, 11, 8, "panel")
+    disc(c, 7.5, 7.0, 1.7, "glow_socket")
 
 
 HILITE = (255, 242, 205, 255)
-HIGHLIGHTS = {"lens": [(12, 8), (13, 8), (11, 9), (12, 9), (11, 10)]}
+HIGHLIGHTS = {"lens": [(6, 4), (7, 4), (6, 5)]}
 
 def remote(c):
-    rect(c, 16, 1, 20, 3, "tip")
-    rect(c, 17, 3, 19, 9, "ant")
-    rect(c, 8, 8, 24, 29, "body")
-    rect(c, 10, 11, 22, 17, "glow_screen")
-    rect(c, 10, 21, 15, 24, "btn")
-    rect(c, 17, 21, 22, 24, "btn")
-    rect(c, 10, 26, 12, 27, "glow_led")
+    rect(c, 7, 0, 9, 1, "tip")
+    rect(c, 8, 1, 9, 4, "ant")
+    rect(c, 3, 4, 12, 14, "body")
+    rect(c, 5, 6, 10, 8, "glow_screen")
+    rect(c, 4, 10, 6, 11, "btn")
+    rect(c, 9, 10, 11, 11, "btn")
+    rect(c, 4, 13, 5, 13, "glow_led")
 
 
+# 1 tile is 16px in world (SpriteObject.PixelsPerUnit is a hardcoded 16f), so a placeable's art is
+# 16 wide or it draws wider than the tiles it occupies. Height 18 rather than 16 is what the SDK's
+# own 1x1 workbench uses (Examples/WorkbenchExample/Workbench/MyNewWorkbench1_down.png): the extra
+# two rows let the object stand up out of its tile, and it is the size genassets.py's sprite_offset
+# was copied for. Lens and remote never stand in the world -- they are inventory icons only -- so
+# they are a plain 16x16.
 DESIGNS = {
-    "pylon": (32, 32, pylon, ["base", "shaft", "tip"], {"base": -2, "tip": 1}),
-    "remote": (32, 32, remote, ["tip", "ant", "body", "btn"],
+    "pylon": (16, 18, pylon, ["base", "shaft", "tip"], {"base": -2, "tip": 1}),
+    "remote": (16, 16, remote, ["tip", "ant", "body", "btn"],
                {"tip": 1, "ant": 0, "body": 0, "btn": 2}),
-    "lens": (32, 32, lens, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
-    "workbench": (64, 32, bench, ["legs", "top", "back", "hood", "panel"],
+    "lens": (16, 16, lens, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
+    "workbench": (16, 18, bench, ["legs", "top", "back", "hood", "panel"],
                   {"legs": -2, "top": 2, "back": 0, "hood": 1, "panel": -2}),
 }
 
@@ -229,19 +241,20 @@ for name, (w, h, fn, regs, sh) in DESIGNS.items():
         for hx, hy in HIGHLIGHTS.get(name, []):
             im.putpixel((hx, hy), HILITE)
         key = f"{name}_{st}" if name == "pylon" else name
-        im.save(f"/home/claude/out/{key}.png")
+        im.save(OUT / f"{key}.png")
         made[key] = im
 
 SC, PAD = 8, 20
 BG = (30, 29, 27, 255)
 order = ["pylon_off", "pylon_on", "lens", "remote", "workbench"]
 w = PAD * (len(order) + 1) + sum(made[n].width for n in order) * SC
-h = PAD * 2 + 32 * SC
+# Tallest of the set rather than a constant: the designs are no longer all the same height.
+h = PAD * 2 + max(made[n].height for n in order) * SC
 sheet = Image.new("RGBA", (w, h), BG)
 ox = PAD
 for n in order:
     im = made[n]
     sheet.alpha_composite(im.resize((im.width * SC, im.height * SC), Image.NEAREST), (ox, PAD))
     ox += im.width * SC + PAD
-sheet.save("/home/claude/out/preview.png")
+sheet.save(OUT / "preview.png")
 print("ok", sheet.size)
