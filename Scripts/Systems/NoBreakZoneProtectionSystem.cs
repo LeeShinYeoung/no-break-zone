@@ -34,6 +34,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     private NoBreakZonePylonRegistrySystem _registry;
     private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
 
+    // DIAGNOSTIC, remove with Report(). Separate from _logged so a refusal is still reported for an
+    // object that was protected earlier under a different pylon layout.
+    private readonly HashSet<ObjectID> _loggedSkips = new HashSet<ObjectID>();
+
     // The registry hands out int2s; NoBreakZoneRange takes parallel int arrays so it can stay free
     // of Unity types and be unit tested. Copied into reusable buffers once per frame rather than
     // per object.
@@ -143,16 +147,26 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             // back through the query next frame.
             em.AddComponent<NoBreakZoneEvaluatedCD>(entity);
 
+            bool destructible = em.HasComponent<DestructibleObjectCD>(entity);
+            bool lootTable = em.HasComponent<DropsLootFromLootTableCD>(entity);
+            bool lootOnDamage = em.HasComponent<DropsLootWhenDamagedCD>(entity);
+
             bool qualifies = NoBreakZoneProtectionRule.ShouldProtect(
                 (int)objectTypes[i].Value,
                 true, // HealthCD is in the query's All list
                 false, // TileCD is in the query's None list
-                em.HasComponent<DestructibleObjectCD>(entity),
-                em.HasComponent<DropsLootFromLootTableCD>(entity),
-                em.HasComponent<DropsLootWhenDamagedCD>(entity));
+                destructible,
+                lootTable,
+                lootOnDamage);
 
             if (!qualifies)
             {
+                // DIAGNOSTIC — the mod's own workbench stood inside a switched-on pylon's square and
+                // broke anyway, and the PROTECT lines could not say why because they only ever
+                // reported success. Reporting the inputs of a refusal turns "it did not work" into a
+                // row of flags. Once per object id, so this cannot become a per-frame sweep.
+                Report(objectDatas[i].objectID, "rule",
+                       (int)objectTypes[i].Value, destructible, lootTable, lootOnDamage);
                 continue;
             }
 
@@ -160,6 +174,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             // transform sits at.
             if (!IsFootprintCovered(em, entity, transforms[i], objectDatas[i], radius))
             {
+                // Distinguishes "the rule said no" from "it was simply outside the square", which
+                // are the same silent `continue` from the outside and want opposite fixes.
+                Report(objectDatas[i].objectID, "outside",
+                       (int)objectTypes[i].Value, destructible, lootTable, lootOnDamage);
                 continue;
             }
 
@@ -298,6 +316,23 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         return NoBreakZoneRange.AllTilesCovered(
             _pylonX, _pylonZ, _pylonCount, minX, minZ, maxX, maxZ, radius);
+    }
+
+    // DIAGNOSTIC, remove once 제작대 보호 is understood. Once per object id per world, the same way
+    // Protect's log is capped, so a base full of furniture costs a handful of lines rather than one
+    // per entity. A modded id prints as its number (32770 is the workbench) because ObjectID's enum
+    // has no name for it — that is also why the existing PROTECT lines looked all-vanilla.
+    private void Report(ObjectID objectID, string why,
+                        int objectType, bool destructible, bool lootTable, bool lootOnDamage)
+    {
+        if (!_loggedSkips.Add(objectID))
+        {
+            return;
+        }
+
+        Debug.Log($"[NoBreakZone] skip {objectID} ({why}): type={objectType} "
+                  + $"destructible={destructible} lootTable={lootTable} lootOnDamage={lootOnDamage} "
+                  + $"(world={World.Name})");
     }
 
     private void Protect(EntityManager em, Entity entity, ObjectID objectID)

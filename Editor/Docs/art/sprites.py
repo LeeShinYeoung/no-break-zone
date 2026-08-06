@@ -151,15 +151,34 @@ def build_image(c, regions, shifts, glow_on):
             else:
                 out[y][x] = pal["mid"]
     if glow_on:
-        allglow = {p for g in groups.values() for p in g}
-        for x, y in allglow:
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
-                nx, ny = x + dx, y + dy
-                if 0 <= nx < c.w and 0 <= ny < c.h:
+        # The lit state has to read at a glance from across a base, and one pixel of bleed did not:
+        # in game the pylon looked identical switched on and off. The light now travels out from the
+        # gem in rings that fade, so the body itself warms up.
+        #
+        # ONLY RGB CHANGES, NEVER ALPHA — that is what keeps 기획서 §7's promise that the two states
+        # have the same silhouette. It holds by construction here rather than by anyone remembering.
+        frontier = {p for g in groups.values() for p in g}
+        reached = set(frontier)
+        for red, green, blue in ((96, 62, -26), (64, 41, -18), (38, 24, -11), (18, 11, -5)):
+            nxt = set()
+            for x, y in frontier:
+                for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    nx, ny = x + dx, y + dy
+                    if not (0 <= nx < c.w and 0 <= ny < c.h) or (nx, ny) in reached:
+                        continue
                     n = c.r[ny][nx]
-                    if n and not n.startswith("glow") and out[ny][nx] != OUTLINE:
-                        b = out[ny][nx]
-                        out[ny][nx] = (min(255, b[0] + 60), min(255, b[1] + 38), max(0, b[2] - 18), 255)
+                    if not n or n.startswith("glow"):
+                        continue
+                    reached.add((nx, ny))
+                    nxt.add((nx, ny))
+                    # The silhouette edge stays dark — light spreading onto it would blur the shape
+                    # against the background — but the glow still travels past it to cells beyond.
+                    if out[ny][nx] == OUTLINE:
+                        continue
+                    b = out[ny][nx]
+                    out[ny][nx] = (min(255, b[0] + red), min(255, b[1] + green),
+                                   max(0, b[2] + blue), 255)
+            frontier = nxt
 
     img = Image.new("RGBA", (c.w, c.h), T)
     ac = c.all_cells()
@@ -176,11 +195,14 @@ def build_image(c, regions, shifts, glow_on):
     return img
 
 
+# FILL THE CANVAS. The SDK's own 1x1 workbench uses all 16x18 of it (rows 0..17, cols 0..15), and
+# that is what makes a one-tile object look like it occupies its tile. Ours left margins and read as
+# small and half-sunk in game.
 def pylon(c):
-    rect(c, 3, 13, 12, 15, "base")
-    trapezoid(c, 6, 13, 5, 10, 4, 11, "shaft")
-    trapezoid(c, 1, 6, 6, 9, 5, 10, "tip")
-    diamond(c, 7.5, 8.5, 1.7, 2.6, "glow_gem")
+    rect(c, 0, 13, 15, 17, "base")
+    trapezoid(c, 5, 13, 4, 11, 2, 13, "shaft")
+    trapezoid(c, 0, 5, 5, 10, 3, 12, "tip")
+    diamond(c, 7.5, 8.0, 2.2, 3.2, "glow_gem")
 
 
 def lens(c):
@@ -194,13 +216,13 @@ def lens(c):
 
 
 def bench(c):
-    rect(c, 2, 13, 4, 15, "legs")
-    rect(c, 11, 13, 13, 15, "legs")
-    rect(c, 1, 9, 14, 12, "top")
-    rect(c, 3, 4, 12, 9, "back")
-    rect(c, 2, 2, 13, 5, "hood")
-    rect(c, 4, 6, 11, 8, "panel")
-    disc(c, 7.5, 7.0, 1.7, "glow_socket")
+    rect(c, 1, 12, 4, 17, "legs")
+    rect(c, 11, 12, 14, 17, "legs")
+    rect(c, 1, 3, 14, 9, "back")
+    rect(c, 0, 0, 15, 4, "hood")
+    rect(c, 3, 5, 12, 8, "panel")
+    rect(c, 0, 9, 15, 13, "top")
+    disc(c, 7.5, 6.5, 1.9, "glow_socket")
 
 
 HILITE = (255, 242, 205, 255)

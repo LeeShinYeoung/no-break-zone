@@ -283,3 +283,3304 @@
     4 = Legendary
     -1 = Poor
 
+=== PlayerController   [Pug.Other]
+    field  public GameObject groundFog
+    field  public GameObject fog
+    field  public Transform footStepTransform
+    field  public ExtraLootAtStartTable extraLootAtStartTable
+    field  public RolePerksTable rolePerksTable
+    field  private Entity <smoothFollowEntity>k__BackingField
+    field  public Boolean isLocal
+    field  public Biome currentBiome
+    field  public Boolean isInSafeZone
+    field  private Boolean lastLocalGodModeState
+    field  public ClientInput clientInput
+    field  public Boolean spawningFromCoreFinished
+    field  public Boolean mouseUIInputWasDone
+    field  public Entity currentSheetStandBeingPlayedAt
+    field  public Portal currentPortal
+    field  private Boolean <initialized>k__BackingField
+    field  private String <playerName>k__BackingField
+    field  private String unfilteredPlayerName
+    field  private Int32 <playerIndex>k__BackingField
+    field  private String <networkName>k__BackingField
+    field  private PlatformUserID <platformID>k__BackingField
+    field  private Platform <platform>k__BackingField
+    field  private UIInputActionData lastPoppedUIInputAction
+    field  private List<UIInputActionData> queuedUIInputActions
+    field  private PlayerInput <_inputModule>k__BackingField
+    field  public ClientSystem playerCommandSystem
+    field  public SendClientSubMapToPugMapSystem pugMapSystem
+    field  public PugQuerySystem querySystem
+    field  public UpdateGraphicalObjectTransformSystem updateGraphicalObjectTransformSystem
+    field  public EntityPrespawnSystem entityPrespawnSystem
+    field  public BlobAssetReference<PugDatabaseBank> pugDatabase
+    field  public BlobAssetReference<LootTableBankBlob> lootTableBank
+    field  public Boolean hasDisabledInputBecauseLoading
+    field  public Boolean hasRemovedLoginImmunity
+    field  public PhysicsCategoryTags belongsToLayer
+    field  public PhysicsCategoryTags collidesWithLayer
+    field  public PhysicsCategoryTags damagesLayer
+    field  public Single collisionRadius = 0.2
+    field  public Single movementSpeed
+    field  public Single noClipMovementSpeedMultipler
+    field  public ParticleSystem runDust
+    field  public Vector3 targetMovementVelocity
+    field  public Vector3 targetingDirection
+    field  public Direction lastEffectiveSteerDir
+    field  public Direction facingDirection
+    field  public Vector3 aimDirection
+    field  public Int32 equippedSlotIndex
+    field  private Int32 lastUsedSlotIndex
+    field  public Int32 hotbarStartIndex
+    field  public Int32 hotbarEndIndex
+    field  private List<EquipmentSlot> <equipmentSlots>k__BackingField
+    field  private InventoryHandler <activeInventoryHandler>k__BackingField
+    field  private InventoryHandler <activeBuyInventoryHandler>k__BackingField
+    field  private Cattle <activeCattle>k__BackingField
+    field  private PetBase _activePet
+    field  private WorldLabel <activeWorldLabel>k__BackingField
+    field  private IFilteringBuilding _filteringBuilding
+    field  private List<ContainedObjectsBuffer> previousInventoryObjects
+    field  private ContainedObjectsBuffer previousMouseObject
+    field  public PlayInstrumentHandler instrumentHandler
+    field  public Boolean stopPlayingInstrument
+    field  private CraftingHandler <activeCraftingHandler>k__BackingField
+    field  private CraftingHandler <playerCraftingHandler>k__BackingField
+    field  private SellSlotsHandler <sellSlotsHandler>k__BackingField
+    field  private EquipmentHandler <equipmentHandler>k__BackingField
+    field  private VanitySlotsHandler <vanitySlotsHandler>k__BackingField
+    field  private TrashCanHandler <trashCanHandler>k__BackingField
+    field  private UpgradeSlotHandler <upgradeSlotHandler>k__BackingField
+    field  private ContainedObjectsBuffer <visuallyEquippedContainedObject>k__BackingField
+    field  private EquipmentSlotType visuallyEquippedSlotType
+    field  public GameObject carryableHandle
+    field  public SpriteRenderer carryableSwingItemSprite
+    field  public SpriteSheetSkin carryableSwingItemSkinSkin
+    field  public SpriteRenderer carryableRangeItemSprite
+    field  public SpriteSheetSkin carryableRangeItemSkinSkin
+    field  public SpriteRenderer carryableShieldItemSprite
+    field  public SpriteSheetSkin carryableShieldItemSkinSkin
+    field  public SpriteRenderer instrumentSprite
+    field  public SpriteSheetSkin instrumentSkin
+    field  public SpriteRenderer carryablePlaceItemSprite
+    field  public ColorReplacer carryablePlaceItemColorReplacer
+    field  public SpriteRenderer carryableBigSpearItemSprite
+    field  public SpriteRenderer carryableBigSwingItemSprite
+    field  public SpriteRenderer carryableDrillToolSprite
+    field  public SpriteSheetSkin carryableBigSpearItemSkin
+    field  public SpriteSheetSkin carryableBigSwingItemSkin
+    field  public SpriteSheetSkin carryableDrillToolSkin
+    field  public GameObject carryableTorch
+    field  public SpriteRenderer carryableFishingRodSprite
+    field  public SpriteSheetSkin carryableFishingRodSkin
+    field  public LineRenderer fishingRodLine
+    field  public Gradient fishingRodLineDefaultGradient
+    field  public List<FishingRodColorGradient> fishingRodLineGradientOverrides
+    field  public SpriteRenderer fishingRodSink
+    field  public SpriteRenderer fishingRodLoot
+    field  public Vector2 animatedFishingRodSinkPosition
+    field  public Boolean animatedLineIsBeingPulled
+    field  public List<CarryableEffect> carryableEffects
+    field  public Color defaultEyeEmissive
+    field  public Color redGlowEyeEmissive
+    field  public Material defaultmaterial
+    field  public Material ghostMaterial
+    field  public Color ghostColor
+    field  public Flashable flashableComponent
+    field  public Flashable flashableEyesComponent
+    field  public GameObject srContainer
+    field  public Transform srOffset
+    field  public AimUI aimUI
+    field  public Boolean showHitArea
+    field  public AttackFX attackFX
+    field  public SpriteRenderer hitAreaBoxSR
+    field  public SpriteRenderer hitAreaSR
+    field  public Sprite hitAreaSpriteCone45
+    field  public Sprite hitAreaSpriteCone90
+    field  public Sprite hitAreaSpriteCone135
+    field  public Sprite hitAreaSpriteCone180
+    field  public Sprite hitAreaSpriteCone270
+    field  public Sprite hitAreaSpriteCircle
+    field  public Sprite hitAreaSpriteRectangle
+    field  public DataBlockRef<PlayerCustomizationTableDataBlock> customizationTable
+    field  public PlayerCustomization activeCustomization
+    field  private Int32 activeCustomizationTriggerCount
+    field  public SpriteSheetSkin bodySkin
+    field  public ColorReplacer skinColorReplacer
+    field  public SpriteSheetSkin hairSkin
+    field  public ColorReplacer hairColorReplacer
+    field  public SpriteSheetSkin hairShadeSkin
+    field  public ColorReplacer hairShadeColorReplacer
+    field  public SpriteSheetSkin eyesSkin
+    field  public ColorReplacer eyesColorReplacer
+    field  public SpriteSheetSkin pantsSkin
+    field  public ColorReplacer pantsColorReplacer
+    field  public SpriteSheetSkin shirtSkin
+    field  public ColorReplacer shirtColorReplacer
+    field  public SpriteSheetSkin helmSkin
+    field  public SpriteSheetSkin breastArmorSkin
+    field  public SpriteSheetSkin pantsArmorSkin
+    field  public PugText nameText
+    field  public PugText nameTextOutline
+    field  private String _prevName
+    field  private Boolean prevLookLikeGhost
+    field  private PoolableAudioSource acidLoop
+    field  private Boolean onSlime
+    field  private Boolean onOrangeSlime
+    field  private Boolean onAcid
+    field  private Boolean onPoisonSlime
+    field  private Boolean onSlipperySlime
+    field  private Boolean onWood
+    field  private Boolean onGrass
+    field  private Boolean onChrysalis
+    field  private Boolean onMoss
+    field  private Boolean onStone
+    field  private Boolean onFlesh
+    field  private Boolean onSand
+    field  private Boolean onOasis
+    field  private Boolean onBeach
+    field  private Boolean onClay
+    field  private Boolean onMold
+    field  private Boolean onDirt
+    field  private Boolean onMetal
+    field  private Boolean onRoses
+    field  private Boolean onGlass
+    field  private Boolean onMeadow
+    field  private Boolean onRobotScrap
+    field  private Boolean onOil
+    field  public ParticleSystem teleportEffect
+    field  public GameObject teleportSprites
+    field  private PoolableAudioSource castAudio
+    field  public ParticleSystem gainTalentEffect
+    field  public ParticleSystem coreWallParticles
+    field  public ParticleSystem dashEffect
+    field  public SpecialWeaponHandler specialWeaponHandler
+    field  private Boolean _anyInventoryOrMapWasActiveThisFrame
+    field  private Boolean _playerInputBlockedThisFrame
+    field  public Vector3 previousMouseScreenPosition
+    field  private Int32 swappedTorchFromIndex
+    field  private TimerSimple slotSwapWithMouseCooldownTimer
+    field  private Int32 GreatWallHeight = 980
+    field  private Int32 GreatWallEmissivity = 981
+    field  private Int32 GreatWallParticles = 982
+    field  public AnimationCurve greatWallHeightCurve
+    field  public AnimationCurve greatWallEmissiveCurve
+    field  public AnimationCurve greatWallParticlesCurve
+    field  public AnimationCurve warmupCurve
+    field  private Boolean greatWallIsShakingAndRumbling
+    field  private Boolean greatWallEmissiveSoundHasPlayed
+    field  private Boolean greatWallHasBeenLowered
+    field  private TimerSimple greatWallShakeTimer
+    field  private Single nearbyEmissiveAndLowerWallBlend
+    field  private Int32 distanceToStartNearbyWallEffect = 4
+    field  private Boolean <playerCanInteractWithGreatWall>k__BackingField
+    field  private TimerSimple playerNearbyTimer
+    field  private Boolean canDoHandEmote
+    field  private Boolean isPlayingInteractFlash
+    field  private Single UNDISCOVERED_ITEM_CHECK_INTERVAL = 0.5
+    field  private TimerSimple checkUndiscoveredItemsTimer
+    field  public AnimationCurve slackingFishingLineCurve
+    field  public AnimationCurve throwingFishingLineCurve
+    field  private Single lineTensionSmoothTimer
+    field  private Single sinkHeightFromFishHooking
+    field  private TimerSimple rippleTimer
+    field  private PoolableAudioSource reelAudio
+    field  private PoolableAudioSource struggleAudio
+    field  private TimerSimple thisIsGoingToTakeAWhileEmoteTimer
+    field  private NetworkTick thisIsGoingToTakeAWhileLastDamageTick
+    field  private Boolean _windupSoundsPlaying
+    field  private List<RunningSfxReference> _windupSoundEffects
+    field  private Boolean _warmupSFXPlaying
+    field  private Boolean _warmupMaxSFXPlaying
+    field  private Boolean _warmupEndSFXPlaying
+    field  private List<RunningSfxReference> _warmupSFX
+    field  private List<RunningSfxReference> _warmupMaxSFX
+    field  private List<RunningSfxReference> _warmupEndSFX
+    field  private Int32 _amassValue
+    field  private Int32 _amassValuePrevious
+    field  private List<RunningSfxReference> _amassSoundEffects
+    field  private Boolean _isSleepingAndHasAppliedQualitySleep
+    field  private NetworkTick _previousQualitySleepRemoveTick
+    field  private Vector4[] tulipPositionsArray
+    field  private Int32 TulipPositionsArray = 983
+    field  private Int32 MAX_TULIPS = 8
+    field  private List<ContainedObjectsBuffer> inventoryCache
+    field  private Int32 lastReceivedConditionsAmount
+    field  private TimerSimple conditionsSaveTimer
+    field  private Int32 Emissive = 984
+    field  private Int32 lastReceivedLockedObjectsAmount
+    field  private TimerSimple lockedObjectsSaveTimer
+    field  private Single MIN_TIME_BETWEEN_BLINK = 8
+    field  private Single MAX_TIME_BETWEEN_BLINK = 12
+    field  private TimerSimple blinkTimer
+    field  private Vector3 srOffSetPos
+    field  private Vector3 defaultSROffSetPos
+    field  private Quaternion srOffSetRot
+    field  private Int32 EmissiveTex = 985
+    field  private Int32 <activeEquipmentPreset>k__BackingField
+    field  protected String rareTerm = Rarity/Rare
+    field  protected String epicTerm = Rarity/Epic
+    field  protected String foodFormat = foodFormat
+    field  protected String rare = Rare
+    field  protected String epic = Epic
+    field  protected String foodAdjectives = FoodAdjectives/
+    field  protected String foodNouns = FoodNouns/
+    field  protected String items = Items/
+    field  protected String rareFormat = rareItemFormat
+    field  protected String male = Male
+    field  protected String female = Female
+    field  private Single _checkedManaTime
+    field  private Boolean _checkedShouldShowManaLastValue
+    field  private Boolean _hidePlayer
+    field  private Boolean defaultHelmOffsetInitialized
+    field  private Vector3 defaultHelmOffset
+    field  private String skillIncreasePrefix = SkillIncrease/
+    field  private String skillsPrefix = Skills/
+    field  public LeashPoints leashPoints
+    field  public Boolean isDyingOrDead
+    field  private TimerSimple hungerEmoteTimer
+    field  private Int32 previousHunger
+    prop   Boolean hideDirectlyOnDeath
+    prop   Entity smoothFollowEntity
+    prop   Boolean IsHardcore
+    prop   Boolean initialized
+    prop   String playerName
+    prop   Int32 playerIndex
+    prop   String networkName
+    prop   PlatformUserID platformID
+    prop   Platform platform
+    prop   Int32 adminPrivileges
+    prop   Vector3 SmoothWorldPosition
+    prop   Single SmoothSpeed
+    prop   PlayerInput _inputModule
+    prop   PlayerInput inputModule
+    prop   Boolean reorientationBlocked
+    prop   Boolean guestMode
+    prop   Boolean pvpMode
+    prop   Boolean isInteractionBlocked
+    prop   Boolean isMovingBlocked
+    prop   Boolean isAimingBlocked
+    prop   Boolean isUIShortCutsBlocked
+    prop   Boolean isSteeringBlocked
+    prop   Int32 equippedVisualSlotIndex
+    prop   List<EquipmentSlot> equipmentSlots
+    prop   InventoryHandler playerInventoryHandler
+    prop   InventoryHandler mouseInventoryHandler
+    prop   InventoryHandler activeInventoryHandler
+    prop   InventoryHandler activeBuyInventoryHandler
+    prop   Cattle activeCattle
+    prop   PetBase activePet
+    prop   WorldLabel activeWorldLabel
+    prop   CraftingHandler activeCraftingHandler
+    prop   CraftingHandler playerCraftingHandler
+    prop   SellSlotsHandler sellSlotsHandler
+    prop   EquipmentHandler equipmentHandler
+    prop   VanitySlotsHandler vanitySlotsHandler
+    prop   TrashCanHandler trashCanHandler
+    prop   UpgradeSlotHandler upgradeSlotHandler
+    prop   ContainedObjectsBuffer visuallyEquippedContainedObject
+    prop   Boolean slotSwapWithMouseIsOnCooldown
+    prop   Boolean playerCanInteractWithGreatWall
+    prop   Int32 activeEquipmentPreset
+    prop   Boolean HidePlayer
+    prop   HungerCD hungerComponent
+    nested PlayerSettings
+    nested FishingRodColorGradient
+    nested CarryableEffect
+    nested GhostIDWithIndex
+    nested ObjectToDamageECSInfo
+    nested CastResult
+    nested <>c__DisplayClass329_0
+    nested <SpawningFromCoreCoroutine>d__536
+
+=== PlayerController+PlayerSettings   [Pug.Other]
+    field  public Int32 dummy
+
+=== PlayerController+FishingRodColorGradient   [Pug.Other]
+    field  public ObjectID fishingRodId
+    field  public Gradient gradient
+
+=== PlayerController+CarryableEffect   [Pug.Other]
+    field  public ObjectID objectWithEffect
+    field  public GameObject effectObject
+
+=== PlayerController+GhostIDWithIndex   [Pug.Other]
+    field  public Int32 ghostID
+    field  public Int32 index
+
+=== PlayerController+ObjectToDamageECSInfo   [Pug.Other]
+    field  public Entity closestHitEntity
+    field  public float3 closestEntityPosition
+    field  public Single closestDistance
+    field  public float3 hitPosition
+    field  public Entity closestHitGroundEntity
+    field  public float3 groundEntityPosition
+    field  public TileInfo groundEntityTileInfo
+    field  public Single closestGroundDistance
+    field  public Boolean closestEntityIsTile
+    field  public Boolean closestEntityIsDestructible
+    field  public Boolean closestEntityIsIndestructible
+    field  public Boolean closestEntityIsImmune
+    field  public Boolean closestEntityIsTileCollider
+    field  public Boolean closestEntityIsGroundDecoration
+    field  public Boolean closestEntityHasSurfacePriority
+    field  public Int32 closestEntitySurfacePrio
+    prop   ObjectToDamageECSInfo Default
+
+=== PlayerController+CastResult   [Pug.Other]
+    field  public DistanceHit distanceHit
+    field  public float3 entityPositionAtHit
+
+=== PlayerController+<>c__DisplayClass329_0   [Pug.Other]
+    field  public PlayerController <>4__this
+    field  public Boolean prefersMouse
+
+=== PlayerController+<SpawningFromCoreCoroutine>d__536   [Pug.Other]
+    field  private Int32 <>1__state
+    field  private Object <>2__current
+    field  public PlayerController <>4__this
+    field  private Int32 <i>5__2
+    prop   Object System.Collections.Generic.IEnumerator<System.Object>.Current
+    prop   Object System.Collections.IEnumerator.Current
+
+=== Rewired.PlayerController   [Rewired_Core]
+    field  private Int32 BactrdkHXDdWZqddywffsRoEOaKo
+    field  private Boolean wXmdUPKjxYymCkUzIcPwxgIaacod
+    field  private Int32 YJUZOvVHMEIRrjJItipRtWYWXQEJA
+    field  private AList<Element> bEdnyspCxFXDgXHFkFWZbcODtIuL
+    field  private AList<Button> lOzudZCCJLsQvjBFZYglwzqlZPBC
+    field  private AList<Axis> QhFbjUjHOKvjBSJTdpqRNrMtaALW
+    field  private ReadOnlyCollection<Element> pAaNfAqsMacTFBBHIgXrupOjHiNz
+    field  private ReadOnlyCollection<Button> xyaEqeFYBfgtubJjKNooszCIZJLec
+    field  private ReadOnlyCollection<Axis> PuYOfofOPVbqOfkqLVwJGLYvXEOB
+    field  private List<UJinuItmyzahmebrnEFgySjMJMHO> gfRkmhzkkfJpymYjbJuCaHraaOTl
+    field  private Action<Int32,Boolean> LKIYUuumZcUCyyQJHwJLLQpUyvJD
+    field  private Action<Int32,Single> axrskPegruGfLRTTrETEdhlUcfcGb
+    field  private Action<Boolean> xFyyUZZIptJIYeSTJixtGCwLHvWT
+    field  private Vector2 vMZvTcNCmcvYTADFySwEkhBEjUpr   (static)
+    prop   Boolean enabled
+    prop   Int32 playerId
+    prop   IList<Button> buttons
+    prop   IList<Axis> axes
+    prop   IList<Element> elements
+    prop   Int32 buttonCount
+    prop   Int32 axisCount
+    prop   Int32 elementCount
+    prop   Player FJqAmuJWVSTbDOtWMyWBapBlIonGA
+    prop   Vector2 absoluteToRelativeScalingReferenceResolution
+    nested Definition
+    nested Factory
+    nested AbsoluteToRelativeScalingMode
+    nested Axis
+    nested MouseAxis
+    nested Axis2D
+    nested MouseAxis2D
+    nested Button
+    nested CompoundElement
+    nested Element
+    nested ElementWithSource
+    nested MouseWheel
+    nested MouseWheelAxis
+
+=== Rewired.PlayerController+Definition   [Rewired_Core]
+    field  public Boolean enabled
+    field  public Int32 playerId
+    field  public ICollection<Definition> elements
+
+=== Rewired.PlayerController+Factory   [Rewired_Core]
+
+=== Rewired.PlayerController+AbsoluteToRelativeScalingMode   [Rewired_Core]
+    0 = None
+    1 = ScreenWidth
+    2 = ScreenHeight
+    3 = MaxScreenDimension
+    4 = MinScreenDimension
+    5 = ViewportWidth
+    6 = ViewportHeight
+    7 = MaxViewportDimension
+    8 = MinViewportDimension
+
+=== Rewired.PlayerController+Axis   [Rewired_Core]
+    field  private Single tPrdYQirqhIWWDFkYIQWMOAAscjK = 1
+    field  private AbsoluteToRelativeScalingMode stHGOCBPjAacDrFWudmgSZiaSlZw = None
+    field  private AxisCoordinateMode defaultAxisCoordinateMode = Absolute
+    field  private Single VtbCBCgBwTjiXJgEGjtUrKzRPblwA
+    field  private AxisCoordinateMode eyHiFhnCVRCnfKCZculWNxEPOihWA
+    field  private AbsoluteToRelativeScalingMode HOqARMCigopNiGejBHTemBduPYcA
+    prop   Single absoluteToRelativeSensitivity
+    prop   AbsoluteToRelativeScalingMode absoluteToRelativeScalingMode
+    prop   AxisCoordinateMode coordinateMode
+    prop   Single value
+    prop   Single valueRaw
+    nested Definition
+
+=== Rewired.PlayerController+Axis+Definition   [Rewired_Core]
+    field  public AxisCoordinateMode coordinateMode
+    field  public Single absoluteToRelativeSensitivity
+    field  public AbsoluteToRelativeScalingMode absoluteToRelativeScalingMode
+
+=== Rewired.PlayerController+MouseAxis   [Rewired_Core]
+    field  private AxisCoordinateMode defaultAxisCoordinateMode = Relative
+    field  private Single defaultAbsoluteToRelativeSensitivity = 600
+    field  private AbsoluteToRelativeScalingMode defaultAbsoluteToRelativeScalingMode = ScreenWidth
+    nested Definition
+
+=== Rewired.PlayerController+MouseAxis+Definition   [Rewired_Core]
+
+=== Rewired.PlayerController+Axis2D   [Rewired_Core]
+    field  private Int32 aEgbgzhMcvYNpxsITtMoOaTZfZnF = 0
+    field  private Int32 bvoORUoUuRhSBFLBkLxppLVhtVnw = 1
+    field  private Int32 qrHpOKjsklwBhhYiwnegnTxxufQw = 2
+    prop   Axis xAxis
+    prop   Axis yAxis
+    prop   Vector2 value
+    prop   Vector2 valueRaw
+    nested Definition
+
+=== Rewired.PlayerController+Axis2D+Definition   [Rewired_Core]
+    field  private Definition TvPHbFeFTcjagBhnoWLNwnLLnoZU
+    field  private Definition qaEFXleQALSJdFlwenVgmiLDPoAoD
+    prop   Definition xAxis
+    prop   Definition yAxis
+
+=== Rewired.PlayerController+MouseAxis2D   [Rewired_Core]
+    prop   MouseAxis xAxis
+    prop   MouseAxis yAxis
+    nested Definition
+
+=== Rewired.PlayerController+MouseAxis2D+Definition   [Rewired_Core]
+    prop   Definition xAxis
+    prop   Definition yAxis
+
+=== Rewired.PlayerController+Button   [Rewired_Core]
+    prop   Boolean value
+    prop   Boolean valuePrev
+    prop   Boolean justPressed
+    prop   Boolean justReleased
+    nested Definition
+
+=== Rewired.PlayerController+Button+Definition   [Rewired_Core]
+
+=== Rewired.PlayerController+CompoundElement   [Rewired_Core]
+    field  private List<Element> VOTGTurgpyKzDejhwRLDgbBLPdvv
+    prop   Int32 DTeMmgqLftsfPKSPRjlETbtOuVIj
+    nested Definition
+
+=== Rewired.PlayerController+CompoundElement+Definition   [Rewired_Core]
+
+=== Rewired.PlayerController+Element   [Rewired_Core]
+    field  private Boolean defaultEnabled = True
+    field  private PlayerController jWzSQytjQYkVGDbEalhpaBFQPtDQ
+    field  private Boolean ElJjdkbLCJewcFDuaknMcczhQLqP
+    field  private Boolean TPfrAnWbwTrcjCdIoDeGZnsSfcdB
+    field  private String YygfdTKoLuFjQugIzFLrzTJSjoVX
+    field  private Int32[] BXxQizqhHQikxIOYzWVkilMFwnkd   (static)
+    field  private Int32[] ZFgoqgJZrpmGKjLxwbnkVWjlvwef   (static)
+    prop   Player player
+    prop   Boolean selfAndParentEnabled
+    prop   Boolean RqFMzefgLvcrkHcahUASVRYomsRJ
+    prop   Boolean enabled
+    prop   String name
+    nested Type
+    nested TypeWithSource
+    nested CompoundTypes
+    nested Definition
+    nested UJinuItmyzahmebrnEFgySjMJMHO
+
+=== Rewired.PlayerController+Element+Type   [Rewired_Core]
+    0 = Button
+    1 = Axis
+    2 = MouseAxis
+    3 = MouseWheelAxis
+    100 = Axis2D
+    101 = MouseAxis2D
+    102 = MouseWheel
+
+=== Rewired.PlayerController+Element+TypeWithSource   [Rewired_Core]
+    0 = Button
+    1 = Axis
+    2 = MouseAxis
+    3 = MouseWheelAxis
+
+=== Rewired.PlayerController+Element+CompoundTypes   [Rewired_Core]
+    100 = Axis2D
+    101 = MouseAxis2D
+    102 = MouseWheel
+
+=== Rewired.PlayerController+Element+Definition   [Rewired_Core]
+    field  public Boolean enabled
+    field  public String name
+
+=== Rewired.PlayerController+Element+UJinuItmyzahmebrnEFgySjMJMHO   [Rewired_Core]
+    field  public ControllerElementType MINaxwHudqzRnmKspPKysxrlJwNHA
+    field  public Int32 zgCOpCObfTGMEGJVtKwoUeCLKRtQ
+    field  public Single lboRhBZfNTAcCNNmmcptFhMrxTRqA
+
+=== Rewired.PlayerController+ElementWithSource   [Rewired_Core]
+    field  private Int32 defaultActionId = -1
+    field  private Int32 FxuThkEZoqlKTopVeNJybxWAEVqC
+    prop   Int32 actionId
+    prop   String actionName
+    nested Definition
+
+=== Rewired.PlayerController+ElementWithSource+Definition   [Rewired_Core]
+    field  private Int32 cVfUcFFbhowaaAhuBABBCYPZnkMNA
+    prop   Int32 actionId
+    prop   String actionName
+
+=== Rewired.PlayerController+MouseWheel   [Rewired_Core]
+    prop   MouseWheelAxis xAxis
+    prop   MouseWheelAxis yAxis
+    nested Definition
+
+=== Rewired.PlayerController+MouseWheel+Definition   [Rewired_Core]
+    prop   Definition xAxis
+    prop   Definition yAxis
+
+=== Rewired.PlayerController+MouseWheelAxis   [Rewired_Core]
+    field  private Single defaultRepeatRate = 4
+    field  private AxisCoordinateMode defaultAxisCoordinateMode = Relative
+    field  private Single cLeaKfPnxomKWZuyUvGxNTsBSOiK = 0.01
+    field  private Single hhLCRNCAXsAJeRCYQeArcweKOfYBA
+    field  private Double AtRgzJJWGvbwfJvWLQlIPkZYpcqh
+    field  private Single NBdoEVletwXEBBOoHTNFXDspaJdiA
+    prop   Single repeatRate
+    prop   Single value
+    nested Definition
+
+=== Rewired.PlayerController+MouseWheelAxis+Definition   [Rewired_Core]
+    field  public Single repeatRate
+
+=== Rewired.Components.PlayerController   [Rewired_Core]
+    field  private InputManager_Base _rewiredInputManager
+    field  private Int32 _playerId
+    field  private List<ElementInfo> _elements
+    field  private ButtonStateChangedHandler _onButtonStateChanged
+    field  private AxisValueChangedHandler _onAxisValueChanged
+    field  private EnabledStateChangedHandler _onEnabledStateChanged
+    prop   Int32 playerId
+    prop   IList<Button> buttons
+    prop   IList<Axis> axes
+    prop   IList<Element> elements
+    prop   Int32 buttonCount
+    prop   Int32 axisCount
+    prop   Int32 elementCount
+    nested ButtonStateChangedHandler
+    nested AxisValueChangedHandler
+    nested EnabledStateChangedHandler
+    nested ElementWithSourceInfo
+    nested ElementWithSourceInfoCreator
+    nested ElementInfo
+
+=== Rewired.Components.PlayerController+ButtonStateChangedHandler   [Rewired_Core]
+
+=== Rewired.Components.PlayerController+AxisValueChangedHandler   [Rewired_Core]
+
+=== Rewired.Components.PlayerController+EnabledStateChangedHandler   [Rewired_Core]
+
+=== Rewired.Components.PlayerController+ElementWithSourceInfo   [Rewired_Core]
+    field  private String _name
+    field  private TypeWithSource _elementType
+    field  private Boolean _enabled
+    field  private Int32 _actionId
+    field  private AxisCoordinateMode _coordinateMode
+    field  private Single _absoluteToRelativeSensitivity
+    field  private AbsoluteToRelativeScalingMode _absoluteToRelativeScalingMode
+    field  private Single _repeatRate
+    prop   String name
+    prop   TypeWithSource elementType
+    prop   Boolean enabled
+    prop   Int32 actionId
+    prop   AxisCoordinateMode coordinateMode
+    prop   Single absoluteSourceSensitivity
+    prop   AbsoluteToRelativeScalingMode absoluteToRelativeScalingMode
+    prop   Single repeatRate
+
+=== Rewired.Components.PlayerController+ElementWithSourceInfoCreator   [Rewired_Core]
+
+=== Rewired.Components.PlayerController+ElementInfo   [Rewired_Core]
+    field  private String _name
+    field  private Type _elementType
+    field  private Boolean _enabled
+    field  private ElementWithSourceInfo[] _elements
+    prop   String name
+    prop   Type elementType
+    prop   Boolean enabled
+    prop   ElementWithSourceInfo[] elements
+
+=== ContainedObjectsBuffer   [Pug.ECS.Components]
+    field  public ObjectDataCD objectData
+    field  public Int32 auxDataIndex
+    prop   ObjectID objectID
+    prop   Int32 amount
+    prop   Int32 variation
+    prop   Int32 variationUpdateCount
+
+=== PuffID   [Pug.Base]
+    0 = CircleDust
+    1 = SlowCircleDust
+    2 = HitStarPoof
+    3 = SlowStarPoof
+    4 = Firework
+    5 = WhiteFur
+    6 = DustGeyser
+    7 = ScreenEdgePoof
+    8 = DirtFootstep
+    9 = SlimeFootstep
+    10 = AcidFootstep
+    11 = PoisonFootstep
+    12 = CarryableBurst
+    13 = ExploPoofAdditive
+    14 = BurnSmoke
+    15 = RocksSmallExplode
+    16 = DirtItemDust
+    17 = DirtBlockDust
+    18 = DirtBlockLargeDust
+    19 = DirtBlockDebris
+    20 = DirtBlockDebrisBox
+    21 = DirtFloorTilesDebris
+    22 = WoodDebris
+    23 = Sparks
+    24 = BloodSpurt
+    25 = SlimeExplosion
+    26 = MushroomDebris
+    27 = SmallWhitePuff
+    28 = SmallPurplePuff
+    29 = MediumPurplePuff
+    30 = SmallBrownPuff
+    31 = SmallRedPuff
+    32 = SparksMachine
+    33 = AncientSparks
+    34 = AncientFlashingSparks
+    35 = AncientBurst
+    36 = SmallWaterSplash
+    37 = WaterDrip
+    38 = WaterRipple
+    39 = SmallYellowWaterSplash
+    40 = YellowWaterDrip
+    41 = YellowWaterRipple
+    42 = SmallMoldWaterSplash
+    43 = MoldWaterDrip
+    44 = MoldWaterRipple
+    45 = LeafDebris
+    46 = CoreUISlotFilled
+    47 = UISlotDust
+    48 = SmallAncientEnergy
+    49 = SmallAncientSmoke
+    50 = EnergyExplosion
+    51 = SmallEnergyExplosion
+    52 = SmallDirtSmoke
+    53 = PotDebris
+    54 = AcidExplosion
+    55 = AcidPuff
+    56 = DirtImpact
+    57 = StoneImpact
+    58 = AmberDebris
+    59 = CrystalDebris
+    60 = MusketFire
+    61 = GrubzookaFire
+    62 = StoneBlockDust
+    63 = StoneBlockDebris
+    64 = StoneBlockDebrisBox
+    65 = StoneFloorTilesDebris
+    66 = PoisonSlimeExplosion
+    67 = GrassBlockDebrisBox
+    68 = GrassFloorTilesDebris
+    69 = LeafBlockDebrisBox
+    70 = NaturePlantPuff
+    71 = BlueFur
+    72 = YellowFur
+    73 = BigBlueFur
+    74 = BigYellowFur
+    75 = FireFloaters
+    76 = SmallGreenPuff
+    77 = SmallBluePuff
+    78 = SmallYellowPuff
+    79 = AncientSmoke
+    80 = ShinyPuff
+    81 = KelpDebris
+    82 = MediumBluePuff
+    83 = CoralDebris
+    84 = SandBlockDust
+    85 = SandBlockDebrisBox
+    86 = SandFloorTilesDebris
+    87 = ClayBlockDust
+    88 = ClayBlockDebrisBox
+    89 = ClayFloorTilesDebris
+    90 = SmallFireExplosion
+    91 = ClayFootstep
+    92 = GrassFootstep
+    93 = SandFootstep
+    94 = BloodFootstep
+    95 = StoneFootstep
+    96 = Explosion_Medium
+    97 = SlipperyPuff
+    98 = WaterImpact
+    99 = WhiteSmoke
+    100 = LavaRipple
+    101 = SmallLavaSplash
+    102 = StoneImpactSmall
+    103 = BrownLeafDebris
+    104 = DesertPlantPuff
+    105 = DesertStoneImpactSmall
+    106 = DesertStoneImpact
+    107 = SmallBlackPuff
+    108 = BlackWoodDebris
+    109 = BluePotDebris
+    110 = YellowPotDebris
+    111 = GreyWoodDebris
+    112 = PinkLeafDebris
+    113 = WhiteLeafDebris
+    114 = Confetti
+    115 = Confetti2
+    116 = HalloweenConfetti
+    117 = HalloweenConfetti2
+    118 = SmallColorfulExplosion
+    119 = BlackDebris
+    120 = BrownPotDebris
+    121 = ChristmasConfetti
+    122 = ChristmasConfetti2
+    123 = Snowflakes
+    124 = SnowLinger
+    125 = SnowBlockDebrisBox
+    126 = SnowBlockDust
+    127 = SnowItemDust
+    128 = LuxaryConfetti
+    129 = LuxaryConfetti2
+    130 = MerchantSpawn
+    131 = Sleeping
+    132 = SlipperySlimeFootstep
+    133 = Hearts
+    134 = ValentineConfetti
+    135 = ValentineConfetti2
+    136 = EnergyPillarFlash
+    137 = RoseLeafDebris
+    138 = RoseLeafBlockDebrisBox
+    139 = RoseFootstep
+    140 = Note
+    141 = NoteRed
+    142 = NoteUI
+    143 = Parry
+    144 = BeachBlockDust
+    145 = BeachBlockDebrisBox
+    146 = BeachFloorTilesDebris
+    147 = BeachFootstep
+    148 = LimestoneBlockDust
+    149 = LimestoneBlockDebrisBox
+    150 = LavaStoneBlockDust
+    151 = LavaStoneBlockDebrisBox
+    152 = LavaStoneFloorTilesDebris
+    153 = LavaStoneFootstep
+    154 = BlueLeafDebris
+    155 = ScarletBlockDust
+    156 = ScarletBlockDebrisBox
+    157 = ScarletFloorTilesDebris
+    158 = ColorfulEnergyPillarFlash
+    159 = CherryWhiteLeafDebris
+    160 = CherryWhiteLeafBlockDebrisBox
+    161 = GoldenLeafDebris
+    162 = AttackEffect
+    163 = BloodExplosion
+    164 = Footstep
+    165 = EggBrownDebris
+    166 = GlassBlockDebrisBox
+    167 = GlassFloorTilesDebris
+    168 = GainTalentEffect
+    169 = LavaDrip
+    170 = EggWhiteDebris
+    171 = EggGreenDebris
+    172 = BossExplosionRed
+    173 = BossExplosionBlue
+    174 = OrangeSlime
+    175 = OrangeSlimeSmall
+    176 = RedShockwave
+    177 = PinkFur
+    178 = GhormDeathFlesh
+    179 = GhormDeathCarapace
+    180 = HiveMotherDeathFlesh
+    181 = HiveMotherDeathCarapace
+    182 = OmorothDeathFlesh
+    183 = OmorothDeathCarapace
+    184 = WindupRipple
+    185 = PurpleSlime
+    186 = PurpleSlimeSmall
+    187 = BlueSlime
+    188 = BlueSlimeSmall
+    189 = LavaSlime
+    190 = LavaSlimeSmall
+    191 = RaAkarDeathGreen
+    192 = RaAkarDeathOrange
+    193 = AzeosDeathBlue
+    194 = AzeosDeathYellow
+    195 = HeartsLingering
+    196 = HatchYellowEgg
+    197 = HatchBlackEgg
+    198 = HatchBlueEgg
+    199 = HatchOrangeEgg
+    200 = HatchPurpleEgg
+    201 = YellowWoodDebris
+    202 = OrangeSlipperyPuff
+    203 = ColorfulSmoke
+    204 = FireFloaters2
+    205 = CrystalBlockDust
+    206 = CrystalBlockDebrisBox
+    207 = CrystalFloorTilesDebris
+    208 = GlowingWoodDebris
+    209 = BlueDebris
+    210 = EnergyParticles
+    211 = EnergyBurst
+    212 = CrystalSolariteBigDebris
+    213 = CrystalSolariteSmallDebris
+    214 = CrystalSolariteDust
+    215 = SnakeDeathFlesh
+    216 = SnakeDeathCarapace
+    217 = CrystalGrassDebris
+    218 = CoralDebrisPurple
+    219 = CoralDebrisRedBlue
+    220 = CoralDebrisOrange
+    221 = CaptureAnimal
+    222 = ElectricSpark
+    223 = CrystalSpikeBreak
+    224 = PinkSpark
+    225 = CrystalSolariteDustSphere
+    226 = yellowSphereFlash
+    227 = PurpleLargePuff
+    228 = EnergyProjectileImpact
+    229 = RadiationCrystalBurst
+    230 = CrystalDebrisPaleBlue
+    231 = CrystalDebrisPaleBlueSmall
+    232 = SingingCrystalEffect
+    233 = SlimeBlobDeathOrange
+    234 = SlimeBlobDeathRed
+    235 = SlimeBlobDeathBlue
+    236 = SlimeBlobDeathPurple
+    237 = SlimeBlobDeathLava
+    238 = SlimeBlobDeathSnow
+    239 = RadiationCrystalBurstBig
+    240 = EerieWoodDebris
+    241 = EerieBats
+    242 = HydraDeathIce
+    243 = HydraDeathLava
+    244 = HydraDeathNature
+    245 = BossExplosionMini
+    246 = IceMortarImpact
+    247 = LavaMortarImpact
+    248 = IceMortarDebris
+    249 = CastRune
+    250 = CoreBossArmorChunk
+    251 = AncientEnergyBurst
+    252 = AncientEnergyRing
+    253 = VoidSpawn
+    254 = LunarPoof
+    255 = MeteorDestroy
+    256 = unused1
+    257 = VoidOrbProjectileDeath
+    258 = CoreOrbHitDebris
+    259 = CoreOrbSpawn
+    260 = LiquidMetalBasinBreak
+    261 = LiquidMetalVentBreak
+    262 = PandoriumDebris
+    263 = SulfurBudBreak
+    264 = SulfurTreeBreak
+    265 = PassageBlockDebris
+    266 = PassageBlockDust
+    267 = FeatherTreeBreakPurple
+    268 = FeatherTreeSmallBreakPurple
+    269 = BarnacleGrassDebris
+    270 = SulfurBudExplode
+    271 = MinionSpawnParticles
+    272 = FeatherTreeBreakCyan
+    273 = FeatherTreeSmallBreakCyan
+    274 = Cytoplasm
+    275 = CytoplasmSmall
+    276 = AmoebaEruptBrain
+    277 = AmoebaWormPop
+    278 = EnergyRipple
+    279 = RiftTeleportStart
+    280 = PassageSediment
+    281 = AmoebaBombSpawn
+    282 = JungleTreeBreak
+    283 = StoneChunk
+    284 = PandoriumCrystalSpark
+    285 = WallBossSummonPop
+    286 = DarkGlowFlameOrange
+    287 = DarkGlowSpikeOrange
+    288 = DarkGlowFlameBlue
+    289 = DarkGlowSpikeBlue
+    290 = DarkGlowFlameGreen
+    291 = DarkGlowSpikeGreen
+    292 = DarkGlowClawGreen
+    293 = WallBossHeadDeath
+    294 = WallBossHeadSegmentDeath
+    295 = SpawnRuneAzeos
+    296 = SpawnRuneOmoroth
+    297 = SpawnRuneRaAkar
+    298 = BossExplosionMiniHorizontal
+    299 = BeamProjectileStart
+    300 = BeamProjectileEnd
+    301 = WallBossHit
+    302 = ImpactBasicStaffProjectile
+    303 = ImpactArcaneStaffProjectile
+    304 = ImpactCoreBossElectricProjectile
+    305 = unused2
+    306 = ImpactEnergyProjectileBlue
+    307 = ImpactFireballProjectile
+    308 = ImpactLegendaryEnergyProjectile
+    309 = SpawnIceShardPojectile
+    310 = ImpactSunStaffProjectile
+    311 = ImpactCoreBossScarabProjectile
+    312 = SpawnCoreBossScarabProjectile
+    313 = ImpactElectricProjectileYellow
+    314 = HydrabossIceShardSpawn
+    315 = ImpactGalaxiteEnergyProjectile
+    316 = FireEmber
+    317 = FireSmoke
+    318 = WaterSplashMist
+    319 = WaterSplash
+    320 = OmorothTentacleFlesh
+    321 = GhostSparks
+    322 = PurpleSmoke
+    323 = MeteorDestroyWarmup
+    324 = AzeosAfterImageLanding
+    325 = DarkGlowFlamePink
+    326 = DarkGlowSpikePink
+    327 = RunesongBurst
+    328 = MaxHealthUp
+    329 = MushroomDebrisLarge
+    330 = geyserSmall
+    331 = Explosion_Small
+    332 = Explosion_Large
+    333 = Explosion_Sun
+    334 = Explosion_Sulfur
+    335 = Explosion_SulfurSmall
+    336 = Explosion_Charm
+    337 = Explosion_Fiery
+    338 = Explosion_Scatter
+    339 = Explosion_Stun
+    340 = Explosion_Poison
+    341 = Explosion_Void
+    342 = Explosion_Blunder
+    343 = VoidPreExplosion
+    344 = Explosion_MinionDetonation
+    345 = OasisBlockDust
+    346 = OasisBlockDebrisBox
+    347 = OasisSucculentBreak
+    348 = WaterReedBreak
+    349 = NutsBolts
+    350 = NymphDeath
+    351 = NymphSpawn
+    352 = CicadaDeath
+    353 = GiantCicadaBossDeathBody
+    354 = GiantCicadaBossDeathArm
+    355 = GiantCicadaBossDeathHead
+    356 = GiantCicadaBossDeathBulb
+    357 = CicadaBuzzPreAttack
+    358 = CicadaBuzzAttack
+    359 = DirtImpactSmall
+    360 = OasisFootstep
+    361 = Explosion_DesertWall
+    362 = Explosion_NatureWall
+    363 = MediumGreenPuff
+    364 = CommandMinionMoveArrow
+    365 = OilFootstep
+    366 = OilExplosion_Medium
+    367 = IncineratorFire
+    368 = OilCombust
+    369 = OilExplosion_Small
+    370 = IndustrialBorderBlockDebrisBox
+    371 = IndustrialPuzzleBlockDebrisBox
+    372 = IndustrialRockBlockDebrisBox
+    373 = IndustrialWallBlockDebrisBox
+    374 = IndustrialBorderFloorTilesDebris
+    375 = IndustrialPuzzleFloorTilesDebris
+    376 = IndustrialRockFloorTilesDebris
+    377 = IndustrialWallFloorTilesDebris
+    378 = Explosion_VoidFused
+    379 = AmassEffectPuff
+    380 = RobotDebris
+    381 = OilPuff
+    382 = ImpactBulletHellProjectile
+    383 = ImpactBulletHellGiantProjectile
+    384 = ItemCollectorTeleport
+    385 = VoidSplitter
+    386 = ImpactFireballVoidProjectile
+    387 = SmallFireVoidExplosion
+    388 = VoidMortarExplosion
+    389 = MetalBreak
+    390 = MetalBreakGold
+    391 = MetalBreakRed
+    392 = VoidTrapDeath
+    393 = BulletHellProjectileSpawn
+    394 = VoidEnemyBurst
+    395 = Explosion_FierySmall
+    396 = VoidRiftDeath
+    397 = Explosion_BigGrenade
+    398 = DarkGlowFlameWhite
+    399 = DarkGlowSpikeWhite
+    400 = SmallArcaneExplosion
+    401 = Explosion_ImmuneZoneEmitter
+    402 = HydraDeathVoid
+    403 = Explosion_Legendary
+    404 = Explosion_LegendarySmall
+    405 = Explosion_FieryLarge
+    406 = MinigunProjectileSpawn
+    407 = VoidBreachBurst
+    408 = ElectricHit
+    409 = IndustrialVoidBlockDebris
+    410 = AffixAnticipationElectric
+    411 = AffixAnticipationMagic
+    412 = ImpactArcaneMedium
+    413 = VoidClubTrailPortal
+    414 = RobotBossDeath
+    415 = ImpactBulletHellProjectileVoid
+    416 = ImpactBulletHellGiantProjectileVoid
+    417 = BulletHellProjectileSpawnVoid
+    418 = RobotBossPushback
+    419 = VoidEnragedPushback
+    420 = BulletShellCasing
+    421 = ActivatorConsoleDestroy
+    422 = MetalBreakSmall
+    423 = MetalBreakSmallGold
+    424 = MetalBreakSmallRed
+    425 = VoidBlockDust
+
+=== SfxID   [Pug.Base]
+    0 = AcidLoop
+    1 = affix_fire_bomb_1_01
+    2 = affix_fire_bomb_1_02
+    3 = affix_fire_bomb_1_03
+    4 = affix_fire_bomb_1_04
+    5 = affix_fire_bomb_anticipation_1_01
+    6 = affix_fire_bomb_anticipation_1_02
+    7 = affix_fire_bomb_anticipation_1_03
+    8 = affix_fire_bomb_anticipation_1_04
+    9 = AF_nvg
+    10 = AF_pest_aggro
+    11 = AF_pest_attack
+    12 = AF_pest_death
+    13 = AF_pest_electro
+    14 = AF_pest_idle1
+    15 = AF_pest_idle2
+    16 = AF_pest_lost
+    17 = AF_pest_lunge
+    18 = AF_pest_pain
+    19 = AF_pest_search
+    20 = AF_portal_appear
+    21 = AF_portal_collapse
+    22 = AF_portal_loop
+    23 = AF_portal_teleport
+    24 = AF_quillrifle_beep
+    25 = AF_quillrifle_hit
+    26 = AF_quillrifle_pop
+    27 = AF_quillrifle_shoot
+    28 = AF_quillrifle_spikes
+    29 = AF_vendingmachine_accept
+    30 = alienTechDestructibleDeath
+    31 = alienTechDestructibleTakeDmg
+    32 = alienTechLargeDestructibleDeath
+    33 = alienTechLargeDestructibleDmg
+    34 = amass
+    35 = amoebaBombSpawn
+    36 = amoebaDeath
+    37 = amoebaGiantDeath
+    38 = amoebaGiantTakeDmg
+    39 = amoebaGiantWhispers
+    40 = amoebaGrowl1
+    41 = amoebaTakeDmg
+    42 = ancient1
+    43 = ancientDestructible
+    44 = anicentDevicePowerUp
+    45 = animalHeal2
+    46 = anvil
+    47 = appear
+    48 = arcaneStaffAttack
+    49 = arcaneStaffImpact
+    50 = arcaneSymbioteEmote
+    51 = arcaneSymbioteEmote1
+    52 = arcaneSymbioteWingFlap
+    53 = arcaneSymbioteWingFlap1
+    54 = arrowTwang
+    55 = atchou
+    56 = atlantianWormSwordAttack
+    57 = atlantianWormSwordImpact
+    58 = atlantianWormSwordImpact2
+    59 = axeAnchorImpact
+    60 = axeLavaAttack
+    61 = axeLavaImpact
+    62 = barnacleGrassDestroy
+    63 = barnacleGrassDestroy2
+    64 = barnacleGrassInteract
+    65 = basicStaffAttack
+    66 = basicStaffProjectileImpact
+    67 = basicStaffProjectileSpawn
+    68 = bat_pet_squeak_emote
+    69 = bat_pet_squeak_happy
+    70 = bat_pet_squeak_idle
+    71 = bat_pet_squeak_petting
+    72 = beamLoop
+    73 = belch
+    74 = Bell
+    75 = bigFireworkCountdown2
+    76 = bigFireworkExplode
+    77 = bigFireworksExplodeLayer2
+    78 = bigJungleTreeDestroy
+    79 = bigJungleTreeDmg
+    80 = bigyeti
+    81 = Big_Firework_countdown_1
+    82 = Big_Firework_takeoff
+    83 = biomeTitle
+    84 = birdHappy1
+    85 = birdMagic1
+    86 = birdScreech
+    87 = Bird_Boss_Death
+    88 = Bird_Boss_Energy_Pillars_Attack
+    89 = Bird_Boss_Heal1
+    90 = Bird_Boss_Heal2
+    91 = Bird_Boss_Teleport
+    92 = blunderBombDeath
+    93 = blunderBombDeath2
+    94 = bomb
+    95 = bomb2
+    96 = bombFuse
+    97 = boss1
+    98 = boss1spk
+    99 = bossDeath1
+    100 = bossDeath2
+    101 = bossDeath3
+    102 = bossDeath4
+    103 = bossDeathAnticipation1
+    104 = bossDeathAnticipation2
+    105 = bossDeathAnticipation3
+    106 = bossEnding
+    107 = bow
+    108 = Brake
+    109 = breakCrate
+    110 = bubble
+    111 = bubbleExplode1
+    112 = bubbleExplode2
+    113 = bubbleStream
+    114 = Buggy_Horn_1
+    115 = Buggy_Horn_2
+    116 = Buggy_Horn_Musical_Cucaracha_1
+    117 = Buggy_Horn_Musical_Cucaracha_2
+    118 = Buggy_Horn_Musical_Cucaracha_full
+    119 = Buggy_Primitive_6
+    120 = Buggy_Ruins
+    121 = bullethit
+    122 = bumper1
+    123 = bumper2
+    124 = bunnyAnticipation1
+    125 = bunnyAttack1
+    126 = bunnyHappy1
+    127 = burning
+    128 = burrow
+    129 = Burst
+    130 = bweeb
+    131 = bweebshort
+    132 = camelBabyDeath
+    133 = camelBabyTakeDmg
+    134 = camelBreath1
+    135 = camelBreath2
+    136 = camelDeath
+    137 = camelEat
+    138 = camelIdle
+    139 = camelMove
+    140 = camelSleep
+    141 = camelTakeDmg
+    142 = camelWakeUp
+    143 = CastAnticipation1
+    144 = CastAnticipation2
+    145 = CastAzeosPillars
+    146 = CastTornados
+    147 = CastTriangles
+    148 = catAnticipation1
+    149 = catAttack1
+    150 = catAttack2
+    151 = catBell1
+    152 = catBell2
+    153 = catHappy1
+    154 = catHappy2
+    155 = catHappy3
+    156 = catLick1
+    157 = catLick2
+    158 = catLick3
+    159 = catLick4
+    160 = catLick5
+    161 = catPetting
+    162 = CavelingAnticipation
+    163 = CavelingAttack
+    164 = cavelingBruteDeath
+    165 = cavelingBruteDeath2
+    166 = cavelingBruteGrunt
+    167 = cavelingBruteGrunt2
+    168 = cavelingBruteGrunt3
+    169 = cavelingBruteHurt
+    170 = cavelingBruteRoar
+    171 = cavelingChat1
+    172 = cavelingChat2
+    173 = cavelingChat3
+    174 = cavelingChat4
+    175 = cavelingChat5
+    176 = cavelingChat6
+    177 = CavelingDeath
+    178 = cavelingHunterReload
+    179 = CavelingHurt
+    180 = cavelingLaugh
+    181 = cavelingScream1
+    182 = cavelingScream2
+    183 = cavelingScream3
+    184 = cavelingSleep1
+    185 = cavelingSleep2
+    186 = cavelingSleep3
+    187 = cavelingTaunt1
+    188 = cavelingTaunt2
+    189 = cavelingTaunt3
+    190 = cavelingWakeup1
+    191 = cavelingWakeup2
+    192 = cavelingWakeup3
+    193 = cavelingYawn1
+    194 = cavelingYawn2
+    195 = cavelingYawn3
+    196 = caveling_death_1_01
+    197 = caveling_death_1_02
+    198 = caveling_death_1_03
+    199 = caveling_death_1_04
+    200 = caveling_death_1_05
+    201 = caveling_shaman_fireball_anticipation_1_02
+    202 = caveling_shaman_fireball_anticipation_1_03
+    203 = caveling_shaman_fireball_anticipation_1_04
+    204 = caveling_shaman_fireball_attack_1_01
+    205 = caveling_shaman_fireball_attack_1_02
+    206 = caveling_shaman_fireball_attack_1_03
+    207 = caveling_shaman_fireball_attack_1_04
+    208 = celloCookServeDelicious3ItsDangerousToGoAlone
+    209 = celloCoreKeeperBaseTheme
+    210 = celloHappyBirthday
+    211 = celloItsABigWorldOutside
+    212 = celloOwlBoyMainTheme
+    213 = celloTerrariaJourneysBeginning
+    214 = celloToneFs
+    215 = celloToneFs2
+    216 = celloValheimMeadows
+    217 = chain
+    218 = chaosStaffAttack
+    219 = chaosStaffStrongAttack
+    220 = chaosStaffWindup
+    221 = chaosStaffWindupShort
+    222 = charge
+    223 = chargeverb
+    224 = charge_bar_ui_1
+    225 = charm
+    226 = charmGrenadeExplode
+    227 = charmGrenadeExplode1
+    228 = charmGrenadeExplode2
+    229 = charmGrenadeExplode3
+    230 = chestclose
+    231 = chestopen
+    232 = Christmas_Present_Deck
+    233 = Christmas_Present_Jingle
+    234 = Christmas_Present_Joy
+    235 = Christmas_Present_Luxury_Deck
+    236 = Christmas_Present_Luxury_Jingle
+    237 = Christmas_Present_Luxury_Joy
+    238 = Christmas_Present_Luxury_Trepak
+    239 = Christmas_Present_Trepak
+    240 = Christmas_sleighBells
+    241 = chrysalisDamage2
+    242 = chrysalisDestroy2
+    243 = cicadaAnticipate1
+    244 = cicadaAnticipateAttack
+    245 = cicadaAnticipateAttack1
+    246 = cicadaBossArmFall
+    247 = cicadaBossArmFlex
+    248 = cicadaBossArmSlam1
+    249 = cicadaBossAttackAnticipation
+    250 = cicadaBossDeathExplosion
+    251 = cicadaBossEmerge
+    252 = cicadaBossHeartbeat
+    253 = cicadaBossScream
+    254 = cicadaBossScream2
+    255 = cicadaBossScream3
+    256 = cicadaBuzzAttack
+    257 = cicadaBuzzAttack1
+    258 = cicadaBuzzCloud1
+    259 = cicadaBuzzCloud1A
+    260 = cicadaBuzzCloud1B
+    261 = cicadaBuzzPreAttack
+    262 = cicadaChargeAttack1
+    263 = cicadaChargeAttackLanding
+    264 = cicadaDeath1
+    265 = cicadaEmerge
+    266 = cicadaNymphAnticipate
+    267 = cicadaNymphAttack
+    268 = cicadaNymphDeath
+    269 = cicadaNymphDeath1
+    270 = cicadaTakeDamage1
+    271 = cicadaWalkLoop1
+    272 = cityDamage
+    273 = cityDestroy
+    274 = clapper
+    275 = clapperOld
+    276 = clayWormDeath
+    277 = clayWormGrowlLoop
+    278 = clayWormTakeDmg
+    279 = clunk
+    280 = coconut
+    281 = cocoonDamage
+    282 = cocoonHatch
+    283 = cocoon_death_1_01
+    284 = cocoon_death_1_02
+    285 = cocoon_erupt_1_01
+    286 = cocoon_erupt_1_02
+    287 = cocoon_take_damage_1_01
+    288 = cocoon_take_damage_1_02
+    289 = cocoon_wooble_1_01
+    290 = cocoon_wooble_1_02
+    291 = cocoon_wooble_1_03
+    292 = cocoon_wooble_1_04
+    293 = cocoon_wooble_1_05
+    294 = coil_loop
+    295 = coil_loop2
+    296 = coil_loop3
+    297 = coin
+    298 = combototal
+    299 = commandMinionAttack
+    300 = commandMinionMove
+    301 = condition_oil_1_01
+    302 = condition_oil_1_02
+    303 = condition_oil_1_03
+    304 = conveyor_belt_1_01
+    305 = conveyor_belt_1_02
+    306 = coralDamage
+    307 = coralDestroy2
+    308 = CoreAmbienceLoop1
+    309 = CoreAmbienceLoop2
+    310 = coreBossDeath
+    311 = coreBossDeathAnticipate
+    312 = coreBossDeathAnticipation
+    313 = coreBossDeathExplosion
+    314 = coreBossDie
+    315 = coreBossOrbArmsThud
+    316 = coreBossOrbPowerDown
+    317 = coreBossOrbPowerUp
+    318 = coreBossSpeech
+    319 = coreBossSpeech2
+    320 = coreBossSpeech3
+    321 = coreBossSpeech4
+    322 = coreBossSpeech5
+    323 = coreBossSpeech6
+    324 = CoreHum1
+    325 = coreSpeech
+    326 = coreSpeech2
+    327 = coreSpeech3
+    328 = coreSpeech4
+    329 = coreSpeech5
+    330 = coreSpeech6
+    331 = cosmicTriangleLoop
+    332 = cough
+    333 = cowBabyDeath1
+    334 = cowBabyHurt1
+    335 = cowBabyHurt2
+    336 = cowCage2
+    337 = cowCage2nomoo
+    338 = cowDeath3
+    339 = cowHurt6
+    340 = crabAttack
+    341 = crabDeath
+    342 = Crack1
+    343 = Crack1verb
+    344 = Crack2
+    345 = Crack2verb
+    346 = Crack3
+    347 = Crack3verb
+    348 = CrashToGround
+    349 = creak
+    350 = critter_munch_1_01
+    351 = critter_munch_1_02
+    352 = critter_munch_1_03
+    353 = crystalBigSnailDeath1
+    354 = crystalBigSnailDeath2
+    355 = crystalBigSnailTakeDamage1
+    356 = crystalBigSnailTakeDamage2
+    357 = crystalDestroy2
+    358 = crystalDestructibleDestroy1
+    359 = crystalDestructibleDmg1
+    360 = crystalDmg1
+    361 = crystalGrass1
+    362 = crystalGrass2
+    363 = crystalGrass3
+    364 = crystalMerchantScannerBlip
+    365 = crystalMerchantScannerClose
+    366 = crystalMerchantScannerOpen
+    367 = crystalMerchantTakeDamage
+    368 = cupidBowHit
+    369 = cupidBowShoot
+    370 = cupidsBowHit
+    371 = CuteEvilLaugh1
+    372 = CuteEvilLaugh2
+    373 = daggerAttack
+    374 = daggerImpact1
+    375 = daggerImpact2
+    376 = damage
+    377 = damage2
+    378 = damagePlayer
+    379 = dansk0
+    380 = dansk1
+    381 = dansk2
+    382 = darkgleam
+    383 = Dash
+    384 = david1
+    385 = david2
+    386 = david3
+    387 = desertExplosiveWall1
+    388 = desertExplosiveWall2
+    389 = desertExplosiveWall3
+    390 = desertExplosiveWall4
+    391 = dg1
+    392 = dg2
+    393 = dg3
+    394 = dg4
+    395 = dg5
+    396 = dg6
+    397 = dg7
+    398 = digloop
+    399 = digstart
+    400 = dirtImpact
+    401 = disap
+    402 = dodoBabyDeath
+    403 = dodoBabyDmg
+    404 = dodoDeath
+    405 = dodoDmg2
+    406 = dogFeed1
+    407 = dogFeed2
+    408 = dogGrowl
+    409 = dogPanting
+    410 = dogPanting1
+    411 = dogPanting2
+    412 = dogPanting3
+    413 = dogPanting4
+    414 = dogPetting
+    415 = drillEnd1
+    416 = drillJam1
+    417 = drillLoop1
+    418 = drillStart1
+    419 = drilltool
+    420 = drilltool_end
+    421 = drilltool_jam
+    422 = drilltool_jetpack
+    423 = drilltool_loop
+    424 = drilltool_start
+    425 = drinking
+    426 = drown
+    427 = drumkitA1
+    428 = drumkitA2
+    429 = drumkitAs1
+    430 = drumkitAs2
+    431 = drumkitB1
+    432 = drumkitB2
+    433 = drumkitC1
+    434 = drumkitC2
+    435 = drumkitCs1
+    436 = drumkitCs2
+    437 = drumkitD1
+    438 = drumkitD2
+    439 = drumkitDs1
+    440 = drumkitDs2
+    441 = drumkitE1
+    442 = drumkitE2
+    443 = drumkitF1
+    444 = drumkitF2
+    445 = drumkitFs1
+    446 = drumkitFs2
+    447 = drumkitG1
+    448 = drumkitG2
+    449 = drumkitGs1
+    450 = drumkitGs2
+    451 = drumsCoreKeeperBaseTheme
+    452 = drumsHappyBirthday
+    453 = drumsItsABigWorldOutside
+    454 = drumsItsDangerousToGoAlone
+    455 = drumsOwlboyTheme
+    456 = drumsTerrariaJourneysBeginning
+    457 = drumsValheimMeadows
+    458 = EarthquakeLoop
+    459 = EarthquakeSpawn
+    460 = eating
+    461 = echo1
+    462 = echo2
+    463 = echo3
+    464 = echoExplode1
+    465 = eggHatch
+    466 = electricHum
+    467 = electricity_generator_1
+    468 = ElectricShock1
+    469 = ElectricShock2
+    470 = enemy_death_vo_1
+    471 = energyImpact
+    472 = energy_blast
+    473 = engine
+    474 = eng_longverb
+    475 = eventTerminalBeep1
+    476 = eventTerminalBeep2
+    477 = eventTerminalComplete1
+    478 = eventTerminalShockwave1
+    479 = eventTerminalStart1
+    480 = eventTerminalStart2
+    481 = eventTerminalTurnRed1
+    482 = eventTerminalTurnRed2
+    483 = eventTerminalTurnRed3
+    484 = eventTerminalTurnRed4
+    485 = eventTerminalTurnRed5
+    486 = ExcavationDoor
+    487 = excavation_door_idle_1_01
+    488 = excavation_door_idle_blink_1_01
+    489 = excavation_door_idle_blink_2_01
+    490 = excavation_gate_open_1
+    491 = excavation_gate_open_2
+    492 = excavation_gate_open_3
+    493 = explosiveTileDmg1
+    494 = explosiveTileDmg10
+    495 = explosiveTileDmg11
+    496 = explosiveTileDmg1a
+    497 = explosiveTileDmg2
+    498 = explosiveTileDmg3
+    499 = explosiveTileDmg4
+    500 = explosiveTileDmg5
+    501 = explosiveTileDmg5a
+    502 = explosiveTileDmg6
+    503 = explosiveTileDmg7
+    504 = explosiveTileDmg8
+    505 = explosiveTileDmg9
+    506 = explosiveTileHit1
+    507 = explosiveTileHit2
+    508 = explosiveTileHit3
+    509 = fall
+    510 = fall4
+    511 = fart
+    512 = fart2
+    513 = fat
+    514 = featherTreeDestroy
+    515 = featherTreeDmg
+    516 = featherTreeInteract
+    517 = featherTreeInteract1
+    518 = featherTreeInteract2
+    519 = featherTreeInteract3
+    520 = featherTreeInteract4
+    521 = featherTreeInteract5
+    522 = featherTreeInteract6
+    523 = fed
+    524 = feedme
+    525 = fireball
+    526 = fireball2
+    527 = fireballImpact
+    528 = fireball_1_01
+    529 = fireball_1_02
+    530 = fireball_1_03
+    531 = firegrenade
+    532 = fireGrenadeExplode1
+    533 = fireGrenadeExplode2
+    534 = fireWhoosh
+    535 = FireWhoosh2
+    536 = fireworkExplode
+    537 = fireworkExplodeSparkles
+    538 = Firework_Red_blastoff
+    539 = fire_burning_1_01
+    540 = fishFail
+    541 = fishinge_net_place_object_1_01
+    542 = fishinge_net_place_object_1_02
+    543 = fishingReel
+    544 = fishStruggle
+    545 = fish_on_hook
+    546 = fish_splash_1_01
+    547 = fish_splash_1_02
+    548 = fish_splash_1_03
+    549 = fish_splash_1_04
+    550 = fish_splash_1_05
+    551 = fish_splash_1_06
+    552 = fish_splash_1_07
+    553 = fish_splash_1_08
+    554 = fish_splash_1_09
+    555 = fish_splash_2_01
+    556 = fish_splash_2_02
+    557 = fish_splash_2_03
+    558 = fish_splash_2_04
+    559 = FIXME_chop_wood1
+    560 = FIXME_menu_select
+    561 = flamethrower_burn
+    562 = flamethrower_end
+    563 = flamethrower_end_1_02
+    564 = flamethrower_end_1_03
+    565 = flamethrower_end_1_04
+    566 = flamethrower_end_1_05
+    567 = flamethrower_end_1_06
+    568 = flamethrower_end_1_07
+    569 = flamethrower_ignite2
+    570 = flamethrower_loop_1
+    571 = flamethrower_start_1_01
+    572 = flamethrower_start_1_02
+    573 = flamethrower_start_1_03
+    574 = flamethrower_start_1_04
+    575 = flamethrower_start_1_05
+    576 = flamethrower_start_1_06
+    577 = flamethrower_start_1_07
+    578 = flashIntro
+    579 = fluteCookServeDelicious3ItsDangerousToGoAlone
+    580 = fluteCoreKeeperBaseTheme
+    581 = fluteHappyBirthday
+    582 = fluteItsABigWorldOutside
+    583 = fluteOwlBoyMainTheme
+    584 = fluteTerrariaJourneysBeginning
+    585 = fluteToneFs
+    586 = fluteToneFs2
+    587 = fluteValheimMeadows
+    588 = footstepGlass
+    589 = footstepRock1
+    590 = Footstep_Clay
+    591 = Footstep_Dirt
+    592 = Footstep_Glass
+    593 = footstep_glass_scrap_1_01
+    594 = footstep_glass_scrap_1_02
+    595 = footstep_glass_scrap_1_03
+    596 = footstep_glass_scrap_1_04
+    597 = footstep_glass_scrap_1_05
+    598 = footstep_glass_scrap_1_06
+    599 = Footstep_Grass
+    600 = Footstep_Larva
+    601 = Footstep_Sand
+    602 = galaxiteDamage3
+    603 = galaxiteDestroy2
+    604 = gallop
+    605 = gameover
+    606 = gameover3
+    607 = gate_move_1_01
+    608 = gate_move_1_02
+    609 = Geiger_loop
+    610 = generator_2
+    611 = generator_2_2
+    612 = giantCicadaArmSlamBoom
+    613 = giantCicadaDeathArmExplosion
+    614 = giantCicadaDeathBodyExplosion
+    615 = giantCicadaDeathParasiteAppear
+    616 = giantCicadaDeathParasiteExit
+    617 = giantCicadaDeathParasiteLoop
+    618 = giantCicadaDeathWeakSpotExplosion
+    619 = giantCicadaScream
+    620 = giantCicadaVoice1
+    621 = giantCicadaVoice2
+    622 = giantCicadaVoice3
+    623 = giantCicadaVoice4
+    624 = giantCicadaVoice5
+    625 = giantCicadaVoice9
+    626 = glassDamage
+    627 = glassDestroy
+    628 = glass_shatter
+    629 = glop
+    630 = goatBaah
+    631 = goatBabyDeath1
+    632 = goatBabyHurt1
+    633 = goatDeath1
+    634 = goatHurt1
+    635 = grab
+    636 = grassImpact
+    637 = grassImpactHard
+    638 = grenade
+    639 = grenadeProjectileImpact
+    640 = grenadeProjectileSpawn
+    641 = grenadeProjectileStrongThrow
+    642 = grenadeProjectileWindup
+    643 = grenadeProjectileWindup2
+    644 = guncock
+    645 = hallkick
+    646 = halloweenMerchant1
+    647 = halloweenMerchant3
+    648 = halloweenMerchant4
+    649 = halloweenMerchant5
+    650 = halloweenMerchant6
+    651 = harpCookServeDelicious3ItsDangerousToGoAlone
+    652 = harpCoreKeeperBaseTheme
+    653 = harpHappyBirthday
+    654 = harpItsABigWorldOutside
+    655 = harpOwlBoyMainTheme
+    656 = harpTerrariaJourneysBeginning
+    657 = harpToneFs
+    658 = harpToneFs2
+    659 = harpValheimMeadows
+    660 = heal
+    661 = hit_destroy_robot_scrap_1_01
+    662 = hit_destroy_robot_scrap_1_02
+    663 = hit_robot_scrap_1_01
+    664 = hit_robot_scrap_1_02
+    665 = hit_robot_scrap_1_03
+    666 = hit_robot_scrap_1_04
+    667 = hiveMotherAnticipation
+    668 = hiveMotherHurt
+    669 = hiveMotherShoot
+    670 = hiveMotherwakeUp
+    671 = Hive_Mother_Death
+    672 = Hive_Mother_Enrage
+    673 = hydraActivateGrowl
+    674 = hydraBiteAnticipation
+    675 = hydraBiteAttack
+    676 = hydraBoneSwordAttack
+    677 = hydraBoneSwordImpact
+    678 = hydraBossImpactGround
+    679 = hydraBossImpactWater
+    680 = hydraDeath
+    681 = hydraEmergeFromGround
+    682 = hydraEmergeFromWater
+    683 = hydraEmergeGhost
+    684 = hydraEnterVulnerableState
+    685 = hydraExitVulnerableState
+    686 = hydraIceShardDamage
+    687 = hydraIceShardDeath
+    688 = hydraIceShardImpact
+    689 = hydraIceShardProjectileImpact
+    690 = hydraIceShardProjectileSpawn
+    691 = hydraIceShardShoot
+    692 = hydraLaserAnticipation
+    693 = hydraLaserAttack
+    694 = hydraLavaImpact
+    695 = hydraLavaShoot
+    696 = hydraMoveUndergroundLoop
+    697 = hydraMoveUndergroundLoop2
+    698 = hydraMoveUnderwater
+    699 = hydraNatureScream
+    700 = hydraShockwaveAnticipate
+    701 = hydraShockwaveDamage
+    702 = hydraSubmergeIntoGround
+    703 = hydraSubmergeIntoWater
+    704 = hydraTakeDamage
+    705 = icecrack
+    706 = immune_zone_emitter_loop_1_01
+    707 = impactSweetener1
+    708 = incinerator_1_01
+    709 = incinerator_2_01
+    710 = incinerator_3_01
+    711 = insectLoop
+    712 = inventoryClose
+    713 = inventoryOpen
+    714 = inventorySFXGodModeOff
+    715 = inventorySFXGodModeOn
+    716 = inventorySFXHotSwap1a
+    717 = inventorySFXHotSwap1b
+    718 = inventorySFXSkill1a
+    719 = inventorySFXSkill1b
+    720 = inventorySFXSkill1c
+    721 = inventorySFXSkill1d
+    722 = inventorySFXSkill1e
+    723 = inventorySFXSkill1f
+    724 = inventorySFXSkill1g
+    725 = inventorySFXSkill1h
+    726 = inventorySFXSlotLock1
+    727 = inventorySFXSlotUnlock1
+    728 = inventorySFXSort1
+    729 = inventorySFXSort2
+    730 = inventorySFXWorldPauseOff
+    731 = inventorySFXWorldPauseOn2
+    732 = inventory_anvil
+    733 = inventory_anvil2
+    734 = inventory_armor
+    735 = inventory_book
+    736 = inventory_book2
+    737 = inventory_cloth
+    738 = inventory_coin
+    739 = inventory_crank
+    740 = inventory_crank2
+    741 = inventory_crank3
+    742 = inventory_ding
+    743 = inventory_doot
+    744 = inventory_fire
+    745 = inventory_glass
+    746 = inventory_godmode0
+    747 = inventory_godmode1
+    748 = inventory_leather
+    749 = inventory_lockA
+    750 = inventory_lockB
+    751 = inventory_lockC
+    752 = inventory_lockD
+    753 = inventory_metalHit
+    754 = inventory_repair
+    755 = inventory_select
+    756 = inventory_switch
+    757 = itemSwitch
+    758 = itemSwitch3
+    759 = itemSwitch4
+    760 = itemSwitch5
+    761 = item_collector_pick_up_1_01
+    762 = item_collector_scan_1_01
+    763 = item_collector_teleport_1_01
+    764 = jump
+    765 = jump2
+    766 = kiss
+    767 = knife_throw
+    768 = knockback
+    769 = larvaAnticipation
+    770 = larvaAttack
+    771 = larvaBigDeath
+    772 = larvaBigSplat1
+    773 = larvaBigSqueal1
+    774 = larvaBigSqueal2
+    775 = larvaBossDeath
+    776 = larvaBossGrowl
+    777 = larvadeath
+    778 = larvahurt
+    779 = Larva_Acid_death
+    780 = Larva_Big_death
+    781 = Larva_Big_hurt_1
+    782 = Larva_Big_hurt_2
+    783 = Larva_Small_death
+    784 = Larva_Small_hurt_1
+    785 = Larva_Small_hurt_2
+    786 = Larva_Small_hurt_3
+    787 = Larva_Small_splat_1
+    788 = Larva_Small_splat_2
+    789 = Larva_Small_squeal_1
+    790 = Larva_Small_squeal_2
+    791 = laserDrillEnd
+    792 = laserDrillImpact1
+    793 = laserDrillImpact2
+    794 = laserDrillImpact4
+    795 = laserDrillImpact5
+    796 = laserDrillJam
+    797 = laserDrillLoop
+    798 = laserDrillStart
+    799 = laserGunHead
+    800 = laserGunLoop
+    801 = laserGunTail
+    802 = lavaPlace
+    803 = lavaRefill
+    804 = laveStoneLayer
+    805 = legendary_mortar_projectile_impact_2_01
+    806 = legendary_mortar_projectile_impact_2_02
+    807 = legendary_mortar_projectile_impact_2_03
+    808 = legendary_mortar_projectile_impact_2_04
+    809 = legendary_mortar_projectile_impact_2_05
+    810 = limestoneLayer
+    811 = limestoneLayer2
+    812 = lineSnap
+    813 = lineTension
+    814 = loco
+    815 = lol
+    816 = looseFlooring
+    817 = lowering_the_Ancient_Wall
+    818 = lowhealth
+    819 = lowhleath2
+    820 = lowThud
+    821 = lunarMerchantEmote
+    822 = lunarRedEnvelopeOpen
+    823 = magic
+    824 = magicBarrier1
+    825 = magicBarrier2
+    826 = magicBarrier3
+    827 = magicbarrier4
+    828 = MagicBuildup
+    829 = magicMirror1
+    830 = magic_beam_end_1_01
+    831 = magic_beam_end_1_02
+    832 = magic_beam_end_1_03
+    833 = magic_beam_end_1_04
+    834 = magic_beam_loop_1
+    835 = magic_beam_start_1_01
+    836 = magic_beam_start_1_02
+    837 = magic_beam_start_1_03
+    838 = magic_beam_start_1_04
+    839 = magic_beam_start_1_05
+    840 = magic_detonate
+    841 = Malguaz_Chant1
+    842 = Malguaz_Chant2
+    843 = Malguaz_Chant3
+    844 = Malguaz_Chant4
+    845 = Malguaz_Chant5
+    846 = Malguaz_Death
+    847 = Malguaz_Hurt1
+    848 = Malguaz_Hurt2
+    849 = Malguaz_Hurt3
+    850 = Malguaz_Hurt4
+    851 = maloop
+    852 = maxHealthUp1
+    853 = maxHealthUp2
+    854 = maxHealthUp3
+    855 = maxWindupBlip1
+    856 = maxWindupBlip2
+    857 = maxWindupBlip3
+    858 = melody_C6
+    859 = menuSkip1
+    860 = menuSkip2
+    861 = menu_denied
+    862 = menu_select2
+    863 = menu_skip
+    864 = merchantCaveling
+    865 = metalDamage
+    866 = metalDestroy
+    867 = metalImpact
+    868 = metalImpactSmall
+    869 = metal_footstep_1_01
+    870 = metal_footstep_1_02
+    871 = metal_footstep_1_03
+    872 = metal_footstep_1_04
+    873 = metal_footstep_1_05
+    874 = metal_footstep_1_06
+    875 = metal_footstep_1_07
+    876 = meteorHumming1
+    877 = meteorHumming2
+    878 = meteorHummingwgong
+    879 = meteorMortarImpact1
+    880 = meteorMortarSpawn1
+    881 = meteorShatters
+    882 = mimiteAnticipation
+    883 = mimiteBurrow
+    884 = mimiteCollide
+    885 = mimiteDeath
+    886 = mimiteEmerge
+    887 = mimitePulse
+    888 = mimiteTakeDmg
+    889 = minecart
+    890 = minigunBegin
+    891 = minigunEnd
+    892 = minigunLoop
+    893 = minigun_shot1
+    894 = minigun_shot2
+    895 = minigun_shot3
+    896 = minionBatAttack
+    897 = minionFireMiteAttack1
+    898 = minionFireMiteChirpHigh
+    899 = minionFireMiteChirpLow
+    900 = minionHandAttack1
+    901 = minionHandAttack2
+    902 = minionHandAttack3
+    903 = minionHandSpawn2
+    904 = minionJellyfishAttack
+    905 = minionPoisonAttack1
+    906 = minionPoisonReGrow1
+    907 = minionPoisonReGrow2
+    908 = minionPoisonReGrow3
+    909 = minionPoisonSpawn1
+    910 = minionSkeletonAnticipate
+    911 = minionSkeletonAnticipate2
+    912 = minionSkeletonAnticipate3
+    913 = minionSkeletonAttack
+    914 = minionSkeletonAttack2a
+    915 = minionSkeletonAttack2b
+    916 = minionSkeletonAttack2c
+    917 = minionSkeletonAttack2d
+    918 = mjeh
+    919 = mjeh_short
+    920 = monster
+    921 = moo1
+    922 = moo2
+    923 = mortar_projectile_impact_1_01
+    924 = mortar_projectile_impact_1_02
+    925 = mortar_projectile_impact_1_03
+    926 = mortar_projectile_impact_1_04
+    927 = mortar_projectile_impact_1_05
+    928 = mortar_projectile_impact_1_06
+    929 = mortar_projectile_impact_2_02
+    930 = mortar_projectile_impact_2_03
+    931 = mortar_projectile_impact_2_04
+    932 = mortar_projectile_impact_2_05
+    933 = mortar_projectile_impact_3_01
+    934 = mortar_projectile_impact_3_02
+    935 = mortar_projectile_impact_3_03
+    936 = mortar_projectile_impact_3_04
+    937 = mortar_projectile_impact_3_05
+    938 = mortar_projectile_launch_1_01
+    939 = mortar_projectile_launch_1_02
+    940 = mortar_projectile_launch_1_03
+    941 = mortar_projectile_launch_1_04
+    942 = mortar_projectile_launch_2_01
+    943 = mortar_projectile_launch_2_02
+    944 = mortar_projectile_launch_2_03
+    945 = mortar_projectile_launch_2_04
+    946 = mothHappy1
+    947 = mothHappy2
+    948 = Motorboat
+    949 = mummyAnticipate
+    950 = mummyAttack
+    951 = mummyAttackNEW
+    952 = mummyDeath
+    953 = mummyProjectile1
+    954 = mummyProjectile2
+    955 = mummyProjectile3
+    956 = mummyProjectile4
+    957 = mummyShard
+    958 = mummyTakeDmg
+    959 = mushroomBruteAnticipation
+    960 = mushroomBruteCollide
+    961 = mushroomBruteDeath
+    962 = mushroomBruteRegrow
+    963 = mushroomBruteStep1
+    964 = mushroomBruteStep1a
+    965 = mushroomBruteStep2
+    966 = mushroomBruteStep2a
+    967 = mushroomBruteStep3
+    968 = mushroomBruteStep3a
+    969 = mushroomBruteStep4
+    970 = mushroomBruteStep4a
+    971 = mushroomBruteTakeDmg
+    972 = musketFire
+    973 = musketFire2
+    974 = nom
+    975 = nom1
+    976 = nom2
+    977 = ocarinaCookServeDelicious3ItsDangerousToGoAlone
+    978 = ocarinaCoreKeeperBaseTheme
+    979 = ocarinaHappyBirthday
+    980 = ocarinaItsABigWorldOutside
+    981 = ocarinaOwlBoyMainTheme
+    982 = ocarinaTerrariaJourneysBeginning
+    983 = ocarinaToneFs
+    984 = ocarinaToneFs2
+    985 = ocarinaValheimMeadows
+    986 = open_chest_end
+    987 = open_chest_start
+    988 = orbitalTuerretDeath
+    989 = orbitalTuerretShieldDown
+    990 = orbitalTuerretShieldUp
+    991 = orbitalTuerretTakeDmg
+    992 = orbitalTurretLaserBeep
+    993 = ore
+    994 = ouch
+    995 = ouch_short
+    996 = pandoriumCrystalDamage1
+    997 = pandoriumCrystalDamage2
+    998 = pandoriumCrystalDamage3
+    999 = pandoriumCrystalDamage4
+    1000 = pandoriumCrystalDestroy1
+    1001 = pandoriumCrystalDestroy2
+    1002 = pandoriumCrystalDestroy3
+    1003 = pandoriumCrystalSpark1
+    1004 = pandoriumCrystalSpark2
+    1005 = pandoriumCrystalSpark3
+    1006 = paper
+    1007 = paper2
+    1008 = partyBlower
+    1009 = passageCraftingAmbience
+    1010 = passageCraftingInteract1
+    1011 = passageCraftingInteract2
+    1012 = passageCraftingInteract3
+    1013 = passageCraftingInteract4
+    1014 = passageCraftingInteract5
+    1015 = passageCraftingInteract6
+    1016 = passageDestructibleDestroy1
+    1017 = passageDestructibleDestroy2
+    1018 = passageDestructibleDestroy3
+    1019 = passageDestructibleDestroy4
+    1020 = passageDestructibleDestroy5
+    1021 = passageDestructibleDestroy5a
+    1022 = passageDestructibleDestroy5b
+    1023 = passageDestructibleDestroy5c
+    1024 = passageDestructibleDestroy5d
+    1025 = passageDestructibleDmg1
+    1026 = passageDestructibleDmg2
+    1027 = passageDestructibleDmg3
+    1028 = passageDestructibleDmg4
+    1029 = passageTileDestroy
+    1030 = passageTileDestroy2
+    1031 = passageTileDestroy3
+    1032 = passageTileDmg
+    1033 = passageTileDmg2
+    1034 = passageTileDmg3
+    1035 = petting
+    1036 = petting1
+    1037 = petting2
+    1038 = petting3
+    1039 = petting4
+    1040 = petting5
+    1041 = phaseChange
+    1042 = pianoCookServeDelicious3ItsDangerousToGoAlone
+    1043 = pianoCoreKeeperBaseTheme
+    1044 = pianoHappyBirthday
+    1045 = pianoItsABigWorldOutside
+    1046 = pianoOwlBoyMainTheme
+    1047 = pianoTerrariaJourneysBeginning
+    1048 = pianoToneFs
+    1049 = pianoToneFs2
+    1050 = pianoValheimMeadows
+    1051 = playerEyesBlink
+    1052 = playerInteractWithInactiveCore
+    1053 = player_destroy_metal_1_01
+    1054 = player_destroy_metal_1_02
+    1055 = player_destroy_metal_1_03
+    1056 = player_destroy_metal_1_04
+    1057 = player_destroy_metal_1_05
+    1058 = player_destroy_metal_1_06
+    1059 = player_destroy_metal_2_01
+    1060 = player_destroy_metal_2_02
+    1061 = player_destroy_metal_2_03
+    1062 = player_destroy_metal_2_04
+    1063 = player_hit_object_rope_1_01
+    1064 = player_hit_object_rope_1_02
+    1065 = player_hit_object_rope_1_03
+    1066 = player_hit_object_rope_1_04
+    1067 = player_hit_wood_1_01
+    1068 = player_hit_wood_1_02
+    1069 = player_hit_wood_1_03
+    1070 = player_hit_wood_1_04
+    1071 = Plop
+    1072 = plopCrop1
+    1073 = plopCrop2
+    1074 = plopCrop3
+    1075 = plopSweetener1
+    1076 = plopSweetener2
+    1077 = plopSweetener3
+    1078 = plopSweetener4a
+    1079 = plopSweetener4b
+    1080 = plopSweetener4c
+    1081 = plop_crop_3_new
+    1082 = plushie
+    1083 = plushie2
+    1084 = plushie4
+    1085 = poisonGrenadeExplode1
+    1086 = poisonGrenadeExplode1a
+    1087 = poison_acid_bubbling
+    1088 = pop
+    1089 = potAncientSmash
+    1090 = potSmash
+    1091 = PowerDownFall
+    1092 = powerpunch
+    1093 = powerUp
+    1094 = powerwhip
+    1095 = proximity_sensor_off
+    1096 = proximity_sensor_set
+    1097 = puddle
+    1098 = puddle2
+    1099 = punch
+    1100 = punch2
+    1101 = punchbump
+    1102 = radiationCrystal1
+    1103 = radiationCrystal2
+    1104 = radiationCrystalLoop1
+    1105 = radiationCrystalLoop2
+    1106 = radiationCrystalLoop4
+    1107 = razorFlakeWindup
+    1108 = record
+    1109 = regionReveal
+    1110 = remote_clicker_1_01
+    1111 = remote_clicker_2_01
+    1112 = ricochet
+    1113 = ridiculous
+    1114 = RisePowerUp
+    1115 = robot_anticipation_1_01
+    1116 = robot_anticipation_1_02
+    1117 = robot_anticipation_1_03
+    1118 = robot_anticipation_1_04
+    1119 = robot_anticipation_1_05
+    1120 = robot_anticipation_1_06
+    1121 = robot_anticipation_1_07
+    1122 = robot_anticipation_1_08
+    1123 = robot_anticipation_1_09
+    1124 = robot_anticipation_2_01
+    1125 = robot_anticipation_2_02
+    1126 = robot_anticipation_2_03
+    1127 = robot_anticipation_2_04
+    1128 = robot_anticipation_3_01
+    1129 = robot_anticipation_3_02
+    1130 = robot_arm_2_01
+    1131 = robot_arm_2_02
+    1132 = robot_arm_2_03
+    1133 = robot_arm_2_04
+    1134 = robot_arm_2_2_01
+    1135 = robot_arm_2_2_02
+    1136 = robot_arm_2_2_03
+    1137 = robot_arm_2_2_04
+    1138 = robot_a_boss_big_plasma_projectile_2_01
+    1139 = robot_a_boss_big_plasma_projectile_2_02
+    1140 = robot_a_boss_big_plasma_projectile_2_03
+    1141 = robot_a_boss_big_plasma_projectile_2_04
+    1142 = robot_a_boss_big_plasma_projectile_2_05
+    1143 = robot_a_boss_death_explosion_1_01
+    1144 = robot_a_boss_enraged_big_plasma_projectile_2_01
+    1145 = robot_a_boss_enraged_big_plasma_projectile_2_02
+    1146 = robot_a_boss_enraged_big_plasma_projectile_2_03
+    1147 = robot_a_boss_enraged_big_plasma_projectile_2_04
+    1148 = robot_a_boss_enraged_big_plasma_projectile_2_05
+    1149 = robot_a_boss_enraged_small_plasma_projectile_2_01
+    1150 = robot_a_boss_enraged_small_plasma_projectile_2_02
+    1151 = robot_a_boss_enraged_small_plasma_projectile_2_03
+    1152 = robot_a_boss_enraged_small_plasma_projectile_2_04
+    1153 = robot_a_boss_enraged_small_plasma_projectile_2_05
+    1154 = robot_a_boss_enrage_laugh_1_01
+    1155 = robot_a_boss_enrage_laugh_1_02
+    1156 = robot_a_boss_enrage_laugh_1_03
+    1157 = robot_a_boss_enrage_laugh_1_04
+    1158 = robot_a_boss_enrage_phase_1_01
+    1159 = robot_a_boss_enrage_phase_2_01
+    1160 = robot_a_boss_enrage_phase_3_01
+    1161 = robot_a_boss_intro_1_01
+    1162 = robot_a_boss_intro_2_01
+    1163 = robot_a_boss_small_plasma_projectile_2_01
+    1164 = robot_a_boss_small_plasma_projectile_2_02
+    1165 = robot_a_boss_small_plasma_projectile_2_03
+    1166 = robot_a_boss_small_plasma_projectile_2_04
+    1167 = robot_a_boss_small_plasma_projectile_2_05
+    1168 = robot_big_death_2_01
+    1169 = robot_big_death_2_02
+    1170 = robot_big_death_2_03
+    1171 = robot_big_death_3_01
+    1172 = robot_big_death_3_02
+    1173 = robot_big_death_3_03
+    1174 = robot_big_death_4_01
+    1175 = robot_big_death_4_02
+    1176 = robot_big_death_4_03
+    1177 = robot_boss_angry_1_01
+    1178 = robot_boss_angry_1_02
+    1179 = robot_boss_angry_1_03
+    1180 = robot_boss_anticipation_1_01
+    1181 = robot_boss_anticipation_1_02
+    1182 = robot_boss_anticipation_1_03
+    1183 = robot_boss_anticipation_1_04
+    1184 = robot_boss_anticipation_1_05
+    1185 = robot_boss_anticipation_1_06
+    1186 = robot_boss_anticipation_1_07
+    1187 = robot_boss_anticipation_2_01
+    1188 = robot_boss_anticipation_2_02
+    1189 = robot_boss_anticipation_2_03
+    1190 = robot_boss_anticipation_2_04
+    1191 = robot_boss_anticipation_3_01
+    1192 = robot_boss_anticipation_3_02
+    1193 = robot_boss_arm_movement_layer_1_01
+    1194 = robot_boss_arm_movement_layer_1_02
+    1195 = robot_boss_arm_movement_layer_1_03
+    1196 = robot_boss_arm_movement_layer_1_04
+    1197 = robot_boss_arm_movement_layer_1_05
+    1198 = robot_boss_arm_movement_layer_1_06
+    1199 = robot_boss_arm_movement_layer_1_07
+    1200 = robot_boss_arm_movement_layer_1_08
+    1201 = robot_boss_big_attack_1_01
+    1202 = robot_boss_big_attack_1_02
+    1203 = robot_boss_big_attack_1_03
+    1204 = robot_boss_big_attack_1_04
+    1205 = robot_boss_big_attack_1_05
+    1206 = robot_boss_big_charge_1_01
+    1207 = robot_boss_big_charge_1_02
+    1208 = robot_boss_big_charge_1_03
+    1209 = robot_boss_charged_ranged_attack_1_01
+    1210 = robot_boss_charged_ranged_attack_1_02
+    1211 = robot_boss_charged_ranged_attack_1_03
+    1212 = robot_boss_charged_ranged_attack_1_04
+    1213 = robot_boss_charged_ranged_attack_1_05
+    1214 = robot_boss_damaged_sparks_1_01
+    1215 = robot_boss_damaged_sparks_1_02
+    1216 = robot_boss_damaged_sparks_1_03
+    1217 = robot_boss_damaged_sparks_1_04
+    1218 = robot_boss_damaged_sparks_1_05
+    1219 = robot_boss_damaged_sparks_1_06
+    1220 = robot_boss_damaged_sparks_1_07
+    1221 = robot_boss_death_1_01
+    1222 = robot_boss_fall_down_1
+    1223 = robot_boss_footstep_layer_1_01
+    1224 = robot_boss_footstep_layer_1_02
+    1225 = robot_boss_footstep_layer_1_03
+    1226 = robot_boss_footstep_layer_2_01
+    1227 = robot_boss_footstep_layer_2_02
+    1228 = robot_boss_footstep_layer_2_03
+    1229 = robot_boss_footstep_layer_2_04
+    1230 = robot_boss_footstep_layer_2_05
+    1231 = robot_boss_footstep_layer_2_06
+    1232 = robot_boss_footstep_layer_2_07
+    1233 = robot_boss_footstep_layer_3_01
+    1234 = robot_boss_footstep_layer_3_02
+    1235 = robot_boss_footstep_layer_3_03
+    1236 = robot_boss_footstep_layer_3_04
+    1237 = robot_boss_footstep_layer_4_01
+    1238 = robot_boss_footstep_layer_4_02
+    1239 = robot_boss_footstep_layer_4_03
+    1240 = robot_boss_footstep_layer_4_04
+    1241 = robot_boss_hit_1_01
+    1242 = robot_boss_hit_1_02
+    1243 = robot_boss_hit_1_03
+    1244 = robot_boss_hit_1_04
+    1245 = robot_boss_hit_1_05
+    1246 = robot_boss_hit_1_06
+    1247 = robot_boss_hit_1_07
+    1248 = robot_boss_idle_1
+    1249 = robot_boss_idle_2
+    1250 = robot_boss_intro_scream_1_01
+    1251 = robot_boss_mortar_attack_1_01
+    1252 = robot_boss_mortar_attack_1_02
+    1253 = robot_boss_movement_1
+    1254 = robot_boss_movement_one_shot_1_01
+    1255 = robot_boss_movement_one_shot_1_02
+    1256 = robot_boss_movement_one_shot_1_03
+    1257 = robot_boss_movement_one_shot_1_04
+    1258 = robot_boss_movement_one_shot_1_05
+    1259 = robot_boss_plasma_impact_1_01
+    1260 = robot_boss_plasma_impact_1_02
+    1261 = robot_boss_plasma_impact_1_03
+    1262 = robot_boss_plasma_impact_1_04
+    1263 = robot_boss_plasma_impact_2_01
+    1264 = robot_boss_plasma_impact_2_02
+    1265 = robot_boss_plasma_impact_2_03
+    1266 = robot_boss_plasma_impact_2_04
+    1267 = robot_boss_plasma_impact_2_05
+    1268 = robot_boss_plasma_projectile_1_01
+    1269 = robot_boss_plasma_projectile_1_02
+    1270 = robot_boss_plasma_projectile_1_03
+    1271 = robot_boss_plasma_projectile_1_04
+    1272 = robot_boss_plasma_projectile_1_05
+    1273 = robot_boss_range_anticipation_1
+    1274 = robot_boss_stand_up_1
+    1275 = robot_b_boss_death_1_01
+    1276 = robot_b_boss_death_2_01
+    1277 = robot_b_boss_death_build_up_1_01
+    1278 = robot_b_boss_enrage_phase_1_01
+    1279 = robot_b_boss_intro_1_01
+    1280 = robot_c_boss_intro_1_01
+    1281 = robot_c_boss_pc_explode_1_01
+    1282 = robot_death_1_01
+    1283 = robot_death_1_02
+    1284 = robot_death_1_03
+    1285 = robot_d_boss_intro_1_01
+    1286 = robot_enemies_take_damage_1_01
+    1287 = robot_enemies_take_damage_1_02
+    1288 = robot_enemies_take_damage_1_03
+    1289 = robot_enemies_take_damage_1_04
+    1290 = robot_enemies_take_damage_1_05
+    1291 = robot_enemies_take_damage_1_06
+    1292 = robot_enemies_take_damage_1_07
+    1293 = robot_enemy_phrase_1_01
+    1294 = robot_enemy_phrase_1_02
+    1295 = robot_enemy_phrase_1_03
+    1296 = Robot_farm_arm_1_01
+    1297 = Robot_farm_arm_1_02
+    1298 = Robot_farm_arm_1_03
+    1299 = Robot_farm_arm_1_04
+    1300 = robot_miner_charge_1_01
+    1301 = robot_miner_charge_1_02
+    1302 = robot_miner_charge_attack_2_01
+    1303 = robot_miner_charge_attack_full_1
+    1304 = robot_miner_charge_release_1_02
+    1305 = robot_miner_charge_release_1_03
+    1306 = robot_miner_charge_start_1
+    1307 = robot_miner_idle_1
+    1308 = robot_miner_idle_2_1
+    1309 = robot_miner_shield_on_1_01
+    1310 = robot_miner_shield_on_1_02
+    1311 = robot_miner_shield_on_1_03
+    1312 = robot_patroller_fire_attack_1_01
+    1313 = robot_patroller_fire_attack_1_02
+    1314 = robot_patroller_fire_attack_1_03
+    1315 = robot_patroller_fire_projectile_impact_01
+    1316 = robot_patroller_fire_projectile_impact_02
+    1317 = robot_patroller_fire_projectile_impact_03
+    1318 = robot_patroller_fire_projectile_impact_04
+    1319 = robot_patroller_movement_loop_2
+    1320 = robot_patroller_movement_one_shot_1_01
+    1321 = robot_patroller_movement_one_shot_1_02
+    1322 = robot_patroller_movement_one_shot_1_03
+    1323 = robot_patroller_movement_one_shot_1_04
+    1324 = robot_patroller_movement_one_shot_1_05
+    1325 = robot_patroller_movement_one_shot_1_06
+    1326 = robot_patroller_movement_one_shot_2_01
+    1327 = robot_patroller_movement_one_shot_2_02
+    1328 = robot_patroller_movement_one_shot_2_03
+    1329 = robot_patroller_movement_one_shot_2_2_01
+    1330 = robot_patroller_movement_one_shot_2_2_02
+    1331 = robot_patroller_movement_one_shot_2_3_01
+    1332 = robot_patroller_movement_one_shot_2_3_02
+    1333 = robot_patroller_movement_one_shot_3_01
+    1334 = robot_patroller_movement_one_shot_3_02
+    1335 = robot_patroller_oil_attack_1_01
+    1336 = robot_patroller_oil_attack_1_02
+    1337 = robot_patroller_oil_attack_1_03
+    1338 = robot_patroller_oil_attack_1_04
+    1339 = robot_patroller_oil_attack_2_01
+    1340 = robot_patroller_oil_attack_2_02
+    1341 = robot_patroller_oil_attack_2_03
+    1342 = robot_patroller_oil_attack_2_04
+    1343 = robot_patroller_oil_attack_2_05
+    1344 = robot_patroller_oil_attack_2_06
+    1345 = robot_patroller_oil_projectile_impact_1_01
+    1346 = robot_patroller_oil_projectile_impact_1_02
+    1347 = robot_patroller_oil_projectile_impact_1_03
+    1348 = robot_patroller_oil_projectile_impact_1_04
+    1349 = robot_patroller_oil_projectile_impact_2_01
+    1350 = robot_patroller_oil_projectile_impact_2_02
+    1351 = robot_patroller_oil_projectile_impact_2_03
+    1352 = robot_patroller_oil_projectile_impact_2_04
+    1353 = robot_patroller_oil_projectile_impact_2_05
+    1354 = robot_patroller_oil_projectile_impact_2_06
+    1355 = robot_patroller_scuttle_loop_1
+    1356 = robot_seed_arm_1_01
+    1357 = robot_seed_arm_1_02
+    1358 = robot_seed_arm_1_03
+    1359 = robot_seed_arm_1_04
+    1360 = robot_seed_arm_rotate_1_01
+    1361 = robot_seed_arm_rotate_1_02
+    1362 = robot_seed_arm_rotate_1_03
+    1363 = robot_seed_arm_rotate_1_04
+    1364 = robot_small_death_2_01
+    1365 = robot_small_death_2_02
+    1366 = robot_small_death_2_03
+    1367 = robot_small_death_2_04
+    1368 = robot_small_death_3_01
+    1369 = robot_small_death_3_02
+    1370 = robot_small_death_3_03
+    1371 = robot_small_death_3_04
+    1372 = robot_swarmer_anticipation_1_01
+    1373 = robot_swarmer_attack_1_01
+    1374 = robot_swarmer_attack_1_02
+    1375 = robot_swarmer_attack_1_03
+    1376 = robot_swarmer_attack_1_04
+    1377 = robot_swarmer_movement_loop_1_01
+    1378 = rockDebris1
+    1379 = rockDebris2
+    1380 = rockscrape
+    1381 = rock_wood_mining_1_01
+    1382 = rock_wood_mining_1_02
+    1383 = rock_wood_mining_1_03
+    1384 = rock_wood_mining_1_04
+    1385 = rolyPolyBabyDeath1
+    1386 = rolyPolyBabyHurt1
+    1387 = rolyPolyDeath2
+    1388 = rolyPolyHurt1
+    1389 = roofingTool
+    1390 = roofingTool1
+    1391 = rugDamage
+    1392 = rugDamage2
+    1393 = rugDestroy
+    1394 = rugDestroy2
+    1395 = runeSongStrongAttack2
+    1396 = runeSongStrongAttack3
+    1397 = runeSongWindup3
+    1398 = sandfootstep
+    1399 = Santa_Helper_craftin_loop_layer1
+    1400 = Santa_Helper_craftin_loop_layer2
+    1401 = Santa_Helper_craftin_loop_layer2_no_song
+    1402 = Santa_Helper_gift_complete
+    1403 = Santa_HoHoHo
+    1404 = scarabBossAttack
+    1405 = Scarab_Titan_burrow_loop
+    1406 = Scarab_Titan_damage
+    1407 = Scarab_Titan_death_scream
+    1408 = Scarab_Titan_sand_burst
+    1409 = Scarab_Titan_sand_burst_big
+    1410 = scarletDamage
+    1411 = scarletDamage2
+    1412 = scarletDamage3
+    1413 = scarletDestroy
+    1414 = scarletDestroy2
+    1415 = scarletDestroy3
+    1416 = Scary_geiger_loop
+    1417 = scholarStaffAttack
+    1418 = scholarStaffImpact
+    1419 = scholarStaffImpact2
+    1420 = scifi
+    1421 = screechLong
+    1422 = screechShort
+    1423 = seed_extractor_1_01
+    1424 = seekerBombLoop
+    1425 = shieldBlock
+    1426 = shieldBlock2
+    1427 = shieldParry
+    1428 = shoop
+    1429 = shoop_2
+    1430 = shoveldig
+    1431 = shredder_1_01
+    1432 = shredder_2_01
+    1433 = shredder_3_01
+    1434 = singingCrystal
+    1435 = skillPointAnalogBell1
+    1436 = skillPointAnalogBell2
+    1437 = skillPointBellDouble
+    1438 = skillPointBellShort
+    1439 = skillPointChime1
+    1440 = skillPointHighTwinkle1
+    1441 = slideloop
+    1442 = slimeAnticipation
+    1443 = slimeAnticipation1
+    1444 = slimeAnticipation2
+    1445 = slimeAttack1
+    1446 = slimeAttack2
+    1447 = slimeBossDeath
+    1448 = slimeBossEnrage
+    1449 = SlimeBossImpact
+    1450 = slimeFootstep
+    1451 = slimeHappy1
+    1452 = slimehurt
+    1453 = slimeImpact
+    1454 = slimeJump1
+    1455 = slimeJump2
+    1456 = slimeJump3
+    1457 = slimeProjectileImpact
+    1458 = slimeProjectileSpawn
+    1459 = slimeStaffAttack
+    1460 = slingshotFire
+    1461 = slingshotImpact
+    1462 = smallCrystalGrassDeath
+    1463 = smallCrystalGrassDmg
+    1464 = snakeBoosElectricChargeUp1
+    1465 = snakeBossDeath1
+    1466 = SnakeBossGrowl
+    1467 = snakeBossGrowl1
+    1468 = snakeBossGrowlUnderwater1
+    1469 = snakeBossHurt1
+    1470 = snakeBossScream1
+    1471 = snakeBossWaterLoop1
+    1472 = snap
+    1473 = sniff
+    1474 = snore
+    1475 = snore2
+    1476 = snore3
+    1477 = snort
+    1478 = Snowball_Impact_1
+    1479 = Snowball_Impact_2
+    1480 = Snowball_Impact_3
+    1481 = Snowball_Impact_4
+    1482 = Snowball_Impact_5
+    1483 = Snowball_Throw_1
+    1484 = Snowball_Throw_2
+    1485 = Snowball_Throw_3
+    1486 = Snowball_Throw_4
+    1487 = snowfootstep
+    1488 = snowGroundDestroy
+    1489 = snowGroundDestroy2
+    1490 = solariteBoltProjectileAttack
+    1491 = solariteBoltProjectileAttack2
+    1492 = solariteBoltProjectileImpact
+    1493 = solariteSwordAttack1
+    1494 = solariteSwordImpact1
+    1495 = SoulPowerUp
+    1496 = spark1
+    1497 = spark2
+    1498 = sparkle
+    1499 = spawnbeacon
+    1500 = spawnCreature1
+    1501 = spawnCreatureAnticipation1
+    1502 = spearImpact
+    1503 = splash
+    1504 = splash2
+    1505 = splat
+    1506 = splisch
+    1507 = spoonget
+    1508 = spotted
+    1509 = squish1
+    1510 = squish2
+    1511 = starshine
+    1512 = stoneBricksDamage2
+    1513 = stoneBricksDestroy2
+    1514 = stone_void_wall_hit_1_01
+    1515 = stone_void_wall_hit_1_02
+    1516 = stone_void_wall_hit_1_03
+    1517 = stone_void_wall_hit_1_04
+    1518 = stone_void_wall_hit_2_01
+    1519 = stone_void_wall_hit_2_02
+    1520 = stone_void_wall_hit_2_03
+    1521 = stone_void_wall_hit_2_04
+    1522 = stone_wall_hit_1_01
+    1523 = stone_wall_hit_1_02
+    1524 = stone_wall_hit_1_03
+    1525 = stone_wall_hit_1_04
+    1526 = stone_wall_hit_2_01
+    1527 = stone_wall_hit_2_02
+    1528 = stone_wall_hit_2_03
+    1529 = stone_wall_hit_2_04
+    1530 = strongAttackBlowPipe
+    1531 = strongAttackBow
+    1532 = strongAttackLavaAxe
+    1533 = strongAttackLegendaryBow
+    1534 = strongAttackStaff
+    1535 = strongAttackSunStaff
+    1536 = stunGrenadeExplode1
+    1537 = stunGrenadeExplode1a
+    1538 = success
+    1539 = successTone
+    1540 = sulfurBomb
+    1541 = sulfurBulbDestroy
+    1542 = sulfurTreeDamage
+    1543 = sulfurTreeDestroy
+    1544 = summonBatMinion
+    1545 = summonJellyfish
+    1546 = summonSkeleton
+    1547 = summonSweetenerBatMinion
+    1548 = summon_pickaxe_minion_layer_1_01
+    1549 = summon_pickaxe_minion_layer_1_02
+    1550 = summon_pickaxe_minion_layer_1_03
+    1551 = sunStaffAttack
+    1552 = sunStaffProjectileImpact
+    1553 = sunStaffProjectileLoop
+    1554 = sunStaffProjectileSpawn
+    1555 = switch_click_1_01
+    1556 = switch_click_1_02
+    1557 = switch_click_1_03
+    1558 = switch_click_1_04
+    1559 = swoosh
+    1560 = swoosh2
+    1561 = swooshMagic
+    1562 = swooshStrong
+    1563 = sword
+    1564 = swordAttack
+    1565 = swordhum1
+    1566 = swordhum2
+    1567 = swordImpact
+    1568 = swordImpact2
+    1569 = swordLegendaryAttack
+    1570 = swordLegendaryImpact
+    1571 = tableSaw
+    1572 = taf
+    1573 = takeoff
+    1574 = takeoffpuff
+    1575 = tallCrystalGrassDeath
+    1576 = tallCrystalGrassDmg
+    1577 = tardigradeAnticipation1
+    1578 = tardigradeAnticipation2
+    1579 = tardigradeAttack
+    1580 = tardigradeEmote
+    1581 = tardigradeHappy
+    1582 = tardigradePetting
+    1583 = tardigradeRoll
+    1584 = teleportationRod
+    1585 = teleportationRod2
+    1586 = teleportationRod3
+    1587 = teleportationRod4
+    1588 = teleportLoop
+    1589 = tenton
+    1590 = TerrariaSlime_Death
+    1591 = TerrariaSlime_Hurt
+    1592 = thud
+    1593 = thump
+    1594 = thunderLightning
+    1595 = timer_ok
+    1596 = timer_oops
+    1597 = timer_start
+    1598 = tock
+    1599 = toolbreak
+    1600 = torchFireCracklingLoop01
+    1601 = toy1
+    1602 = trainpassing
+    1603 = turtleBabyDeath1
+    1604 = turtleBabyHurt1
+    1605 = turtleDeath1
+    1606 = turtleHurt1
+    1607 = twinkle
+    1608 = twinkle2
+    1609 = twitch
+    1610 = uhoh
+    1611 = uiPickup
+    1612 = ui_chest_unlocked_1_01
+    1613 = ui_chest_unlocked_1_02
+    1614 = ui_chest_unlocked_1_03
+    1615 = ui_clear_filter_1_01
+    1616 = ui_cooldown_1_01
+    1617 = ui_cooldown_1_02
+    1618 = ui_cooldown_1_03
+    1619 = ui_cooldown_1_04
+    1620 = ui_cooldown_1_05
+    1621 = ui_cooldown_1_09
+    1622 = ui_cooldown_1_13
+    1623 = ui_cooldown_1_14
+    1624 = ui_cooldown_1_14_2
+    1625 = ui_locked_click_2_01
+    1626 = ui_locked_click_2_02
+    1627 = ui_locked_click_2_03
+    1628 = ui_move_to_bin_1_01
+    1629 = ui_move_to_bin_1_02
+    1630 = ui_move_to_bin_1_03
+    1631 = ui_offhand_click_1_01
+    1632 = ui_offhand_shield_1_01
+    1633 = ui_offhand_shield_1_02
+    1634 = ui_offhand_shield_1_03
+    1635 = ui_offhand_shield_1_04
+    1636 = ui_plop_1_01
+    1637 = ui_toggle_off_trash_1_01
+    1638 = ui_toggle_off_trash_1_02
+    1639 = ui_toggle_off_trash_1_03
+    1640 = ui_toggle_on_trash_1_01
+    1641 = ui_toggle_on_trash_1_02
+    1642 = ui_toggle_on_trash_1_03
+    1643 = underground_generator_1
+    1644 = upgradeForge1a
+    1645 = upgradeForge2a
+    1646 = upgradeForge3a
+    1647 = upgradeForge4a
+    1648 = valentineMerchant
+    1649 = valentinePresent
+    1650 = voice1
+    1651 = voice2
+    1652 = voice3
+    1653 = voice4
+    1654 = voice4b
+    1655 = voice5
+    1656 = voice6
+    1657 = voice7
+    1658 = voice8
+    1659 = VoidAnticipation
+    1660 = VoidAnticipation_Extended
+    1661 = VoidAttack
+    1662 = VoidAttack_delay
+    1663 = voidBombExplode
+    1664 = voidBombFuse
+    1665 = voidBombFuse2
+    1666 = voidBombPlace
+    1667 = voidBombPreExplode
+    1668 = VoidLoop
+    1669 = voidOrbGunLoop
+    1670 = voidOrbGunProjectileImpact
+    1671 = voidOrbGunProjectileSpawn
+    1672 = voidOrdGunImpact2
+    1673 = voidOrdGunImpact3a
+    1674 = voidOrdGunImpact3b
+    1675 = voidOrdGunSpawn2
+    1676 = voidOrdGunSpawn3a
+    1677 = voidOrdGunSpawn3b
+    1678 = voidOrdGunSpawn4a
+    1679 = voidOrdGunSpawn4b
+    1680 = voidOrdGunSpawn4c
+    1681 = voidOrdGunSpawn4d
+    1682 = voidOrdGunSpawn5a
+    1683 = voidOrdGunSpawn5b
+    1684 = voidOrdGunSpawn5c
+    1685 = voidOrdGunSpawn6a
+    1686 = voidOrdGunSpawn6b
+    1687 = voidRiftOpen
+    1688 = voidZoneGiantCicada
+    1689 = void_brute_anticipation_1_01
+    1690 = void_brute_anticipation_1_02
+    1691 = void_brute_anticipation_1_03
+    1692 = void_brute_anticipation_1_04
+    1693 = void_brute_anticipation_1_05
+    1694 = void_brute_anticipation_1_06
+    1695 = void_brute_anticipation_1_07
+    1696 = void_brute_anticipation_1_08
+    1697 = void_brute_attack_1_01
+    1698 = void_brute_attack_1_02
+    1699 = void_brute_attack_1_03
+    1700 = void_brute_death_1_01
+    1701 = void_brute_death_1_02
+    1702 = void_brute_death_1_03
+    1703 = void_brute_death_1_04
+    1704 = void_brute_death_1_05
+    1705 = void_brute_death_1_06
+    1706 = void_brute_death_1_07
+    1707 = void_brute_fs_1_01
+    1708 = void_brute_fs_1_02
+    1709 = void_brute_fs_1_03
+    1710 = void_brute_take_damage_1_01
+    1711 = void_brute_take_damage_1_02
+    1712 = void_brute_take_damage_1_03
+    1713 = void_brute_take_damage_1_04
+    1714 = void_brute_take_damage_1_05
+    1715 = void_brute_take_damage_1_06
+    1716 = void_brute_taunt_1_01
+    1717 = void_brute_taunt_1_02
+    1718 = void_brute_taunt_1_03
+    1719 = void_brute_taunt_1_04
+    1720 = void_caveling_anticipation_1_01
+    1721 = void_caveling_anticipation_1_02
+    1722 = void_caveling_anticipation_1_03
+    1723 = void_caveling_anticipation_1_04
+    1724 = void_caveling_anticipation_1_05
+    1725 = void_caveling_attack_1_01
+    1726 = void_caveling_attack_1_02
+    1727 = void_caveling_attack_1_03
+    1728 = void_caveling_attack_1_04
+    1729 = void_caveling_attack_1_05
+    1730 = void_caveling_death_1_01
+    1731 = void_caveling_death_1_02
+    1732 = void_caveling_death_1_03
+    1733 = void_caveling_death_1_04
+    1734 = void_caveling_death_1_05
+    1735 = void_caveling_death_1_06
+    1736 = void_caveling_footstep_1_01
+    1737 = void_caveling_footstep_1_02
+    1738 = void_caveling_footstep_1_03
+    1739 = void_caveling_footstep_1_04
+    1740 = void_caveling_take_damage_1_01
+    1741 = void_caveling_take_damage_1_02
+    1742 = void_caveling_take_damage_1_03
+    1743 = void_caveling_take_damage_1_04
+    1744 = void_caveling_take_damage_1_05
+    1745 = void_caveling_taunt_1_01
+    1746 = void_caveling_taunt_1_02
+    1747 = void_caveling_taunt_1_03
+    1748 = void_caveling_taunt_1_04
+    1749 = void_electricity_ball_loop_1_01
+    1750 = void_electricity_ball_loop_1_03
+    1751 = void_electricity_ball_spawn_1_01
+    1752 = void_electricity_ball_spawn_1_02
+    1753 = void_electricity_ball_spawn_1_03
+    1754 = void_electricity_ball_spawn_1_04
+    1755 = void_hydra_bite_anticipation_1_01
+    1756 = void_hydra_bite_attack_1_01
+    1757 = void_hydra_death_1_01
+    1758 = void_hydra_emerge_1_01
+    1759 = void_hydra_emerge_1_02
+    1760 = void_hydra_emerge_1_03
+    1761 = void_hydra_enter_vulnerable_state_1_01
+    1762 = void_hydra_exit_vulnerable_state_1_01
+    1763 = void_hydra_laser_beam_anticipation_1_01
+    1764 = void_hydra_laser_beam_attack_1_01
+    1765 = void_hydra_moving_underground_layer_1_01
+    1766 = void_hydra_scream_1_01
+    1767 = void_hydra_take_damage_1_01
+    1768 = void_hydra_take_damage_1_02
+    1769 = void_hydra_take_damage_1_03
+    1770 = void_larva_anticipation_1_01
+    1771 = void_larva_anticipation_1_02
+    1772 = void_larva_attack_1_01
+    1773 = void_larva_attack_1_02
+    1774 = void_larva_attack_1_03
+    1775 = void_larva_movement_loop_1
+    1776 = void_larva_take_damage_1_01
+    1777 = void_larva_take_damage_1_02
+    1778 = void_larva_take_damage_1_03
+    1779 = void_merchant_emote_1_01
+    1780 = void_merchant_emote_1_02
+    1781 = void_merchant_interaction_1_01
+    1782 = void_merchant_interaction_1_02
+    1783 = void_merchant_interaction_1_03
+    1784 = void_merchant_interaction_1_04
+    1785 = void_rift_1_01
+    1786 = void_rift_1_02
+    1787 = void_rift_1_03
+    1788 = void_trap_1_01
+    1789 = void_trap_1_02
+    1790 = void_trap_1_03
+    1791 = void_wall_dig_1_01
+    1792 = wall
+    1793 = wall2
+    1794 = wallBossBulbDmg1
+    1795 = wallBossBulbDmg2
+    1796 = wallBossBulbSplatter
+    1797 = wallBossDeathExplosion
+    1798 = wallBossDeathScream
+    1799 = wallBossHeadDmg
+    1800 = wallBossHeadEmerge
+    1801 = wallSand
+    1802 = Wall_Clay_destroy
+    1803 = Wall_Clay_dmg_1
+    1804 = Wall_Hive_destroy
+    1805 = Wall_Hive_dmg_1
+    1806 = Wall_Nature_destroy
+    1807 = Wall_Nature_dmg_1
+    1808 = Wall_Nature_dmg_2
+    1809 = Wall_Snow_destroy
+    1810 = Wall_Stone_destroy
+    1811 = Wall_Stone_dmg_1
+    1812 = Wall_Turf_destroy
+    1813 = Wall_Turf_dmg_1
+    1814 = warlock_explode
+    1815 = warlock_explode2
+    1816 = waterLoop
+    1817 = waterSplashLoop
+    1818 = waypointActivate
+    1819 = waypointStartup
+    1820 = wetdog
+    1821 = whip
+    1822 = whip_backwards
+    1823 = wilhelm
+    1824 = windLoop
+    1825 = windOrganDesert
+    1826 = windOrganNature
+    1827 = windOrganSea
+    1828 = windOrganVoid
+    1829 = windup
+    1830 = windUpBlowPipe
+    1831 = windUpBow1
+    1832 = windUpBow2
+    1833 = windupBowDraw
+    1834 = windupCrossbowLoad
+    1835 = windUpLegendaryBow
+    1836 = windupMagicFire
+    1837 = windupMagicFireB
+    1838 = windupMagicGlass
+    1839 = windUpScholarStaff
+    1840 = windUpSpear
+    1841 = windUpSunStaff
+    1842 = windUpSword1
+    1843 = windupSwordUnsheathe
+    1844 = windup_mortar_1_01
+    1845 = windup_mortar_1_02
+    1846 = windup_mortar_1_03
+    1847 = windup_mortar_1_04
+    1848 = windup_mortar_1_05
+    1849 = windup_mortar_1_06
+    1850 = wingFlap1
+    1851 = wingFlap2
+    1852 = wireDamage
+    1853 = wireDamage2
+    1854 = wireDestroy
+    1855 = woodCrystalDestructible
+    1856 = woodCrystalDestructible2
+    1857 = woodDamage2
+    1858 = woodDestroy
+    1859 = woodDestroy2
+    1860 = woodDestroy3
+    1861 = woodenDestructable
+    1862 = woodGleamTileDestroy
+    1863 = woodGleamTileDmg
+    1864 = woodSwordAttack2
+    1865 = woodSwordImpact
+    1866 = woodSwordImpact2
+    1867 = wood_mining_2_01
+    1868 = wood_mining_2_02
+    1869 = wood_mining_2_03
+    1870 = wood_mining_2_04
+    1871 = wormDeath
+    1872 = wormDiggingLoop1
+    1873 = wormGrowlLoop
+    1874 = wormTakeDmg
+    1875 = wow
+    1876 = wow2
+    1877 = yayyy
+    1878 = yeti1
+    1879 = yeti2
+    1880 = yeti3
+    1881 = ynye
+    1882 = zap
+    1883 = zealotBladeImpact1
+    1884 = zealotBladeImpact2
+    1885 = zealotBladeImpact3
+    1886 = zealotBladeImpact4
+    1887 = zealotBladeShimmer1
+    1888 = zealotBladeShimmer2
+    1889 = zealotBladeShimmer3
+    1890 = zealotBladeWhoosh
+    1891 = __max__
+    -1 = __illegal__
+
+=== Pug.Sprite.SpriteObject   [PugSprite]
+    field  public Boolean USE_DIRECT_GPU_MEM_ACCESS = False
+    field  public Single PixelsPerUnit   (static)
+    field  public Dictionary<GroupIdentifier,Dictionary<Int32,SpriteObject>> instanceLists = System.Collections.Generic.Dictionary`2[Pug.Sprite.SpriteObject+GroupIdentifier,System.Collections.Generic.Dictionary`2[System.Int32,Pug.Sprite.SpriteObject]]
+    field  public Dictionary<Int32,SpriteObject> syncInstanceList = System.Collections.Generic.Dictionary`2[System.Int32,Pug.Sprite.SpriteObject]
+    field  private Dictionary<Dictionary<Int32,SpriteObject>,SpriteObject[]> s_arrayCache = System.Collections.Generic.Dictionary`2[System.Collections.Generic.Dictionary`2[System.Int32,Pug.Sprite.SpriteObject],Pug.Sprite.SpriteObject[]]
+    field  private Dictionary<Dictionary<Int32,SpriteObject>,Boolean> s_arrayCacheDirty = System.Collections.Generic.Dictionary`2[System.Collections.Generic.Dictionary`2[System.Int32,Pug.Sprite.SpriteObject],System.Boolean]
+    field  private Int32 ARRAY_POOL_PADDING_SIZE = 32
+    field  private Single s_deltaTime   (static)
+    field  public Single animationTime
+    field  private Action<Int32> onAnimationStart
+    field  private Action<Int32> onAnimationEnd
+    field  private Action<Int32> onAnimationEvent
+    field  private Action onPositionalDataUpdated
+    field  private GameObject cachedGameObject
+    field  private SpriteAsset m_asset
+    field  public SpriteAssetSkin skin
+    field  private DataBlockRef<SpriteAsset> m_assetRef
+    field  public DataBlockRef<SpriteAssetSkin> skinRef
+    field  public Color color
+    field  public Color emissiveColor
+    field  public Color flashColor
+    field  public Color outlineColor
+    field  public Texture2D primaryGradientMap
+    field  public Texture2D secondaryGradientMap
+    field  public Texture2D tertiaryGradientMap
+    field  public DataBlockRef<GradientMapDataBlock> primaryGradientMapRef
+    field  public DataBlockRef<GradientMapDataBlock> secondaryGradientMapRef
+    field  public DataBlockRef<GradientMapDataBlock> tertiaryGradientMapRef
+    field  public Material material
+    field  private Int32 m_startAnimationHash
+    field  private Int32 m_startVariantHash
+    field  public Single animationTimescale
+    field  private Boolean m_randomStartTime
+    field  public Boolean processAnimationEvents
+    field  public SpriteObject syncSource
+    field  public Boolean syncAnimation
+    field  public Boolean syncVariant
+    field  public Boolean syncSprite
+    field  public Int32 forceRenderingOff
+    field  public Int32 maskChannel
+    field  public SpriteMaskInteraction maskInteraction
+    field  private SpriteAsset m_cachedAsset
+    field  private Coroutine m_awaitAssetLoadingRoutine
+    field  private Transform m_cachedTransform
+    field  private Matrix4x4 m_cachedLocalToWorld
+    field  private Int32 m_currentAnimationHash
+    field  private Int32 m_currentAnimationIndex
+    field  private Int32 m_currentVariantHash
+    field  private Int32 m_currentVariantIndex
+    field  private FrameAnimation m_currentAnimation
+    field  private SpriteData m_currentSpriteData
+    field  private Vector4 m_currentAtlasRect
+    field  private Vector2 m_currentPivot
+    field  private Int32 m_prevSrcFrame
+    field  private Dictionary<Int32,SpriteObject> m_list
+    field  private Boolean m_hasAnimationEvents
+    field  private Int32 m_queuedAnimationHash
+    field  private Vector3 m_gradientIndices
+    field  private Boolean m_isReady
+    field  private Vector3 m_transformAnimParams
+    field  private Boolean m_inSyncList
+    field  private MaterialPropertyBlock m_editorProperties
+    field  private Double m_editorStartTime
+    field  private InstanceData[] s_dataArray   (static)
+    field  private Matrix4x4[] s_maskMatrices   (static)
+    field  private Int32 _SpriteObjectMaskArray   (static)
+    field  private MeshRenderer m_editorRenderer
+    field  private MeshFilter m_editorMeshFilter
+    field  private Vector4 m_editorRect
+    field  private Vector2 m_editorPivot
+    prop   SpriteAsset asset
+    prop   DataBlockAddress assetAddress
+    prop   Boolean isReady
+    prop   Int32 startAnimationHash
+    prop   Int32 startVariantHash
+    prop   Int32 currentAnimationHash
+    prop   Int32 currentAnimationIndex
+    prop   Int32 currentVariantHash
+    prop   Int32 currentVariantIndex
+    prop   FrameAnimation currentAnimation
+    prop   Vector4 currentAtlasRect
+    prop   Vector4 currentPivot
+    prop   Vector3 gradientIndices
+    prop   Vector3 transformAnimParams
+    prop   Boolean isSlaveSprite
+    prop   GradientMapDataBlock currentPrimaryGradientMap
+    prop   GradientMapDataBlock currentSecondaryGradientMap
+    prop   GradientMapDataBlock currentTertiaryGradientMap
+    prop   SpriteAsset _asset
+    prop   SpriteAssetSkin currentSkin
+    prop   Boolean hasPositionalData
+    nested GroupIdentifier
+    nested <AwaitAssetLoading>d__123
+
+=== Pug.Sprite.SpriteObject+GroupIdentifier   [PugSprite]
+    field  public Material material
+    field  public Int32 layer
+    field  private Int32 hashCode
+    field  public Boolean castShadows
+
+=== Pug.Sprite.SpriteObject+<AwaitAssetLoading>d__123   [PugSprite]
+    field  private Int32 <>1__state
+    field  private Object <>2__current
+    field  public SpriteObject <>4__this
+    prop   Object System.Collections.Generic.IEnumerator<System.Object>.Current
+    prop   Object System.Collections.IEnumerator.Current
+
+=== UnityEngine.TextCore.Text.SpriteAsset   [UnityEngine.TextCoreTextEngineModule]
+    field  private Dictionary<Int32,Int32> m_NameLookup
+    field  private Dictionary<UInt32,Int32> m_GlyphIndexLookup
+    field  private FaceInfo m_FaceInfo
+    field  private Texture m_SpriteAtlasTexture
+    field  private Single <width>k__BackingField
+    field  private Single <height>k__BackingField
+    field  private List<SpriteCharacter> m_SpriteCharacterTable
+    field  private Dictionary<UInt32,SpriteCharacter> m_SpriteCharacterLookup
+    field  private List<SpriteGlyph> m_SpriteGlyphTable
+    field  private Dictionary<UInt32,SpriteGlyph> m_SpriteGlyphLookup
+    field  public List<SpriteAsset> fallbackSpriteAssets
+    field  private Boolean m_IsSpriteAssetLookupTablesDirty
+    prop   FaceInfo faceInfo
+    prop   Texture spriteSheet
+    prop   Single width
+    prop   Single height
+    prop   List<SpriteCharacter> spriteCharacterTable
+    prop   Dictionary<UInt32,SpriteCharacter> spriteCharacterLookupTable
+    prop   List<SpriteGlyph> spriteGlyphTable
+    nested <>c
+
+=== UnityEngine.TextCore.Text.SpriteAsset+<>c   [UnityEngine.TextCoreTextEngineModule]
+    field  public <>c <>9 = UnityEngine.TextCore.Text.SpriteAsset+<>c
+    field  public Func<SpriteGlyph,UInt32> <>9__44_0   (static)
+    field  public Func<SpriteCharacter,UInt32> <>9__45_0   (static)
+
+=== Pug.Sprite.SpriteAsset   [PugSprite]
+    field  private SpriteData m_staticSpriteData
+    field  private List<SpriteData> m_staticVariants
+    field  private List<FrameAnimation> m_animations
+    field  private List<String> m_events
+    field  private List<String> m_positionalData
+    field  private Dictionary<Int32,FrameAnimation> m_animationLookup
+    field  private Dictionary<Int32,Int32> m_animationIndexLookup
+    field  private Dictionary<Guid,Int32> m_animationHashLookup
+    field  private Dictionary<Int32,Int32> m_eventLookup
+    field  private Map<Int32,Int32> m_staticVariantLookup
+    field  private Dictionary<ValueTuple<Int32,Int32>,Int32> m_transitionLookup
+    field  private Dictionary<Int32,Int32> m_positionalDataLookup
+    prop   SpriteData staticSpriteData
+    prop   Boolean hasAnyStaticTexture
+    prop   Boolean hasAnimations
+    prop   Int32 staticVariantCount
+    prop   Int32 animationCount
+    prop   Int32 eventCount
+    prop   Int32 positionalDataCount
+
+=== EntityMonoBehaviour   [Pug.Other]
+    field  public Transform XScaler
+    field  protected Boolean hasXScaler
+    field  public GameObject shadow
+    field  protected Boolean hasShadow
+    field  public List<GameObject> indirectLightEmitters
+    field  public Animator animator
+    field  protected Boolean hasAnimator
+    field  public InteractableObject interactable
+    field  protected Boolean hasInteractable
+    field  public List<SpriteObject> spriteObjects
+    field  public Boolean useSharedTransformAnimations
+    field  public List<ReskinOptions> reskinOptions
+    field  private Int32 EmissiveTex = 985
+    field  public PaintingOptions paintableOptions
+    field  private PaintableColor previousPaint
+    field  public SoundOptions soundOptions
+    field  public ParticlesOptions particleOptions
+    field  public List<ObjectVariant> objectVariants
+    field  public List<SpriteRenderer> spritesToRandomlyFlip
+    field  public List<GameObject> gameObjectsToRandomlyFlip
+    field  public HealthBar optionalHealthBar
+    field  public ManagedLight optionalLightOptimizer
+    field  public ConditionsEffectsHandler conditionEffectsHandler
+    field  public ConditionsEffectsSettings conditionsEffectsSettings
+    field  public List<OutlineController> outlineControllers
+    field  private Entity <entity>k__BackingField
+    field  private Int32 variationOverride
+    field  private Int32 variationOverrideUpdateCount
+    field  private Int32 pugMapPosX
+    field  private Int32 pugMapPosZ
+    field  private Int32 width
+    field  private Int32 height
+    field  private Boolean appearInMapUI
+    field  private Color colorInMap
+    field  private Boolean onlyEnableAnimatorTemporarilyWhenPlayingAnimation
+    field  private String destroyableObjectAnimatorName = DestroyableObject
+    field  private Single animatorTemporaryDisableTimer
+    field  protected Int32 lastAnim
+    field  private Int32 lastNonDeathAnim
+    field  private Boolean hasOverriddenAnim
+    field  private Boolean <isHidden>k__BackingField
+    field  private Single deathTimer
+    field  private float3 interactableDefaultPosition
+    field  private quaternion interactableDefaultRotation
+    field  protected Flashable flashable
+    field  protected Boolean hasFlashable
+    field  private Boolean hasConditions
+    field  private Boolean hasDamageEffect
+    field  private Int32 damageEffectTrigger
+    field  public Boolean hasDisableableParticles
+    field  private Boolean <hasHealth>k__BackingField
+    field  private Boolean <isEnemy>k__BackingField
+    field  public Int32 previousHealth
+    field  public ClientSendSystem netEcbSystem
+    field  private Vector3 <WorldPosition>k__BackingField
+    field  private Boolean hasLocalToWorld
+    field  protected Vector3 currentFacingVector
+    field  protected Vector3 normalizedFacingVector
+    field  protected Vector3 animatedMovementVector
+    field  private Boolean hasAnimationOrientationCD
+    field  private Single orientationY
+    field  protected SpriteObjectOrientation m_spriteObjectOrientation
+    field  protected SpriteObjectOrientation m_prevSpriteObjectOrientation
+    field  public Int32 m_spriteObjectOrientationHash
+    field  private ObjectID cachedLastSpriteSheetObjectID
+    field  private Int32 cachedLastSpriteSheetVariation
+    field  private Color transparentColor
+    prop   World world
+    prop   Entity entity
+    prop   ObjectInfo objectInfo
+    prop   ObjectDataCD objectData
+    prop   Boolean hasDirection
+    prop   float3 direction
+    prop   Int32 variation
+    prop   Boolean updateAnimOrientation
+    prop   Boolean updateAnimMovement
+    prop   Boolean updateAnimMovementSpeed
+    prop   Boolean hideDirectlyOnDeath
+    prop   Boolean isHidden
+    prop   Boolean skipConditionEffectsHandler
+    prop   Boolean hasHealth
+    prop   Boolean isEnemy
+    prop   Int32 currentHealth
+    prop   Vector3 center
+    prop   Vector3 combatTextPosition
+    prop   Boolean entityExist
+    prop   Vector3 WorldPosition
+    prop   Vector3 RenderPosition
+    nested ReskinOptions
+    nested ReskinInfo
+    nested PaintingOptions
+    nested PaintableSpriteRenderers
+    nested PaintableColorTints
+    nested PaintableLights
+    nested PaintableSpriteSheetSkins
+    nested SoundOptions
+    nested ParticlesOptions
+    nested ParticlesToSpawn
+    nested EntityMonoBehaviourPuffParams
+    nested ParticleSpawnOccasion
+    nested ObjectVariant
+    nested ObjectDirection
+    nested SpriteObjectOrientation
+
+=== EntityMonoBehaviour+ReskinOptions   [Pug.Other]
+    field  public SpriteSheetSkin sourceSpriteSheetSkin
+    field  public List<ReskinInfo> reskins
+
+=== EntityMonoBehaviour+ReskinInfo   [Pug.Other]
+    field  public ObjectID objectIDToUseReskinOn
+    field  public Boolean worksForAnyVariation
+    field  public Int32 variation
+    field  public Season isOnlyAppliedDuringSeason
+    field  public List<Texture2D> textures
+    field  public List<Texture2D> emissiveTextures
+
+=== EntityMonoBehaviour+PaintingOptions   [Pug.Other]
+    field  public List<PaintableSpriteRenderers> spriteRenderers
+    field  public List<PaintableColorTints> spriteColorTints
+    field  public List<PaintableSpriteSheetSkins> spriteSheetSkins
+
+=== EntityMonoBehaviour+PaintableSpriteRenderers   [Pug.Other]
+    field  public SpriteRenderer sourceSpriteRenderer
+    field  public List<Sprite> colorSprites
+    field  public Sprite defaultSprite
+
+=== EntityMonoBehaviour+PaintableColorTints   [Pug.Other]
+    field  public SpriteRenderer sourceSpriteRenderer
+    field  public List<Color> colors
+    field  public Color defaultColor
+
+=== EntityMonoBehaviour+PaintableLights   [Pug.Other]
+    field  public Light sourceLight
+    field  public List<Color> colors
+    field  public Color defaultColor
+
+=== EntityMonoBehaviour+PaintableSpriteSheetSkins   [Pug.Other]
+    field  public SpriteSheetSkin sourceSpriteSheetSkin
+    field  public List<Texture2D> colorTextures
+
+=== EntityMonoBehaviour+SoundOptions   [Pug.Other]
+    field  public SFXTableIDField takeDamageSfx
+    field  public SFXTableIDField deathSfx
+
+=== EntityMonoBehaviour+ParticlesOptions   [Pug.Other]
+    field  public List<ParticlesToSpawn> particlesToSpawn
+    field  public List<Transform> particleSpawnLocations
+    field  public List<ParticleSystem> particlesToDisableOnLowQuality
+
+=== EntityMonoBehaviour+ParticlesToSpawn   [Pug.Other]
+    field  public ParticleSpawnOccasion spawnOccasion
+    field  public Boolean spawnManually
+    field  public ObjectID objectID
+    field  public List<EntityMonoBehaviourPuffParams> particles
+
+=== EntityMonoBehaviour+EntityMonoBehaviourPuffParams   [Pug.Other]
+    field  public PuffID puff
+    field  public Transform positionTransform
+    field  public Int32 particleCount
+
+=== EntityMonoBehaviour+ParticleSpawnOccasion   [Pug.Other]
+    0 = OnDeath
+    1 = OnSpawn
+
+=== EntityMonoBehaviour+ObjectVariant   [Pug.Other]
+    field  public Boolean worksForAnyObjectID
+    field  public ObjectID objectID
+    field  public Boolean dependsOnVariation
+    field  public Int32 variation
+    field  public Boolean dependsOnDirection
+    field  public ObjectDirection direction
+    field  public List<GameObject> objectsToEnable
+
+=== EntityMonoBehaviour+ObjectDirection   [Pug.Other]
+    0 = UP
+    1 = RIGHT
+    2 = DOWN
+    3 = LEFT
+
+=== EntityMonoBehaviour+SpriteObjectOrientation   [Pug.Other]
+    0 = Undefined
+    1 = Down
+    2 = Up
+    3 = Side
+    4 = DownRight
+    5 = UpRight
+

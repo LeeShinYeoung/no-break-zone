@@ -33,6 +33,10 @@ public static class NoBreakZoneRangeOverlay
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
+    // DIAGNOSTIC, remove with the two log lines below.
+    private static ObjectID _lastLoggedHeld = (ObjectID)(-1);
+    private static bool _loggedFirstDraw;
+
     // One tile is 16 texture pixels — SpriteObject.PixelsPerUnit is a hardcoded 16f and the marker
     // texture is one tile wide, so the sprite has to be built at the same scale or every edge comes
     // out the wrong length. genassets.py draws the texture at MARKER_TILE_PIXELS for the same reason.
@@ -130,6 +134,18 @@ public static class NoBreakZoneRangeOverlay
             PlaceEdge(used++, pylon.x + half, pylon.y, length, horizontal: false);
         }
 
+        // DIAGNOSTIC, remove once the lens is understood. If this line appears and the player still
+        // saw nothing, the markers exist and the problem is how they are drawn —
+        // CopyAppearanceFromPlacementIcon is the first suspect. If it never appears, the lens was
+        // never detected in hand and the check above is what to fix.
+        if (!_loggedFirstDraw && used > 0)
+        {
+            _loggedFirstDraw = true;
+            Debug.Log($"[NoBreakZone] lens drew {used} marker(s), radius={radius}, "
+                      + $"sprite={_markerSprite.name} {_markerSprite.rect.width}x"
+                      + $"{_markerSprite.rect.height}px ppu={_markerSprite.pixelsPerUnit}");
+        }
+
         // Everything the pool still holds beyond what this frame needed.
         for (int i = used; i < _markers.Count; i++)
         {
@@ -205,7 +221,23 @@ public static class NoBreakZoneRangeOverlay
             }
         }
 
-        return player.visuallyEquippedContainedObject.objectData.objectID == _lensObjectID;
+        ObjectID held = player.visuallyEquippedContainedObject.objectData.objectID;
+
+        // DIAGNOSTIC, remove once the lens is understood. Holding the lens changed nothing in game,
+        // and there are only two ways that happens: this test never became true, or it did and the
+        // markers were drawn invisibly. One line each settles it.
+        //
+        // A KeyItem may never be "visually equipped" at all — the field is paired with an
+        // EquipmentSlotType — so the equipped slot's own contents are printed beside it. If they
+        // disagree, the fix is to read the slot instead.
+        if (held != _lastLoggedHeld)
+        {
+            _lastLoggedHeld = held;
+            Debug.Log($"[NoBreakZone] lens check: visuallyEquipped={held} lens={_lensObjectID} "
+                      + $"equippedSlot={player.equippedSlotIndex}");
+        }
+
+        return held == _lensObjectID;
     }
 
     // 기획서 §7 shows the range of pylons that are ON. The registry already filters to those, so a

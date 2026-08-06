@@ -183,13 +183,12 @@ def data_block_address(rel_path: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------------------------
-# Deriving the glow layer from the two draft sprites.
+# Guarding 기획서 §7's promise about the lit state.
 #
-# 기획서 §7 wants one sprite with a glow layer switched on and off, "이렇게 하면 두 상태의
-# 실루엣이 완전히 동일해 전환 시 튀지 않는다". The drafts already satisfy that — pylon_off and
-# pylon_on have byte-identical alpha and differ in 36 of 1024 pixels, all inside the gem — so the
-# emissive layer is just their difference, and deriving it keeps the silhouettes identical by
-# construction rather than by the artist remembering.
+# §7 wants the two states to share a silhouette: "이렇게 하면 두 상태의 실루엣이 완전히 동일해
+# 전환 시 튀지 않는다." The drafts satisfy it — pylon_off and pylon_on come out of one shape
+# function and differ only in colour — and the check below refuses to generate anything that stops
+# satisfying it.
 # ---------------------------------------------------------------------------------------------
 
 def _read_png_rgba(path: pathlib.Path):
@@ -254,29 +253,39 @@ def _write_png_rgba(width: int, height: int, rows) -> bytes:
     )
 
 
-def derive_emissive(base_art: pathlib.Path, lit_art: pathlib.Path) -> bytes:
-    """Pixels the lit sprite changed, on a transparent field — the glow layer, nothing else."""
+def check_same_silhouette(base_art: pathlib.Path, lit_art: pathlib.Path) -> None:
+    """Fail unless a variation's art has the same outline as variation 0's, and differs somewhere.
+
+    기획서 §7 asks for one sprite whose lit state cannot shift the shape: "이렇게 하면 두 상태의
+    실루엣이 완전히 동일해 전환 시 튀지 않는다." Since a variation now carries its own texture
+    rather than an emissive overlay, nothing structural enforces that any more — so it is checked.
+    Alpha equal everywhere is exactly "same silhouette", and it is free to verify.
+
+    Both textures come out of the same shape function in Editor/Docs/art/sprites.py, which only ever
+    recolours opaque pixels for the lit state, so this passes by construction. It is here to catch
+    the day somebody draws one of them by hand.
+    """
     width, height, base = _read_png_rgba(base_art)
     lit_width, lit_height, lit = _read_png_rgba(lit_art)
     if (width, height) != (lit_width, lit_height):
         raise ValueError(f"{base_art.name} is {width}x{height} but {lit_art.name} is "
                          f"{lit_width}x{lit_height}; they must line up pixel for pixel")
 
-    rows = []
     changed = 0
     for y in range(height):
-        row = bytearray(width * 4)
         for x in range(width):
             span = slice(x * 4, x * 4 + 4)
             if base[y][span] != lit[y][span]:
-                row[span] = lit[y][span]
                 changed += 1
-        rows.append(bytes(row))
+            if base[y][x * 4 + 3] != lit[y][x * 4 + 3]:
+                raise ValueError(
+                    f"{lit_art.name} differs from {base_art.name} in alpha at ({x},{y}) — the two "
+                    "states would have different silhouettes and the object would jump when it "
+                    "switched (기획서 §7)")
 
     if changed == 0:
-        raise ValueError(f"{lit_art.name} is identical to {base_art.name} — no glow to extract")
-
-    return _write_png_rgba(width, height, rows)
+        raise ValueError(f"{lit_art.name} is identical to {base_art.name} — switching the object on "
+                         "would look like nothing happened")
 
 
 # ---------------------------------------------------------------------------------------------
@@ -372,11 +381,9 @@ class ObjectSpec:
         # I2 localization terms for the crafting window header, as the SDK example uses them.
         self.ui_titles = list(ui_titles)
 
-        # Extra looks the object can switch between, as [(suffix, lit art)], becoming variation
-        # 1, 2, ... in SpriteAsset.m_staticVariants. Each keeps the base texture and adds an
-        # emissive layer derived from the difference against it, which is 기획서 §7's "스프라이트는
-        # 한 종류만 만들고 발광 레이어를 켜고 끄는 방식" — the silhouette cannot drift because both
-        # variations literally are the same texture.
+        # Extra looks the object can switch between, as [(suffix, art)], becoming variation 1, 2, …
+        # in SpriteAsset.m_staticVariants. Each is a whole texture of its own, the way every variant
+        # in the SDK example is; check_same_silhouette keeps them the same shape as variation 0.
         self.variants = list(variants)
         # Method on graphics_script's class that InteractableObject calls on E. None means the
         # object cannot be interacted with at all.
@@ -455,10 +462,10 @@ SPECS = [
         # all of it — see Scripts/Graphics/NoBreakZonePylonGraphics.cs.
         variation_is_dynamic=True,
         variation_to_toggle_to=1,
-        # 기획서 §7: one sprite, glow layer switched on and off. The lit draft differs from the
-        # base in 36 pixels — the gem — and has identical alpha, so the difference is exactly the
-        # glow and the two states cannot end up with different silhouettes.
-        variants=[("Glow", "Editor/Docs/art/pylon_on.png")],
+        # Variation 1 is the lit pylon: the gem burns and the light spreads into the body, which is
+        # what makes the switch readable across a base. Same silhouette as variation 0 — same shape
+        # function, only recoloured — and check_same_silhouette proves it every run (기획서 §7).
+        variants=[("On", "Editor/Docs/art/pylon_on.png")],
         graphics_script="Scripts/Graphics/NoBreakZonePylonGraphics.cs",
         interact_method="Toggle",
     ),
@@ -732,10 +739,19 @@ def sprite_asset(spec: ObjectSpec) -> str:
     low, high = data_block_address(spec.sprite_asset_path)
     texture_guid = asset_guid(spec.texture_path)
     variants = "".join(
-        # Same base texture as variation 0 — only the emissive layer differs (기획서 §7).
-        f"  - texture: {{fileID: {FID_TEXTURE2D}, guid: {texture_guid}, type: 3}}\n"
-        f"    emissiveTexture: {{fileID: {FID_TEXTURE2D}, "
+        # A VARIATION SWAPS THE WHOLE TEXTURE. It used to keep variation 0's texture and add an
+        # emissiveTexture holding just the lit pixels, on the reading that 기획서 §7's "스프라이트는
+        # 한 종류만 만들고 발광 레이어를 켜고 끄는 방식" meant the emissive slot. In game the pylon
+        # looked exactly the same switched on and off. Every variant in the SDK example swaps
+        # `texture` and leaves emissiveTexture at 0, and no reference anywhere drives a variation
+        # through the emissive slot — so this follows the shape that is known to work.
+        #
+        # §7's actual promise is that the two states share a silhouette, and that still holds by
+        # construction: both textures come out of the same shape function in sprites.py, so their
+        # alpha is identical to the byte (asserted below in build_outputs).
+        f"  - texture: {{fileID: {FID_TEXTURE2D}, "
         f"guid: {asset_guid(spec.variant_texture_path(suffix))}, type: 3}}\n"
+        "    emissiveTexture: {fileID: 0}\n"
         "    normalTexture: {fileID: 0}\n"
         "    pivot: {x: 0.5, y: 0.5}\n"
         "    positionalData: []\n"
@@ -1406,7 +1422,8 @@ def build_outputs():
         out[spec.texture_path + ".meta"] = texture_meta(spec.texture_path, spec.pixels_to_units)
         for suffix, lit_art in spec.variants:
             variant = spec.variant_texture_path(suffix)
-            out[variant] = derive_emissive(REPO / spec.art, REPO / lit_art)
+            check_same_silhouette(REPO / spec.art, REPO / lit_art)
+            out[variant] = (REPO / lit_art).read_bytes()
             out[variant + ".meta"] = texture_meta(variant, spec.pixels_to_units)
         out[spec.text_path] = text_data_block(spec)
         out[spec.text_path + ".meta"] = asset_meta(spec.text_path)

@@ -54,8 +54,8 @@ MonoBehaviour:
     positionalData: []
     inheritPivot: 1
   m_staticVariants:
-  - texture: {fileID: 2800000, guid: 600d4abc87d7a7eea58206559fef0896, type: 3}
-    emissiveTexture: {fileID: 2800000, guid: ef05345f255eae6379c1dbbf6484d4fb, type: 3}
+  - texture: {fileID: 2800000, guid: e8d993b48bd66cc05c2d66b6aebafe33, type: 3}
+    emissiveTexture: {fileID: 0}
     normalTexture: {fileID: 0}
     pivot: {x: 0.5, y: 0.5}
     positionalData: []

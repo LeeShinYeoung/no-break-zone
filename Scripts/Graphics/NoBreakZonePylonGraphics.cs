@@ -74,12 +74,24 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
     {
         // Named rather than numbered, for the reason ObjectID taught us: names resolve against the
         // real game assembly at build time. Chosen to match 기획서 §4's framing of the pylon as a
-        // 고대 유물 같은 장치. (anicentDevicePowerUp is the game's own spelling.)
-        int puff = switchedOn ? (int)PuffID.AncientBurst : (int)PuffID.SmallAncientSmoke;
-        int sfx = switchedOn ? (int)SfxID.anicentDevicePowerUp : (int)SfxID.proximity_sensor_off;
+        // 고대 유물 같은 장치.
+        //
+        // The first pass used AncientBurst at 10 particles and it read as almost nothing in game.
+        // Switching a pylon on is the single most consequential thing the player does with this mod
+        // — it decides whether a whole base can be broken — so it gets a ring that reads at a
+        // glance, a burst inside it, and the portal sound the game uses when something ancient
+        // moves you somewhere.
+        if (switchedOn)
+        {
+            API.Effects.PlayPuff((int)PuffID.AncientEnergyRing, transform.position, 1);
+            API.Effects.PlayPuff((int)PuffID.AncientEnergyBurst, transform.position, 24);
+            API.Audio.PlaySfx((int)SfxID.AF_portal_teleport, transform.position);
+            return;
+        }
 
-        // Fewer particles on the way down — 기획서 §7 wants the off state to fade rather than pop.
-        API.Effects.PlayPuff(puff, transform.position, switchedOn ? 10 : 5);
-        API.Audio.PlaySfx(sfx, transform.position);
+        // 기획서 §7 wants the off state to fade rather than pop, so this stays deliberately smaller
+        // than its counterpart rather than mirroring it.
+        API.Effects.PlayPuff((int)PuffID.SmallAncientEnergy, transform.position, 8);
+        API.Audio.PlaySfx((int)SfxID.AF_portal_collapse, transform.position);
     }
 }

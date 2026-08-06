@@ -50,6 +50,16 @@ namespace NoBreakZone.EditorTools
 			"CraftingBuilding",
 			"ObjectType",
 			"Rarity",
+			// what the player is actually holding — the range overlay reads this to find the lens
+			"PlayerController",
+			"ContainedObjectsBuffer",
+			// toggle feedback: which puffs and sounds exist to pick from
+			"PuffID",
+			"SfxID",
+			// how a variation picks its look, and whether an emissive layer is drawn at all
+			"SpriteObject",
+			"SpriteAsset",
+			"EntityMonoBehaviour",
 		};
 
 		public static void Dump()
