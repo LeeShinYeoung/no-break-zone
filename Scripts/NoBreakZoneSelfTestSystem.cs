@@ -43,6 +43,10 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private const int FramesBetweenSteps = 12;
 
+    /// One past the last case. Finish runs here, so adding a case means adding to the switch and
+    /// moving this.
+    private const int FinalStep = 20;
+
     // Generous on purpose. On a dedicated server the map only streams in once somebody connects, so
     // this has to outlast a human launching the game, picking a character and joining — not just the
     // few seconds it takes to walk to a pylon in a world that is already open.
@@ -95,6 +99,17 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private int2 _insideWall;
     private int2 _outsideWall;
     private bool _haveWalls;
+    private int2 _insideOre;
+    private int2 _outsideOre;
+    private bool _haveOre;
+    private int2 _pylon;
+    private int _pickaxeSwings;
+    private Entity _insidePlaceable = Entity.Null;
+    private Entity _outsidePlaceable = Entity.Null;
+
+    /// Enough capped hits to fell a wall. The cap is per hit, so this is the only way to tell the
+    /// pickaxe path apart from the explosion one.
+    private const int PickaxeSwings = 20;
     private int _tileset;
 
     protected override void OnCreate()
@@ -126,12 +141,12 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             StartRun();
         }
 
-        if (_step == 10)
+        if (_step == FinalStep)
         {
             Finish();
         }
 
-        if (_step > 10)
+        if (_step > FinalStep)
         {
             // Finished. Runs again on its own after a pause, so whoever is reading the log never
             // has to trigger anything: keep the game open and a fresh verdict appears every minute.
@@ -165,7 +180,17 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             case 7: CheckDigResult(); break;
             case 8: RequestClearThenAdd(); break;
             case 9: CheckClearThenAddResult(); break;
-            default: Finish(); break;
+            case 10: BlowUpOre(); break;
+            case 11: CheckOreResult(); break;
+            case 12: MineTheWalls(); break;
+            case 13: CheckWallPickaxeResult(); break;
+            case 14: SwitchPylonOff(); break;
+            case 15: BlowUpTheReleasedWall(); break;
+            case 16: CheckReleaseResult(); break;
+            case 17: SpawnPlaceables(); break;
+            case 18: DamagePlaceables(); break;
+            case 19: CheckPlaceableResult(); break;
+            default: break;
         }
 
         base.OnUpdate();
@@ -197,7 +222,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             else if (_framesWaitingForPylon > SetupTimeoutFrames)
             {
                 Debug.Log("[NBZTEST] SETUP FAIL no switched-on pylon, and building one did not take");
-                _step = 11;
+                _step = FinalStep + 1;
                 _framesUntilRerun = FramesBetweenRuns;
             }
 
@@ -230,13 +255,14 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             {
                 Debug.Log("[NBZTEST] SETUP FAIL never found bare ground both inside and outside "
                           + $"the square around ({pylon.x},{pylon.y})");
-                _step = 11;
+                _step = FinalStep + 1;
                 _framesUntilRerun = FramesBetweenRuns;
             }
 
             return;
         }
 
+        _pylon = pylon;
         _tileset = tiles.GetTop(_inside).tileset;
 
         // A WALL IS THE ONE TILE THIS TEST CAN TRUST. A floor laid by the test only counts as
@@ -497,12 +523,304 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
+    /// 기획서 §6 ranks resource duplication above every other property of this mod, and until now
+    /// nothing checked it inside the game. Ore inside a protected square MUST still break: protect
+    /// it and a drill mines it forever without ever depleting it.
+    private void BlowUpOre()
+    {
+        var tiles = CreateTileAccessor();
+        NativeArray<int2> pylons = _registry.Positions;
+        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
+
+        _haveOre = TryFindTile(tiles, _pylon, 1, radius - 1, 0, TileType.ore, out _insideOre)
+                   && TryFindUncoveredTile(tiles, pylons, _pylon, radius, TileType.ore, out _outsideOre);
+
+        if (!_haveOre)
+        {
+            Skip("ore-inside-still-breaks", "no ore both inside and outside the square here");
+            Skip("ore-outside-still-breaks", "same");
+            Advance();
+            return;
+        }
+
+        Debug.Log($"[NBZTEST] ore: inside=({_insideOre.x},{_insideOre.y}) "
+                  + $"outside=({_outsideOre.x},{_outsideOre.y})");
+
+        DamageTile(_insideOre, ExplosionDamage, explosionShaped: true);
+        DamageTile(_outsideOre, ExplosionDamage, explosionShaped: true);
+        Advance();
+    }
+
+    private void CheckOreResult()
+    {
+        if (!_haveOre)
+        {
+            Advance();
+            return;
+        }
+
+        var tiles = CreateTileAccessor();
+        bool outsideGone = tiles.GetTopType(_outsideOre) != TileType.ore;
+
+        Verdict("ore-outside-still-breaks", outsideGone,
+            "ore outside every square breaks — the control for the case below");
+
+        if (outsideGone)
+        {
+            // THE ONE THAT MATTERS MOST. A protected ore tile is an infinite resource.
+            Verdict("ore-inside-still-breaks",
+                tiles.GetTopType(_insideOre) != TileType.ore,
+                "ore INSIDE the square still breaks — protecting it would duplicate resources");
+        }
+        else
+        {
+            Skip("ore-inside-still-breaks", "the control did not break, so this proves nothing");
+        }
+
+        Advance();
+    }
+
+    /// The open question this mod has carried since walls joined the protected set: a wall inside a
+    /// square survives an explosion, but does it survive a pickaxe? Capped damage needs several
+    /// swings, so this delivers them one per visit rather than all at once — the per-hit cap is the
+    /// whole point of the difference.
+    private void MineTheWalls()
+    {
+        if (!_haveWalls)
+        {
+            Skip("wall-inside-pickaxe", "no wall found both inside and outside the square");
+            Skip("wall-outside-pickaxe", "same");
+            Advance();
+            return;
+        }
+
+        DamageTile(_insideWall, PickaxeDamage, explosionShaped: false);
+        DamageTile(_outsideWall, PickaxeDamage, explosionShaped: false);
+
+        if (++_pickaxeSwings < PickaxeSwings)
+        {
+            _wait = 4;
+            return;
+        }
+
+        Advance();
+    }
+
+    private void CheckWallPickaxeResult()
+    {
+        if (!_haveWalls)
+        {
+            Advance();
+            return;
+        }
+
+        var tiles = CreateTileAccessor();
+        bool outsideGone = tiles.GetTopType(_outsideWall) != TileType.wall;
+
+        Verdict("wall-outside-pickaxe", outsideGone,
+            $"a wall outside every square falls to {PickaxeSwings} capped hits");
+
+        if (outsideGone)
+        {
+            Verdict("wall-inside-pickaxe",
+                tiles.GetTopType(_insideWall) == TileType.wall,
+                "and a wall inside the square does not");
+        }
+        else
+        {
+            Skip("wall-inside-pickaxe",
+                $"{PickaxeSwings} capped hits did not fell the control wall either");
+        }
+
+        Advance();
+    }
+
+    /// 기획서 §6's other half: "기지를 수정하려면 파일런을 끄면 된다". Protection that cannot be
+    /// switched off is a trap, so the release path is worth as much as the protection itself.
+    private void SwitchPylonOff()
+    {
+        if (!_haveWalls || !TryGetPylonEntity(out Entity pylon))
+        {
+            Skip("release-on-switch-off", "no pylon entity to switch off");
+            _step = FinalStep;
+            return;
+        }
+
+        ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
+        data.variation = NoBreakZonePylonGraphics.VariationOff;
+        EntityManager.SetComponentData(pylon, data);
+
+        Debug.Log("[NBZTEST] switched the pylon off");
+        _wait = 60;
+        Advance();
+    }
+
+    private void BlowUpTheReleasedWall()
+    {
+        // A wall inside the square that survived an explosion a moment ago. With the pylon off it
+        // has to be destructible again.
+        DamageTile(_insideWall, ExplosionDamage, explosionShaped: true);
+        Advance();
+    }
+
+    private void CheckReleaseResult()
+    {
+        Verdict("release-on-switch-off",
+            CreateTileAccessor().GetTopType(_insideWall) != TileType.wall,
+            "switching the pylon off makes a protected wall breakable again");
+
+        // Leave the world as it was found, so the next run starts from a switched-on pylon.
+        if (TryGetPylonEntity(out Entity pylon))
+        {
+            ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
+            data.variation = NoBreakZonePylonGraphics.VariationOn;
+            EntityManager.SetComponentData(pylon, data);
+            Debug.Log("[NBZTEST] switched the pylon back on");
+        }
+
+        Advance();
+    }
+
+    private bool TryGetPylonEntity(out Entity pylon)
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<NoBreakZonePylonCD>());
+        using NativeArray<Entity> found = query.ToEntityArray(Allocator.Temp);
+
+        if (found.Length == 0)
+        {
+            pylon = Entity.Null;
+            return false;
+        }
+
+        pylon = found[0];
+        return true;
+    }
+
+    /// The other half of the mod, and the half every case above ignores. A chest or a workbench is
+    /// not a tile: it is protected through IndestructibleCD and DontDestroyOnZeroHealthCD on a
+    /// persistent entity, not through a damage entity conjured up when something hits a tilemap
+    /// square. Humans confirmed this by hand in earlier sessions; nothing checked it automatically.
+    private void SpawnPlaceables()
+    {
+        ObjectID benchId = API.Authoring.GetObjectID("WoodenWorkBench");
+        if (benchId == ObjectID.None)
+        {
+            Skip("placeable-inside-survives", "the database does not know WoodenWorkBench");
+            Skip("placeable-outside-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        _insidePlaceable = EntityUtility.CreateEntity(
+            World, new Vector3(_inside.x, 0f, _inside.y), benchId, 1, database);
+        _outsidePlaceable = EntityUtility.CreateEntity(
+            World, new Vector3(_outside.x, 0f, _outside.y), benchId, 1, database);
+
+        if (_insidePlaceable == Entity.Null || _outsidePlaceable == Entity.Null)
+        {
+            Skip("placeable-inside-survives", "could not spawn a workbench");
+            Skip("placeable-outside-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        Debug.Log($"[NBZTEST] placed a workbench inside ({_inside.x},{_inside.y}) and outside "
+                  + $"({_outside.x},{_outside.y})");
+
+        // Long enough for the protection system to see them and for the game to reject either
+        // placement if it wants to.
+        _wait = 60;
+        Advance();
+    }
+
+    /// Damage written straight into HealthChangeBuffer, which is what a mob, a boss or an
+    /// environmental hazard ends up doing (research.md 8장). It bypasses IndestructibleCD — that one
+    /// only guards the player's own predicted mining — so this exercises the OTHER component the
+    /// mod relies on, the destroy gate.
+    private void DamagePlaceables()
+    {
+        if (!EntityManager.Exists(_insidePlaceable) || !EntityManager.Exists(_outsidePlaceable))
+        {
+            Skip("placeable-inside-survives", "a workbench did not survive being placed at all");
+            Skip("placeable-outside-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        DynamicBuffer<HealthChangeBuffer> buffer = HealthChanges();
+        buffer.Add(new HealthChangeBuffer
+        {
+            healthChange = new HealthChange { entity = _insidePlaceable, amount = -ExplosionDamage },
+        });
+        buffer.Add(new HealthChangeBuffer
+        {
+            healthChange = new HealthChange { entity = _outsidePlaceable, amount = -ExplosionDamage },
+        });
+
+        _wait = 60;
+        Advance();
+    }
+
+    private void CheckPlaceableResult()
+    {
+        bool outsideGone = IsDestroyed(_outsidePlaceable);
+
+        Verdict("placeable-outside-breaks", outsideGone,
+            "a workbench outside every square is destroyed — the control");
+
+        if (outsideGone)
+        {
+            Verdict("placeable-inside-survives",
+                !IsDestroyed(_insidePlaceable),
+                "and one inside the square survives the same damage");
+        }
+        else
+        {
+            Skip("placeable-inside-survives", "the control survived too, so this proves nothing");
+        }
+
+        // Clean up whatever is left so runs do not litter the world with workbenches.
+        foreach (Entity e in new[] { _insidePlaceable, _outsidePlaceable })
+        {
+            if (EntityManager.Exists(e))
+            {
+                EntityManager.DestroyEntity(e);
+            }
+        }
+
+        Advance();
+    }
+
+    private bool IsDestroyed(Entity entity)
+    {
+        if (!EntityManager.Exists(entity))
+        {
+            return true;
+        }
+
+        return EntityManager.HasComponent<EntityDestroyedCD>(entity)
+               && EntityManager.IsComponentEnabled<EntityDestroyedCD>(entity);
+    }
+
+    /// The shared buffer every damage source in the game converges on. It lives on a system entity,
+    /// hence IncludeSystems.
+    private DynamicBuffer<HealthChangeBuffer> HealthChanges()
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(new EntityQueryDesc
+        {
+            All = new[] { ComponentType.ReadOnly<HealthChangeBuffer>() },
+            Options = EntityQueryOptions.IncludeSystems,
+        });
+
+        return EntityManager.GetBuffer<HealthChangeBuffer>(query.GetSingletonEntity());
+    }
+
     private void Finish()
     {
         Debug.Log($"[NBZTEST] SUMMARY run={_run} pass={_pass} fail={_fail} skip={_skip}");
 
         // Park past the end and count down to the next run.
-        _step = 11;
+        _step = FinalStep + 1;
         _framesUntilRerun = FramesBetweenRuns;
     }
 
@@ -520,6 +838,10 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _announcedNoGround = false;
         _announcedNoProbes = false;
         _floorIsDamageable = false;
+        _haveOre = false;
+        _pickaxeSwings = 0;
+        _insidePlaceable = Entity.Null;
+        _outsidePlaceable = Entity.Null;
         _lastSpawned = Entity.Null;
         _spawnAttempt = 0;
 
