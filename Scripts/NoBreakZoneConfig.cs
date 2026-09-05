@@ -21,6 +21,7 @@ public static class NoBreakZoneConfig
     private static IConfigEntry<bool> _blockMobDamage;
     private static IConfigEntry<bool> _showRangeWithLens;
     private static IConfigEntry<int> _remoteReachTiles;
+    private static IConfigEntry<bool> _selfTest;
 
     /// 기획서 §6. Odd by nature — the pylon owns the centre tile.
     public static int ProtectionDiameter =>
@@ -40,6 +41,15 @@ public static class NoBreakZoneConfig
     /// design.md §4: 30 tiles, measured as a radius from the player.
     public static int RemoteReachTiles =>
         Read(_remoteReachTiles, NoBreakZoneRange.DefaultRemoteReach);
+
+    /// Runs the built-in tile protection self test and writes [NBZTEST] lines to Player.log.
+    ///
+    /// OFF BY DEFAULT AND MEANT TO STAY THAT WAY. It deliberately damages tiles around a pylon,
+    /// including outside the square where they are supposed to break, so it belongs in a world
+    /// nobody minds losing. What it buys is that the one thing no offline check can reach — whether
+    /// the mod wins the frame-order race against the game's real damage pipeline — becomes a line
+    /// in a log instead of a play session.
+    public static bool SelfTest => Read(_selfTest, false);
 
     public static void Register()
     {
@@ -70,6 +80,12 @@ public static class NoBreakZoneConfig
             ModName, Section,
             "How far, in tiles, the Pylon Remote reaches.",
             "remoteReachTiles", NoBreakZoneRange.DefaultRemoteReach);
+
+        _selfTest = API.Config.Register(
+            ModName, Section,
+            "Run the built-in tile protection self test on world load and write [NBZTEST] lines to "
+            + "the log. It damages tiles around a pylon on purpose — use a throwaway world.",
+            "selfTest", false);
 
         Debug.Log($"[NoBreakZone] config: diameter={ProtectionDiameter} "
                   + $"blockMobDamage={BlockMobDamage} showRange={ShowRangeWithLens} "
