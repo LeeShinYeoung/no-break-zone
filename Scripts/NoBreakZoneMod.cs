@@ -39,5 +39,34 @@ public class NoBreakZoneMod : IMod
     {
         NoBreakZoneRangeOverlay.Update();
         NoBreakZoneRemoteFeedback.Update();
+        KeepDedicatedServerAwake();
+    }
+
+    // ONLY WHEN selfTest IS ON, WHICH IS NEVER FOR A PLAYER.
+    //
+    // A dedicated server with nobody connected pauses itself: ECSManager.Pause sets the server
+    // world's SimulationSystemGroup.Enabled to false and Time.timeScale to 0. That is correct for a
+    // real server and fatal for an unattended check, because the mod's systems are in that group —
+    // the self test would sit at step 0 forever.
+    //
+    // This hook is the one piece of the mod that keeps running while the group is disabled: IMod.Update
+    // is driven by PugMod's own component, outside the ECS player loop. Asking the game to resume
+    // every frame is enough to keep the simulation stepping, and it costs a null check in normal play.
+    private static void KeepDedicatedServerAwake()
+    {
+        if (!NoBreakZoneConfig.SelfTest)
+        {
+            return;
+        }
+
+        try
+        {
+            Manager.ecs?.Resume();
+        }
+        catch (System.Exception e)
+        {
+            // Never take the mod down over a diagnostic convenience.
+            Debug.LogWarning($"[NBZTEST] could not resume the simulation: {e.Message}");
+        }
     }
 }

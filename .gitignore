@@ -16,3 +16,10 @@ nbz_build.log
 .vscode/
 *.swp
 .gstack/
+
+# 오프라인 로직 러너(Editor/LogicTests~)의 산출물.
+# NUGET_PACKAGES를 이 폴더로 고정해 두었으므로 복원물도 여기 떨어진다 — 저장소를 지우면
+# 같이 사라지고, 사용자 홈이나 전역 캐시에는 아무것도 남지 않는다 (logictest.ps1 참고).
+Editor/LogicTests~/bin/
+Editor/LogicTests~/obj/
+Editor/LogicTests~/.nuget/

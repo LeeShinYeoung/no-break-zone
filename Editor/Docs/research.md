@@ -955,6 +955,105 @@ DB 실측도 같다 — `objectInfos=2880` vs `unique=2283`, 차이가 변형 �
 기타: `API.Effects.PlayPuff(puffId, position, particleCount)` — **크기는 puff 종류에 내장**돼 있고
 인자로 조절되는 것은 입자 수뿐이다. `TileType`은 `PugTilemap` 네임스페이스(`ore = 129`).
 
+## 21. 타일은 맞을 때만 존재한다 — 프레임 순서 경합 (2026-09-05)
+
+**증상.** 켜진 파일런 구역 안에서 폭발성 무기를 터뜨리면 깔아둔 바닥재가 사라지고 **아이템으로
+떨어졌다.** 같은 바닥을 곡괭이로 치면 멀쩡했다. 둘은 같은 보호를 지나므로 원인은 규칙이 아니라
+**시각**이었다.
+
+### 21-1. 타일 피해 엔티티는 한 프레임 뒤에 태어나 그 프레임에 죽는다
+
+타일은 평소 엔티티가 없다. 맞는 순간 `TileDamageSystem`이 그 칸에 하나 만드는데,
+`BeginSimulationEntityCommandBufferSystem`을 거치므로 **다음 프레임 맨 앞**에 실체화되고
+`InitialHealthChange`가 이미 켜진 상태다. 그리고 그 프레임 안에서 죽는다.
+
+```
+BeginSimulationEntityCommandBufferSystem   ← 타일 피해 엔티티가 여기서 생긴다
+GhostSimulationSystemGroup
+PredictedSimulationSystemGroup (OrderFirst)
+    InitialHealthChangeSystem → UpdateHealthFromBufferSystem → SetEntitiesDestroyedSystem
+...SimulationSystemGroup 일반 구간             ← 우리 두 시스템이 있던 자리. 이미 늦었다
+```
+
+**곡괭이가 되던 이유도 같은 사실에서 나온다.** 곡괭이 피해는 `DamageReductionCD.maxDamagePerHit`에
+잘려 한 방에 못 죽인다. 살아남은 피해 엔티티는 체력이 다 찰 때까지 남으므로
+(`TileDamageSystem.ApplyDamageToExistingDamageEntitiesJob` 꼬리에서 `health >= maxHealth`일 때만
+삭제) 다음 프레임에 우리가 표식을 붙였다. 폭발은 `bypassMaxDamagePerHit = true`로 넣어 상한을
+무시하고 태어난 프레임에 끝낸다.
+
+| 근거 | 위치 |
+| --- | --- |
+| 폭발이 상한 무시로 타일 피해 기록 | `ExplosionDamageSystem` 타일 루프 |
+| 엔티티 생성 + `InitialHealthChange` 즉시 세팅 | `TileDamageSystem.CreateNewTileDamageEntitiesJob` |
+| 그 플래그가 상한을 무력화 | `UpdateHealthFromBufferSystem` (`!bypassMaxDamagePerHit` 조건) |
+| 우리가 기대는 유일한 관문 | `SetEntitiesDestroyedSystem` (`DontDestroyOnZeroHealthCD.disabled` 검사) |
+| 예측 그룹이 `OrderFirst` | `Unity.NetCode/GhostPredictionSystemGroup.cs` |
+
+### 21-2. `BeforePredictedSimulationSystemGroup`에 넣으면 안 된다 — 동전던지기다
+
+게임의 `ImmunityZoneSystem`이 사는 그룹이라 가장 자연스러워 보이는 자리인데, **위험하다.**
+
+- `BeginSimulationEntityCommandBufferSystem` — `[UpdateInGroup(SimulationSystemGroup, OrderFirst)]`
+  **그것뿐이다.** 다른 순서 제약이 하나도 없다.
+- `GhostSimulationSystemGroup` — `OrderFirst` + `UpdateBefore(FixedStep)` + `UpdateBefore(Predicted)`.
+  ECB와의 연결이 **없다.**
+- `BeforePredictedSimulationSystemGroup` — `OrderFirst` + `UpdateAfter(Ghost)` + `UpdateBefore(Predicted)`.
+
+즉 ECB와 그 그룹 사이에는 **제약 경로가 없다.** 유니티의 `ComponentSystemSorter`는 그런 쌍을
+시스템 타입 해시로 타이브레이크한다 — 결정적이지만 임의적이고, 모드가 걸 도박이 아니다. 절반의
+확률로 엔티티가 아직 없는 프레임에 들어가 **수정이 아무 일도 안 하게 된다.**
+
+**그래서 제약을 직접 적는다.** `[UpdateInGroup(SimulationSystemGroup, OrderFirst = true)]` +
+`[UpdateAfter(BeginSimulationEntityCommandBufferSystem)]` +
+`[UpdateAfter(GhostSimulationSystemGroup)]` + `[UpdateBefore(PredictedSimulationSystemGroup)]`.
+`OrderFirst`가 같은 정렬 버킷에 넣어 주고(버킷을 넘는 제약은 버려진다) 나머지는 직접 간선이라
+그래프의 다른 무엇도 뒤집지 못한다.
+
+`Editor/verify.ps1`이 이 순서를 유니티 자체 정렬기로 확인한다. **수정 전 속성으로 되돌리면 그
+시스템이 예측 그룹(3)보다 뒤인 4번으로 정렬되는 것이 실제로 관찰된다.**
+
+### 21-3. 체력을 안 거치는 타일 편집이 두 갈래 더 있다
+
+`TileUpdateBuffer`(`{Command command; int2 position; TileCD tile;}`)에 직접 쓰는 경로들이다.
+엔티티도 체력도 파괴 관문도 없어서 피해 파이프라인의 어떤 보호도 닿지 않는다.
+
+1. **폭발의 지면 파헤침** — 반경 안에서 `GetTop`이 `ground`인 칸마다 `Add dugUpGround`.
+   단, 반경 안에 `IndestructibleCD`가 켜진 엔티티가 하나라도 있으면 이 블록 전체를 건너뛴다
+   (`CollidesWith = 1024` = `DefaultLowTriggerNonBlocking`). 보호된 기지에서는 우리가 붙인
+   `IndestructibleCD` 때문에 자주 안 터진다 — 즉 **미관 문제에 가깝다.**
+2. **삽의 바닥재 걷기** — `ShovelSlot` → `PlayerController.DigUpTile` → `EntityUtility.RemoveTile`.
+
+> ⚠️ **삽은 이 버퍼에서 막으면 안 된다 — 아이템이 복제된다.**
+> `DigUpTile`은 타일 제거를 `TileUpdateBuffer`에, 아이템 드롭을 **별도 `EntityCommandBuffer`**에
+> 넣는다. 우리가 지울 수 있는 건 앞의 것뿐이라, 막으면 **바닥은 남고 아이템은 떨어진다.**
+> 무한 반복 가능 = 기획서 §6이 절대 금지한 자원 복제다. 삽을 막으려면 결정이 내려지는 곳에서
+> 막아야 한다 (21-5).
+
+### 21-4. `Clear` + `Add` 짝을 깨면 칸이 비어버린다
+
+`EnsureSameGroundTileBeneathEntitySystem`은 설치물 밑 지면을 맞출 때 같은 칸에 `Clear` 다음
+`Add`를 **짝으로** 넣는다. 게임의 `UpdateSubMapCommon.FilterUpdates`는 버퍼를 **거꾸로** 훑기
+때문에(`for (int i = length - 1; i >= 0; i--)`) 그 짝은 그대로 살아남는다 — `Add`가 먼저 처리되고
+`Clear`는 그 뒤에 집합에 들어간다.
+
+따라서 `Clear`를 통과시키면서 뒤따르는 `Add`만 지우면 **그 칸이 빈다.** 우리 필터는 같은 위치에
+앞선 `Clear`가 있으면 그 `Add`를 건드리지 않는다.
+
+(참고: `IsIgnoreClear()`는 `roofHole` 하나뿐이다.)
+
+### 21-5. 게임에는 우리가 원하던 장치가 이미 있다 — 하지만 세이브에 남는다
+
+`TileDamageSystem`은 피해 엔티티를 만들기 전에 `tileLookup.HasType(position, TileType.immune)`을
+본다. **`immune` 타일이 깔린 칸에는 피해 엔티티가 아예 생기지 않는다** — 곡괭이·폭발·몹·드릴
+전부, 양쪽 월드에서, 근원에서. 그리고 `ImmunityZoneSystem`(`BeforePredictedSimulationSystemGroup`)이
+`ImmunityZoneCD{radius, offset, useRectangularBounds, rectangularWidth/Height, removeImmunityZone}`를
+보고 정확히 그 타일을 깔아 준다. `useRectangularBounds`는 **정사각형**이라 기획서 §6의 모양과 같다.
+`HoeSlot`·`ShovelSlot`도 `immune`을 보고 스스로 물러난다.
+
+**그런데 `immune`은 타일맵에 기록되므로 월드 세이브에 들어간다.** 파일런을 켠 채 모드를 지우면
+그 땅은 영구히 안 부서진다. CLAUDE.md §6의 "세이브 데이터 구조에 영향"에 해당하므로
+**결정 전에는 쓰지 않는다.** 삽 차단과 호미 차단을 한 번에 해결하는 유일한 길이라 열어 둔다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
@@ -965,5 +1064,7 @@ DB 실측도 같다 — `objectInfos=2880` vs `unique=2283`, 차이가 변형 �
 - [~] 스프라이트 오프셋 규칙 — 업라이트 스프라이트의 `localPosition` y·z를 텍스처 크기에서
   어떻게 잡는지. SDK 작업대 값 `(0, 0.0625, -0.3125)`를 그대로 쓰는데, **아트를 그 예제와 같은
   16×18로 맞추면서 같은 조건이 됐다**(19장·11장). 그래도 어긋나 보이면 여기다
+- [ ] **`ImmunityZoneCD`를 쓸 것인가** (21-5) — 삽·호미·폭발을 근원에서 한 번에 막는 게임 자체
+  장치지만 `immune` 타일이 세이브에 남는다. 모드를 지우면 그 땅이 영구히 안 부서진다. **결정 필요**
 - [ ] 인벤토리 아이콘이 실제로 그려지는가 — 번들이 Sprite를 안 넘겨준다는 사실(19-3)이
   `icon`(`fileID: 21300000`)에도 해당되는지. 번들 내부 참조라 다를 수 있어 미확정

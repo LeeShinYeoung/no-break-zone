@@ -39,6 +39,10 @@
 
 전체 2279개로 검증한 결과 (`기획서 §6` "부수면 자기 자신이 돌아오는가"와 일치):
 
+> ⚠️ 아래 규칙은 **벽·바닥을 보호 대상에 넣기 전**의 것이다. 지금 규칙은
+> `Scripts/Logic/NoBreakZoneProtectionRule.cs`가 원본이고, **692개**(설치물 569 + 타일 123)를
+> 보호한다. `Editor/Tests`와 `Editor/LogicTests~` 양쪽이 그 숫자를 강제한다.
+
 **보호(PROTECT)** = `type==PlaceablePrefab` **AND** `health==1` **AND** `tileCD==0` **AND NOT(`destructible` OR `lootTable` OR `lootOnDmg`)**
 
 → 569개 보호. 상자·조명·가구·받침대·보스상자 등 설치물 전부 포함.
@@ -61,7 +65,12 @@
 `KeyNotFoundException: 'type'`이라는 엉뚱한 얼굴로 실패했다.
 
 빼야 할 것: `BEGIN`/`END` 마커, `COLUMNS=` 헤더, 그리고 프리팹이 없어 4칸만 찍히는
-`None,NonUsable,none,<no-prefab>` 행. 남는 정상 행은 **2279개**여야 한다 (= `END unique`).
+`None,NonUsable,none,<no-prefab>` 행. **넷을 다 빼면 2278행**이 남고 모든 행이 20칸을 채운다.
+(`END unique=2279`는 프리팹 없는 `None`까지 센 숫자다.)
+
+**이 정리는 실제로 두 번 빠뜨렸다.** 2026-09-05 시점의 CSV에 넷이 그대로 들어 있었고,
+`WholeDatabaseRegression`이 `BEGIN` 행에서 `row["type"]`을 찾다 `KeyNotFoundException`으로
+죽고 있었다 — 규칙이 깨진 것처럼 보이지만 아니다. 재생성했으면 **행 수를 세서 2278인지 확인한다.**
 
 ---
 
