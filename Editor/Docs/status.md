@@ -10,7 +10,7 @@
 
 ## 지금 무엇을 하고 있었나 (2026-09-05)
 
-브랜치 `fix/tile-protection-before-predicted`. **인게임 검증 대기 중.**
+브랜치 `fix/tile-protection-before-predicted`. **인게임 검증 완료 — 머지 가능.**
 
 ### 고친 것
 
@@ -38,6 +38,25 @@
 > **유니티 테스트 러너는 이 머신에서 못 쓴다** — `-runTests`가 라이선스로 exit 198. `-executeMethod`는
 > 정상이라 검증 진입점을 전부 그쪽으로 만들었다.
 
+### 인게임 검증 결과 (2026-09-05, 데디서버)
+
+**대조군이 깨지는 것을 확인한 상태에서 보호 대상이 살아남았다.** 그게 이 판정을 믿을 수 있게 하는 전부다.
+
+```
+wall-outside-explosion  PASS   구역 밖 벽은 폭발에 깨진다  <- 피해가 실제로 작동한다는 증거
+wall-inside-explosion   PASS   구역 안 벽은 살아남는다     <- 고친 버그
+dig-outside             PASS   구역 밖 파헤치기는 통과
+dig-inside              PASS   구역 안 파헤치기는 차단      <- 타일 편집 필터
+clear-then-add          PASS   Clear+Add 짝이 칸을 비우지 않는다
+floor-*                 SKIP   이 타일셋 바닥은 밖에서도 안 깨져 판정 불가
+```
+
+> 한 번 잘못 보고했다. 처음에는 `floor-inside-explosion PASS`를 보고 "고쳐졌다"고 단언했는데,
+> 같은 판의 대조군 `floor-outside-explosion`은 FAIL이었다. 밖에서도 안 깨지는 바닥은 애초에 피해를
+> 안 받는 타일이고, 그러면 안에서 살아남은 것도 아무것도 증명하지 않는다. **대조군이 빨간 상태의
+> 초록은 초록이 아니다.** 그래서 확실히 부서지는 벽으로 바꿨고, 대조군이 실패하면 FAIL이 아니라
+> 이유를 붙인 SKIP으로 보고하게 했다.
+
 ### 데디케이티드 서버 — 어디까지 갔나
 
 **설치 위치: `D:\NoBreakZoneServer\`** (SteamCMD + 서버 + 세이브 전부 이 폴더 안).
@@ -49,7 +68,8 @@
 | 서버가 모드를 로드 | ✅ `loaded mod NoBreakZone` |
 | 모드 ECS 시스템이 서버 월드에서 돎 | ✅ `pylon object id = 32768 (world=ServerWorld)` |
 | 플레이어 0명 자동 일시정지 우회 | ✅ `IMod.Update`에서 `Manager.ecs.Resume()` |
-| 맵이 메모리에 실림 | ❌ **막힌 곳** |
+| 맵이 메모리에 실림 | 플레이어 1명이 접속해 있어야 한다. 0명이면 스트리밍이 안 돈다 |
+| 접속 후 전 과정 자동 | 파일런 자가 생성 -> 6케이스 -> 1분마다 반복 |
 
 **핵심 함정:** 로드 안 된 칸은 `TileAccessor.DefaultTile` = **`{tileset=2, tileType=wall}`**로
 읽힌다. 로그의 "온통 벽"은 지형이 아니라 **"아직 안 실렸다"**는 뜻이다. `KeepAreaLoadedCD`는
@@ -57,8 +77,9 @@
 
 ### 다음에 할 일
 
-1. `selfTest` 설정을 켜고 **버릴 월드**에서 파일런을 놓고 켠다 → `Player.log`의 `[NBZTEST]` 줄 확인
-2. 초록이면 `/land`. 빨가면 로그를 보고 1~3단계에 그 케이스를 추가한 뒤 다시 내려간다
+1. **`/land`** — 인게임 검증까지 끝났다
+2. 다시 검증할 일이 생기면: `start-server.ps1` -> 게임에서 `NoBreakZoneTestServer1`로 접속 ->
+   가만히 있으면 1분마다 판정이 로그에 쌓인다. 코드를 고쳤을 때만 서버 재시작+재접속이 필요
 3. 남은 열린 문제: 토글 효과음, 링 이펙트, **구역 안에서 벽이 곡괭이로 캐지는 것**, 렌즈 미표시
 4. 결정 대기: `ImmunityZoneCD`를 쓸 것인가 (`research.md` 21-5 — 세이브에 흔적이 남는다)
 
