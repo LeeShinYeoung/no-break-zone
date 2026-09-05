@@ -38,6 +38,23 @@
 > **유니티 테스트 러너는 이 머신에서 못 쓴다** — `-runTests`가 라이선스로 exit 198. `-executeMethod`는
 > 정상이라 검증 진입점을 전부 그쪽으로 만들었다.
 
+### 데디케이티드 서버 — 어디까지 갔나
+
+**설치 위치: `D:\NoBreakZoneServer\`** (SteamCMD + 서버 + 세이브 전부 이 폴더 안).
+지우는 법과 폴더 밖에 남는 것은 그 안의 `README-DELETE-ME.md`에 있다. 실행은 `run-selftest.ps1`.
+
+| 단계 | 상태 |
+| --- | --- |
+| SteamCMD 익명 설치 (앱 1963720) | ✅ 계정 정보 불필요 |
+| 서버가 모드를 로드 | ✅ `loaded mod NoBreakZone` |
+| 모드 ECS 시스템이 서버 월드에서 돎 | ✅ `pylon object id = 32768 (world=ServerWorld)` |
+| 플레이어 0명 자동 일시정지 우회 | ✅ `IMod.Update`에서 `Manager.ecs.Resume()` |
+| 맵이 메모리에 실림 | ❌ **막힌 곳** |
+
+**핵심 함정:** 로드 안 된 칸은 `TileAccessor.DefaultTile` = **`{tileset=2, tileType=wall}`**로
+읽힌다. 로그의 "온통 벽"은 지형이 아니라 **"아직 안 실렸다"**는 뜻이다. `KeepAreaLoadedCD`는
+로드를 유발하지 않았다 (읽는 시스템이 `UnloadToSerializeWorldSystem` 하나뿐이라 언로드 방지 쪽).
+
 ### 다음에 할 일
 
 1. `selfTest` 설정을 켜고 **버릴 월드**에서 파일런을 놓고 켠다 → `Player.log`의 `[NBZTEST]` 줄 확인
