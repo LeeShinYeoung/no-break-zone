@@ -42,7 +42,11 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private const int PickaxeDamage = 20;
 
     private const int FramesBetweenSteps = 12;
-    private const int SetupTimeoutFrames = 3600;
+
+    // Generous on purpose. On a dedicated server the map only streams in once somebody connects, so
+    // this has to outlast a human launching the game, picking a character and joining — not just the
+    // few seconds it takes to walk to a pylon in a world that is already open.
+    private const int SetupTimeoutFrames = 36000;
 
     // How far from the world origin to look for somewhere to build. The Core stands at the origin,
     // so this is the part of the map guaranteed to be generated — and, as the first run of this
@@ -60,6 +64,24 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private NoBreakZonePylonRegistrySystem _registry;
     private Entity _areaAnchor = Entity.Null;
     private bool _announcedNoGround;
+    private bool _announcedNoProbes;
+    private bool _floorIsDamageable;
+
+    // Rising-edge detector on the config flag. Flipping selfTest off and on again re-runs the whole
+    // suite without restarting anything — which is the difference between "the human rejoins for
+    // every check" and "the human joins once and I re-run as often as I like".
+    private bool _armed;
+    private int _run;
+
+    // Each retry builds somewhere new, so a spot the game keeps refusing — the Core's own tile, for
+    // one — does not trap the run in a loop.
+    private Entity _lastSpawned = Entity.Null;
+    private int _spawnAttempt;
+
+    // Roughly a minute at 60 ticks. Long enough that the log stays readable, short enough that a
+    // human who joined to make the map exist does not have to wait around.
+    private const int FramesBetweenRuns = 3600;
+    private int _framesUntilRerun;
 
     private int _step;
     private int _wait;
@@ -70,6 +92,9 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private int2 _inside;
     private int2 _outside;
+    private int2 _insideWall;
+    private int2 _outsideWall;
+    private bool _haveWalls;
     private int _tileset;
 
     protected override void OnCreate()
@@ -85,9 +110,38 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     protected override void OnUpdate()
     {
+        // Deliberately not `Enabled = false`: staying in the loop is what lets a later flip of the
+        // flag start another run. The cost is one boolean read per frame on a server that is only
+        // ever running this when somebody asked for it.
         if (!NoBreakZoneConfig.SelfTest)
         {
-            Enabled = false;
+            _armed = false;
+            base.OnUpdate();
+            return;
+        }
+
+        if (!_armed)
+        {
+            _armed = true;
+            StartRun();
+        }
+
+        if (_step == 10)
+        {
+            Finish();
+        }
+
+        if (_step > 10)
+        {
+            // Finished. Runs again on its own after a pause, so whoever is reading the log never
+            // has to trigger anything: keep the game open and a fresh verdict appears every minute.
+            // Re-reading the config file at runtime was the obvious alternative and is not something
+            // the config API promises, so this does not depend on it.
+            if (--_framesUntilRerun <= 0)
+            {
+                _armed = false;
+            }
+
             base.OnUpdate();
             return;
         }
@@ -131,14 +185,20 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // Retried rather than done once: the anchor above asks the game to stream the area in,
             // and that takes an unknown number of frames. Until it lands there is no ground to
             // build on and nothing to test.
-            if (_framesWaitingForPylon >= FramesBeforeSelfProvisioning && _framesWaitingForPylon % 60 == 0)
+            // Every ten seconds, not every second: registration is not instant — the first run of
+            // this built 43 pylons before the registry reported one, and every extra pylon projects
+            // a square that invalidates the control cases.
+            if (_framesWaitingForPylon >= FramesBeforeSelfProvisioning
+                && _framesWaitingForPylon % 600 == 0
+                && _spawnAttempt < 6)
             {
                 ProbeAndBuildPylon();
             }
             else if (_framesWaitingForPylon > SetupTimeoutFrames)
             {
                 Debug.Log("[NBZTEST] SETUP FAIL no switched-on pylon, and building one did not take");
-                Enabled = false;
+                _step = 11;
+                _framesUntilRerun = FramesBetweenRuns;
             }
 
             return;
@@ -153,15 +213,45 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         var tiles = CreateTileAccessor();
 
         if (!TryFindGround(tiles, pylon, 1, radius - 1, out _inside)
-            || !TryFindGround(tiles, pylon, radius + 2, radius + 14, out _outside))
+            || !TryFindUncoveredGround(tiles, pylons, pylon, radius, out _outside))
         {
-            Debug.Log("[NBZTEST] SETUP FAIL could not find bare ground both inside and outside "
-                      + $"the square around ({pylon.x},{pylon.y})");
-            Enabled = false;
+            // Not a failure yet — the map streams in around a player over several seconds, and the
+            // pylon now registers on the first attempt, so this step can easily arrive before the
+            // tiles it needs exist. Keep looking; the run only gives up at the overall timeout.
+            _framesWaitingForPylon++;
+
+            if (!_announcedNoProbes)
+            {
+                _announcedNoProbes = true;
+                Debug.Log("[NBZTEST] pylon found; waiting for enough map around it to pick probes");
+            }
+
+            if (_framesWaitingForPylon > SetupTimeoutFrames)
+            {
+                Debug.Log("[NBZTEST] SETUP FAIL never found bare ground both inside and outside "
+                          + $"the square around ({pylon.x},{pylon.y})");
+                _step = 11;
+                _framesUntilRerun = FramesBetweenRuns;
+            }
+
             return;
         }
 
         _tileset = tiles.GetTop(_inside).tileset;
+
+        // A WALL IS THE ONE TILE THIS TEST CAN TRUST. A floor laid by the test only counts as
+        // evidence if it can be damaged at all, and whether a given tileset even has a damageable
+        // floor object is not something the test controls — the first run outside a protected square
+        // refused to break, which would have made the inside result meaningless. Walls are what
+        // bombs are for, so they answer the same question without that doubt.
+        _haveWalls = TryFindTile(tiles, pylon, 1, radius - 1, 0, TileType.wall, out _insideWall)
+                     && TryFindUncoveredTile(tiles, pylons, pylon, radius, TileType.wall, out _outsideWall);
+
+        if (_haveWalls)
+        {
+            Debug.Log($"[NBZTEST] walls: inside=({_insideWall.x},{_insideWall.y}) "
+                      + $"outside=({_outsideWall.x},{_outsideWall.y})");
+        }
 
         Debug.Log($"[NBZTEST] pylon at ({pylon.x},{pylon.y}) radius={radius} "
                   + $"inside=({_inside.x},{_inside.y}) outside=({_outside.x},{_outside.y}) "
@@ -183,7 +273,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         // attempt built at a fixed offset, landed inside a wall, and the game deleted the pylon
         // before the registry saw it; and an unloaded tile reads as `wall` too
         // (TileAccessor.DefaultTile), so "no ground anywhere" usually means "not streamed in yet".
-        if (!TryFindGround(tiles, int2.zero, 0, SearchRadius, out int2 at))
+        if (!TryFindGround(tiles, int2.zero, 0, SearchRadius, _spawnAttempt, out int2 at))
         {
             if (!_announcedNoGround)
             {
@@ -204,15 +294,40 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             return;
         }
 
-        // variation 1 is the switched-on look, and the registry reads exactly that field to decide
-        // whether a pylon projects a square (NoBreakZonePylonGraphics.VariationOn).
+        // Report on the previous attempt before making another one. A pylon that vanishes between
+        // retries was refused by the game's placement validation; one that survives but never shows
+        // up in the registry is switched off, and those two need opposite fixes.
+        if (_lastSpawned != Entity.Null)
+        {
+            Debug.Log(EntityManager.Exists(_lastSpawned)
+                ? "[NBZTEST] the previous pylon still exists but did not register as switched on"
+                : "[NBZTEST] the previous pylon was destroyed — the game refused that placement");
+        }
+
         Entity pylon = EntityUtility.CreateEntity(
             World, new Vector3(at.x, 0f, at.y), pylonId, 1, database,
             NoBreakZonePylonGraphics.VariationOn);
 
-        Debug.Log(pylon == Entity.Null
-            ? "[NBZTEST] SETUP FAIL could not create a pylon entity"
-            : $"[NBZTEST] built a switched-on pylon at ({at.x},{at.y})");
+        if (pylon == Entity.Null)
+        {
+            Debug.Log("[NBZTEST] SETUP FAIL could not create a pylon entity");
+            return;
+        }
+
+        // Asking for variation 1 selects the switched-on PREFAB, but PugDatabase falls back to
+        // variation 0 when it has no entry for the one asked for (research.md 20장), and the
+        // registry decides on/off from this field rather than from which prefab was used. Setting it
+        // outright is the difference between a pylon that projects a square and one that does not.
+        ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
+        int spawnedVariation = data.variation;
+        data.variation = NoBreakZonePylonGraphics.VariationOn;
+        EntityManager.SetComponentData(pylon, data);
+
+        _lastSpawned = pylon;
+        _spawnAttempt++;
+
+        Debug.Log($"[NBZTEST] built a pylon at ({at.x},{at.y}), prefab variation={spawnedVariation}, "
+                  + $"switched to {NoBreakZonePylonGraphics.VariationOn} (attempt {_spawnAttempt})");
     }
 
     /// Lays a floor at both probes so the explosion has something of ours to destroy. A floor is the
@@ -233,6 +348,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // failure that says nothing about the mod.
             Skip("floor-inside-explosion", "this tileset has no floor tile to lay");
             Skip("floor-outside-explosion", "same");
+            _floorIsDamageable = false;
             _step = 4;
             _wait = FramesBetweenSteps;
             return;
@@ -240,6 +356,13 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         DamageTile(_inside, ExplosionDamage, explosionShaped: true);
         DamageTile(_outside, ExplosionDamage, explosionShaped: true);
+
+        if (_haveWalls)
+        {
+            DamageTile(_insideWall, ExplosionDamage, explosionShaped: true);
+            DamageTile(_outsideWall, ExplosionDamage, explosionShaped: true);
+        }
+
         Advance();
     }
 
@@ -247,16 +370,55 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     {
         var tiles = CreateTileAccessor();
 
-        // THE REPORTED BUG.
-        Verdict("floor-inside-explosion",
-            tiles.GetTopType(_inside) == TileType.floor,
-            "the floor inside the square survives an explosion");
+        // THE WALL PAIR IS THE LOAD-BEARING RESULT. A wall is unambiguously damageable, so its
+        // control breaking is what makes its protected twin surviving mean something.
+        if (_haveWalls)
+        {
+            bool outsideWallBroke = tiles.GetTopType(_outsideWall) != TileType.wall;
 
-        // The control. Without it the check above passes just as well when nothing works at all —
-        // for instance if the damage never reached the tile.
-        Verdict("floor-outside-explosion",
-            tiles.GetTopType(_outside) != TileType.floor,
-            "the floor outside every square still breaks");
+            Verdict("wall-outside-explosion", outsideWallBroke,
+                "a wall outside every square still breaks — otherwise nothing below means anything");
+
+            if (outsideWallBroke)
+            {
+                // THE REPORTED BUG, on a tile whose damageability was just demonstrated.
+                Verdict("wall-inside-explosion",
+                    tiles.GetTopType(_insideWall) == TileType.wall,
+                    "a wall inside the square survives an explosion");
+            }
+            else
+            {
+                Skip("wall-inside-explosion", "the control did not break, so this proves nothing");
+            }
+        }
+        else
+        {
+            Skip("wall-outside-explosion", "no wall found both inside and outside the square");
+            Skip("wall-inside-explosion", "same");
+        }
+
+        // The floor pair, same shape. A floor the test lays itself is only evidence if it can be
+        // damaged at all — whether a given tileset has a damageable floor object is not something
+        // this test controls, and on the first server run it did not.
+        bool outsideFloorBroke = tiles.GetTopType(_outside) != TileType.floor;
+
+        _floorIsDamageable = outsideFloorBroke;
+
+        if (outsideFloorBroke)
+        {
+            Verdict("floor-inside-explosion",
+                tiles.GetTopType(_inside) == TileType.floor,
+                "the floor inside the square survives an explosion");
+            Verdict("floor-outside-explosion", true,
+                "the floor outside every square still breaks");
+        }
+        else
+        {
+            Skip("floor-inside-explosion",
+                $"tileset {_tileset}'s floor did not break outside the square either, so surviving "
+                + "inside it proves nothing");
+            Skip("floor-outside-explosion", "same");
+        }
 
         Advance();
     }
@@ -270,6 +432,16 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void CheckPickaxeResult()
     {
+        // Same oracle as the explosion pair: a floor that cannot be damaged anywhere proves nothing
+        // by surviving here either. The explosion step already established which it is.
+        if (!_floorIsDamageable)
+        {
+            Skip("floor-inside-pickaxe",
+                "this tileset's floor is not damageable, so surviving proves nothing");
+            Advance();
+            return;
+        }
+
         Verdict("floor-inside-pickaxe",
             CreateTileAccessor().GetTopType(_inside) == TileType.floor,
             "the floor inside the square still survives capped damage");
@@ -327,8 +499,31 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void Finish()
     {
-        Debug.Log($"[NBZTEST] SUMMARY pass={_pass} fail={_fail} skip={_skip}");
-        Enabled = false;
+        Debug.Log($"[NBZTEST] SUMMARY run={_run} pass={_pass} fail={_fail} skip={_skip}");
+
+        // Park past the end and count down to the next run.
+        _step = 11;
+        _framesUntilRerun = FramesBetweenRuns;
+    }
+
+    /// Resets everything a run owns, so a second run does not inherit the first one's verdicts or
+    /// its idea of where the ground is.
+    private void StartRun()
+    {
+        _run++;
+        _step = 0;
+        _wait = 0;
+        _framesWaitingForPylon = 0;
+        _pass = 0;
+        _fail = 0;
+        _skip = 0;
+        _announcedNoGround = false;
+        _announcedNoProbes = false;
+        _floorIsDamageable = false;
+        _lastSpawned = Entity.Null;
+        _spawnAttempt = 0;
+
+        Debug.Log($"[NBZTEST] ---- run {_run} starting ----");
     }
 
     // ---------------------------------------------------------------------------------- plumbing
@@ -341,6 +536,64 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// world generator decorated with are all skipped.
     private static bool TryFindGround(
         TileAccessor tiles, int2 centre, int minDistance, int maxDistance, out int2 found)
+    {
+        return TryFindGround(tiles, centre, minDistance, maxDistance, 0, out found);
+    }
+
+    /// Bare ground that NO pylon covers.
+    ///
+    /// The control cases only mean something if the tile they use is genuinely unprotected, and
+    /// "outside the first pylon's square" is not the same thing once there is more than one pylon —
+    /// which a real base will have, and which this test managed to create 43 of on its first run.
+    private static bool TryFindUncoveredGround(
+        TileAccessor tiles, NativeArray<int2> pylons, int2 centre, int radius, out int2 found)
+    {
+        return TryFindUncoveredTile(tiles, pylons, centre, radius, TileType.ground, out found);
+    }
+
+    private static bool TryFindUncoveredTile(
+        TileAccessor tiles, NativeArray<int2> pylons, int2 centre, int radius, TileType wanted,
+        out int2 found)
+    {
+        var px = new int[pylons.Length];
+        var pz = new int[pylons.Length];
+        for (int i = 0; i < pylons.Length; i++)
+        {
+            px[i] = pylons[i].x;
+            pz[i] = pylons[i].y;
+        }
+
+        for (int skip = 0; skip < 400; skip++)
+        {
+            if (!TryFindTile(tiles, centre, radius + 2, radius + 40, skip, wanted, out int2 candidate))
+            {
+                break;
+            }
+
+            if (!NoBreakZoneRange.AllTilesCovered(
+                    px, pz, pylons.Length,
+                    candidate.x, candidate.y, candidate.x, candidate.y, radius))
+            {
+                found = candidate;
+                return true;
+            }
+        }
+
+        found = int2.zero;
+        return false;
+    }
+
+    /// <param name="skip">How many matches to pass over. Retrying with a bigger number walks to the
+    /// next candidate instead of hammering a spot the game will not accept.</param>
+    private static bool TryFindGround(
+        TileAccessor tiles, int2 centre, int minDistance, int maxDistance, int skip, out int2 found)
+    {
+        return TryFindTile(tiles, centre, minDistance, maxDistance, skip, TileType.ground, out found);
+    }
+
+    private static bool TryFindTile(
+        TileAccessor tiles, int2 centre, int minDistance, int maxDistance, int skip, TileType wanted,
+        out int2 found)
     {
         for (int ring = math.max(minDistance, 0); ring <= maxDistance; ring++)
         {
@@ -355,8 +608,14 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
                     }
 
                     int2 candidate = centre + new int2(x, z);
-                    if (tiles.GetTopType(candidate) == TileType.ground)
+                    if (tiles.GetTopType(candidate) == wanted)
                     {
+                        if (skip > 0)
+                        {
+                            skip--;
+                            continue;
+                        }
+
                         found = candidate;
                         return true;
                     }
