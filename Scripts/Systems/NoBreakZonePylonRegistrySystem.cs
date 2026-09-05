@@ -3,6 +3,7 @@ using Pug.UnityExtensions;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;  // GhostSimulationSystemGroup / PredictedSimulationSystemGroup — see the ordering note
 using Unity.Transforms;
 using UnityEngine;
 
@@ -22,8 +23,23 @@ using UnityEngine;
 // deciding "is this a pylon" is a one-time answer per entity, so entities leave the discovery query
 // permanently once asked. The recurring per-frame work is then proportional to the number of
 // pylons, not to the number of objects in the world.
+//
+// THE ORDERING MIRRORS NoBreakZoneProtectionSystem'S, DELIBERATELY — read the long comment there for
+// why those exact three constraints. This system has to move with it, not stay behind:
+//   - ConsumeReleaseRequest is a one-frame latch with exactly one reader. Publisher and reader
+//     ticking in different parts of the frame lets a release be missed or consumed a frame late.
+//   - [UpdateBefore] is dropped when the two systems are in different groups, so leaving this one
+//     in the ordinary bucket would silently hand the protection system last frame's Positions.
+//   - Positions is a view into a NativeList that CollectPositions rewrites; readers inside the
+//     simulation have to see it after this system has run and before the next rewrite.
+// UpdateAfter(GhostSimulationSystemGroup) also matters here specifically: on the client a pylon's
+// on/off state arrives as a ghost snapshot, and reading ObjectDataCD.variation before that lands
+// would flicker protection off for a frame.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
-[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
+[UpdateAfter(typeof(BeginSimulationEntityCommandBufferSystem))]
+[UpdateAfter(typeof(GhostSimulationSystemGroup))]
+[UpdateBefore(typeof(PredictedSimulationSystemGroup))]
 [UpdateBefore(typeof(NoBreakZoneProtectionSystem))]
 public partial class NoBreakZonePylonRegistrySystem : SystemBase
 {

@@ -4,6 +4,7 @@ using PugTilemap;  // TileType — the tile enum lives here, not beside TileCD
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.NetCode;  // GhostSimulationSystemGroup / PredictedSimulationSystemGroup — see the ordering note
 using Unity.Transforms;
 using UnityEngine;
 
@@ -26,8 +27,40 @@ using UnityEngine;
 // WHY A TAG INSTEAD OF A PER-FRAME SWEEP: 기획서 §9 forbids walking the world every frame. Entities
 // leave the query permanently once judged (NoBreakZoneEvaluatedCD), so steady-state cost is
 // proportional to newly streamed-in entities, not to base size.
+//
+// WHY THE ORDERING BELOW IS LOAD-BEARING, NOT TIDINESS.
+// A TILE HAS NO ENTITY UNTIL IT IS HIT. TileDamageSystem creates one per damaged tile through
+// BeginSimulationEntityCommandBufferSystem, so it materialises at the start of the NEXT frame with
+// InitialHealthChange already enabled, and dies later in that same frame:
+//
+//   BeginSimulationEntityCommandBufferSystem   <- the tile damage entity appears here
+//   GhostSimulationSystemGroup                 <- the client's variation snapshot lands here
+//   *** this system ***                        <- and we tag it in time
+//   PredictedSimulationSystemGroup (OrderFirst)
+//       InitialHealthChangeSystem -> UpdateHealthFromBufferSystem -> SetEntitiesDestroyedSystem
+//   ...ordinary SimulationSystemGroup systems  <- where this system used to be: too late
+//
+// A pickaxe hit is capped by DamageReductionCD.maxDamagePerHit, so the tile survives its first hit
+// and its damage entity persists (it is only cleaned up once back at full health) — which is why
+// floors resisted a pickaxe from the ordinary group and this looked like it worked. An explosion
+// sets bypassMaxDamagePerHit, takes the tile out in one application, and never gave us a frame.
+//
+// THE THREE CONSTRAINTS ARE SPELLED OUT RATHER THAN INHERITED FROM A GROUP. The obvious move is
+// [UpdateInGroup(typeof(BeforePredictedSimulationSystemGroup))] — that is where the game's own
+// ImmunityZoneSystem sits, and it lands in the right place on the diagram above. It is not safe:
+// that group declares UpdateAfter(GhostSimulationSystemGroup) and UpdateBefore(Predicted…), while
+// BeginSimulationEntityCommandBufferSystem declares nothing but OrderFirst. There is no constraint
+// path between the two, so which of them runs first is decided by ComponentSystemSorter's
+// tie-break on the system type hash — stable, arbitrary, and not ours. Half the time the tile
+// damage entity would not exist yet and this fix would do nothing at all.
+//
+// OrderFirst puts us in the same sorting bucket as those three (constraints across buckets are
+// dropped), and then the edges are direct and cannot be reordered by anything else in the graph.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
-[UpdateInGroup(typeof(SimulationSystemGroup))]
+[UpdateInGroup(typeof(SimulationSystemGroup), OrderFirst = true)]
+[UpdateAfter(typeof(BeginSimulationEntityCommandBufferSystem))]
+[UpdateAfter(typeof(GhostSimulationSystemGroup))]
+[UpdateBefore(typeof(PredictedSimulationSystemGroup))]
 public partial class NoBreakZoneProtectionSystem : SystemBase
 {
     private EntityQuery _candidates;
