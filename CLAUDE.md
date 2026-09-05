@@ -116,6 +116,18 @@ AI가 못 하는 일은 **"실제로 게임을 해보는 것"**에 몰려 있다
 종료 코드: `0` 성공 / `1` 실패 / `2` 에디터가 열려 있음(닫고 재실행).
 절차 상세는 `.claude/skills/build/`.
 
+**사람을 부르기 전에 아래 셋을 전부 초록으로 만든다** (상세: `Editor/Docs/workflow.md` §4):
+
+```
+Editor/logictest.ps1   순수 로직. 초 단위, 유니티 없음   (사람 0)
+Editor/build.ps1       컴파일 + 설치                      (사람 0)
+Editor/verify.ps1      시스템 순서·동작 (ECS 하네스)      (사람 0)
+                       ↓ 셋 다 초록일 때만
+사람이 테스트 월드 1회 로드 → selfTest가 [NBZTEST] 줄로 판정   (사람 1)
+```
+
+유니티 테스트 러너(`-runTests`)는 이 머신에서 라이선스로 막힌다(exit 198). `-executeMethod`는 된다.
+
 ---
 
 ## 5. 금지

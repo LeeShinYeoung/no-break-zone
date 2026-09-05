@@ -120,6 +120,28 @@ main 으로 머지     →  검증 완료여야 한다    ← 게이트
          → 사람이 게임 실행/재로드 → 확인 → Player.log 확인
 ```
 
+### 검증 사다리 — 사람을 부르기 전에 AI가 스스로 거르는 세 단계 (2026-09-05)
+
+**사람이 게임을 켜는 것은 마지막 수단이다.** 아래 셋이 전부 초록이 되기 전에는 부르지 않는다.
+
+| 단계 | 명령 | 시간 | 사람 | 무엇을 증명하나 |
+| --- | --- | --- | --- | --- |
+| 1 | `powershell -File Editor/logictest.ps1` | 초 | 0 | `Scripts/Logic`의 순수 판정. DB 전수 회귀와 타일 편집 정책 전수 조합 |
+| 2 | `powershell -File Editor/build.ps1` | 분 | 0 | 컴파일. 게임 타입·그룹이 실재하는가 |
+| 3 | `powershell -File Editor/verify.ps1` | 분 | 0 | 시스템 정렬 순서(유니티 자체 정렬기)와 보호/해제 동작 |
+| 4 | 사람이 테스트 월드 1회 로드 | 1회 | 1 | **실제 프레임 순서.** `selfTest` 설정을 켜고 파일런을 놓으면 모드가 스스로 판정해 `[NBZTEST]` 줄을 남긴다 |
+
+1~3에서 걸리면 사람을 부르지 않고 고쳐서 다시 돈다. 4는 버릴 월드에서만 — 자기검증이 일부러
+타일을 부순다.
+
+**유니티 테스트 러너는 이 머신에서 못 쓴다.** `Unity.exe -batchmode -runTests`는 프로젝트를 다
+로드한 뒤 `No valid Unity Editor license found`로 exit 198이 된다. 같은 배치모드라도
+`-batchmode -quit -executeMethod`(빌드가 쓰는 길)는 멀쩡하다. 그래서 `Editor/Tests`의 NUnit은
+사람이 GUI에서 돌리는 용도로 남고, 자동 게이트는 1단계(`dotnet`)와 3단계(`-executeMethod`)가 맡는다.
+
+1단계는 유니티가 필요 없다 — `Scripts/Logic`은 `using`이 한 줄도 없어 `dotnet`으로 그냥 컴파일된다.
+2·3단계는 에디터가 닫혀 있어야 한다(락파일, 종료 코드 2).
+
 | 항목 | 값 |
 | --- | --- |
 | 빌드 명령 | `powershell -File Editor/build.ps1` (**윈도우 전용**) |
