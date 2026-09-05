@@ -11,15 +11,22 @@ namespace NoBreakZone.Tests
     // and ranks verifying it above every other feature.
     //
     // These tests replay the ENTIRE object database through the rule. object_flags.csv is a dump of
-    // all 2282 objects with their component flags (see Editor/GameData/README.md), so this is the
-    // real population, not a sample. The counts below are the values the rule was designed against;
+    // every object with its component flags (see Editor/GameData/README.md), so this is the real
+    // population, not a sample. The counts below are the values the rule was designed against;
     // if a game update moves them, that is a signal to re-derive the rule, not to edit the numbers.
+    //
+    // THE SAME NUMBERS ARE ASSERTED OFFLINE by Editor/LogicTests~, which runs without Unity. If you
+    // change one, change the other — they read the same file through the same rule.
     public class NoBreakZoneProtectionRuleTests
     {
         private const int PlaceablePrefab = NoBreakZoneProtectionRule.PlaceablePrefabObjectType;
         private const int SomeOtherObjectType = 500; // ObjectType.Sword — anything that is not placeable
 
-        private const int ExpectedRowCount = 2282;
+        // 2278 data rows. The dump writes BEGIN/END/COLUMNS marker lines and a prefab-less `None`
+        // row that the extraction is supposed to strip; they were left in once and this regression
+        // died on `row["type"]` with a KeyNotFoundException, which reads like a rule failure and is
+        // not one. Editor/GameData/README.md carries the extraction steps.
+        private const int ExpectedRowCount = 2278;
         // 569 installations plus the 123 tiles the rule started protecting when walls and floors
         // came in (41 of them walls). Zero of the ten ore tiles, which is the number that matters.
         private const int ExpectedProtectedCount = 692;

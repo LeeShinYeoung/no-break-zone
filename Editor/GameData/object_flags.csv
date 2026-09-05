@@ -124,7 +124,6 @@ AzeosSoulOrb,NonObtainable,none,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 AzeosSwiftFeather,Offhand,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 AzeosTrophy,PlaceablePrefab,none,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1
 AzureFeatherFish,Eatable,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
-BEGIN objectInfos=2876
 BagOfMarbles,Valuable,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 BaitFishBitesFaster,Offhand,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 BaitFishBitesFasterAndIncreasedChanceToGetFish,Offhand,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
@@ -247,7 +246,6 @@ ButterflyCitrus,Critter,none,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1
 ButterflyDreamy,Critter,none,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1
 ButterflyIcy,Critter,none,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1
 ButterflySunset,Critter,none,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1
-COLUMNS=id,type,tileType,health,damageable,destructible,dontDestroy,immune,lootTable,lootOnDmg,dontDropSelf,dontDropLoot,mineable,diggable,requiresDrill,tileCD,plant,growing,critter,catTags
 CalcifiedBone,NonUsable,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 Calendar,PlaceablePrefab,none,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1
 Camel,Creature,none,1,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1
@@ -636,7 +634,6 @@ DugUpSeaGround,NonObtainable,dugUpGround,0,0,0,0,0,0,0,1,1,0,1,0,1,0,0,0,1
 DugUpStoneGround,NonObtainable,dugUpGround,0,0,0,0,0,0,0,1,1,0,1,0,1,0,0,0,1
 DugUpTurfGround,NonObtainable,dugUpGround,0,0,0,0,0,0,0,1,1,0,1,0,1,0,0,0,1
 DynamitePack,PlaceablePrefab,none,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1
-END unique=2279
 EarPlate,Valuable,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 EarlyHumanSkull,Valuable,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 EasterAzeosTrophy,PlaceablePrefab,none,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1
@@ -1383,7 +1380,6 @@ NinjaPantsArmor,PantsArmor,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 NobleRing,Ring,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 NomadNecklace,Necklace,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
 NomadRing,Ring,none,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1
-None,NonUsable,none,<no-prefab>
 OasisGroundDecoration,NonObtainable,smallGrass,0,0,0,0,0,0,0,1,1,0,0,0,1,0,0,0,1
 OasisStalagmite,PlaceablePrefab,none,0,0,0,0,0,0,0,1,1,0,1,0,0,0,0,0,1
 OasisSucculent,PlaceablePrefab,none,1,0,0,0,0,0,0,1,1,1,0,0,0,0,0,0,1
