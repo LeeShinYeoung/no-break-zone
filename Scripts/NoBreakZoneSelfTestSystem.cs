@@ -1,7 +1,9 @@
+using PugMod;
 using PugTilemap;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.Mathematics;
+using Unity.Transforms;
 using UnityEngine;
 
 // The only check that runs inside the real game, and therefore the only one that can answer the
@@ -14,8 +16,10 @@ using UnityEngine;
 // need a database, a tilemap and a NetCode world. Answering that used to cost a play session per
 // attempt — three of them went on one pylon sprite. This turns it into a line in Player.log.
 //
-// WHAT THE HUMAN DOES: switch `selfTest` on in the mod's config, load a throwaway world, place a
-// pylon and switch it on. Everything after that is automatic; the verdict is greppable:
+// WHAT ANYONE HAS TO DO: nothing, when it runs on the dedicated server
+// (D:\NoBreakZoneServer\run-selftest.ps1) — it builds its own switched-on pylon and reports. In a
+// real world a human can instead place a pylon within the first ten seconds and it will use that
+// one. Either way the verdict is greppable out of the log:
 //
 //     [NBZTEST] floor-inside-explosion PASS
 //     [NBZTEST] SUMMARY pass=6 fail=0 skip=0
@@ -40,7 +44,22 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private const int FramesBetweenSteps = 12;
     private const int SetupTimeoutFrames = 3600;
 
+    // How far from the world origin to look for somewhere to build. The Core stands at the origin,
+    // so this is the part of the map guaranteed to be generated — and, as the first run of this
+    // proved by having its pylon deleted out from under it, guaranteed to contain walls too.
+    private const int SearchRadius = 40;
+
+    // How long to wait for a human-placed pylon before building one. On a server there is never
+    // going to be one; in a real world this is long enough to walk over and switch one on.
+    private const int FramesBeforeSelfProvisioning = 600;
+
+    // Radius, in tiles, of the area the test pins in memory. Has to cover the pylon's square, the
+    // outside probe beyond it, and the search that finds them — with room to spare.
+    private const float KeepLoadedRadius = 90f;
+
     private NoBreakZonePylonRegistrySystem _registry;
+    private Entity _areaAnchor = Entity.Null;
+    private bool _announcedNoGround;
 
     private int _step;
     private int _wait;
@@ -102,12 +121,23 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void WaitForPylon()
     {
+        EnsureAreaAnchor();
+
         NativeArray<int2> pylons = _registry.Positions;
         if (pylons.Length == 0)
         {
-            if (++_framesWaitingForPylon > SetupTimeoutFrames)
+            _framesWaitingForPylon++;
+
+            // Retried rather than done once: the anchor above asks the game to stream the area in,
+            // and that takes an unknown number of frames. Until it lands there is no ground to
+            // build on and nothing to test.
+            if (_framesWaitingForPylon >= FramesBeforeSelfProvisioning && _framesWaitingForPylon % 60 == 0)
             {
-                Debug.Log("[NBZTEST] SETUP FAIL no switched-on pylon found — place one and switch it on");
+                ProbeAndBuildPylon();
+            }
+            else if (_framesWaitingForPylon > SetupTimeoutFrames)
+            {
+                Debug.Log("[NBZTEST] SETUP FAIL no switched-on pylon, and building one did not take");
                 Enabled = false;
             }
 
@@ -117,18 +147,72 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
         int2 pylon = pylons[0];
 
-        // Two tiles out is comfortably inside any square; radius + 3 is comfortably outside one,
-        // and far enough that a second pylon would have to be adjacent to reach it.
-        _inside = pylon + new int2(2, 0);
-        _outside = pylon + new int2(radius + 3, 0);
-
+        // Both probes have to sit on bare ground, so they are searched for rather than assumed:
+        // one well inside the square, one well outside it. A fixed offset lands in a wall as often
+        // as not, and a wall is not something a floor can be laid on.
         var tiles = CreateTileAccessor();
+
+        if (!TryFindGround(tiles, pylon, 1, radius - 1, out _inside)
+            || !TryFindGround(tiles, pylon, radius + 2, radius + 14, out _outside))
+        {
+            Debug.Log("[NBZTEST] SETUP FAIL could not find bare ground both inside and outside "
+                      + $"the square around ({pylon.x},{pylon.y})");
+            Enabled = false;
+            return;
+        }
+
         _tileset = tiles.GetTop(_inside).tileset;
 
         Debug.Log($"[NBZTEST] pylon at ({pylon.x},{pylon.y}) radius={radius} "
-                  + $"inside=({_inside.x},{_inside.y}) outside=({_outside.x},{_outside.y})");
+                  + $"inside=({_inside.x},{_inside.y}) outside=({_outside.x},{_outside.y}) "
+                  + $"tileset={_tileset}");
 
         Advance();
+    }
+
+    /// Builds a switched-on pylon so the test can run with nobody in the world, and says out loud
+    /// what the map looks like where it is building. On a dedicated server with no players there is
+    /// no character to place one, and no guarantee that any part of the map is streamed in — if the
+    /// probe reports `none` for the ground, that is the answer to why nothing else works, and it is
+    /// better to read it in the log than to infer it from six failed cases.
+    private void ProbeAndBuildPylon()
+    {
+        var tiles = CreateTileAccessor();
+
+        // Bare ground, not a wall. Two things make this a search rather than a constant: the first
+        // attempt built at a fixed offset, landed inside a wall, and the game deleted the pylon
+        // before the registry saw it; and an unloaded tile reads as `wall` too
+        // (TileAccessor.DefaultTile), so "no ground anywhere" usually means "not streamed in yet".
+        if (!TryFindGround(tiles, int2.zero, 0, SearchRadius, out int2 at))
+        {
+            if (!_announcedNoGround)
+            {
+                _announcedNoGround = true;
+                Debug.Log($"[NBZTEST] waiting for the map: nothing but wall within {SearchRadius} "
+                          + "tiles of the origin, which is also what an unloaded chunk reads as");
+            }
+
+            return;
+        }
+
+        Debug.Log($"[NBZTEST] building at ({at.x},{at.y}), top={tiles.GetTopType(at)}");
+
+        ObjectID pylonId = API.Authoring.GetObjectID(NoBreakZonePylonRegistrySystem.PylonObjectName);
+        if (pylonId == ObjectID.None)
+        {
+            Debug.Log("[NBZTEST] SETUP FAIL the object database does not know the pylon yet");
+            return;
+        }
+
+        // variation 1 is the switched-on look, and the registry reads exactly that field to decide
+        // whether a pylon projects a square (NoBreakZonePylonGraphics.VariationOn).
+        Entity pylon = EntityUtility.CreateEntity(
+            World, new Vector3(at.x, 0f, at.y), pylonId, 1, database,
+            NoBreakZonePylonGraphics.VariationOn);
+
+        Debug.Log(pylon == Entity.Null
+            ? "[NBZTEST] SETUP FAIL could not create a pylon entity"
+            : $"[NBZTEST] built a switched-on pylon at ({at.x},{at.y})");
     }
 
     /// Lays a floor at both probes so the explosion has something of ours to destroy. A floor is the
@@ -248,6 +332,69 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     // ---------------------------------------------------------------------------------- plumbing
+
+    /// First tile of bare ground in the ring between minDistance and maxDistance from the origin,
+    /// searched outwards so the answer is as close to the Core as possible.
+    ///
+    /// `ground` specifically, not "walkable": a floor can be laid on it, a pylon can stand on it, and
+    /// the explosion cases need something ordinary underneath. Walls, water, pits and anything the
+    /// world generator decorated with are all skipped.
+    private static bool TryFindGround(
+        TileAccessor tiles, int2 centre, int minDistance, int maxDistance, out int2 found)
+    {
+        for (int ring = math.max(minDistance, 0); ring <= maxDistance; ring++)
+        {
+            for (int x = -ring; x <= ring; x++)
+            {
+                for (int z = -ring; z <= ring; z++)
+                {
+                    // Only the edge of each ring — the inside was covered by a smaller one.
+                    if (math.max(math.abs(x), math.abs(z)) != ring)
+                    {
+                        continue;
+                    }
+
+                    int2 candidate = centre + new int2(x, z);
+                    if (tiles.GetTopType(candidate) == TileType.ground)
+                    {
+                        found = candidate;
+                        return true;
+                    }
+                }
+            }
+        }
+
+        found = int2.zero;
+        return false;
+    }
+
+    /// Pins the area around the origin in memory.
+    ///
+    /// A dedicated server with nobody connected streams nothing: every tile reads back as
+    /// TileAccessor.DefaultTile, which is a wall, so the test has no map to work on. KeepAreaLoadedCD
+    /// is the game's own answer — UnloadToSerializeWorldSystem collects every entity carrying it and
+    /// keeps a circle around each one resident. One entity is enough, and it is thrown away with the
+    /// world because nothing serialises it.
+    private void EnsureAreaAnchor()
+    {
+        if (_areaAnchor != Entity.Null && EntityManager.Exists(_areaAnchor))
+        {
+            return;
+        }
+
+        _areaAnchor = EntityManager.CreateEntity(
+            typeof(LocalTransform), typeof(KeepAreaLoadedCD), typeof(DontSerializeCD));
+
+        EntityManager.SetComponentData(_areaAnchor, LocalTransform.FromPosition(float3.zero));
+        EntityManager.SetComponentData(_areaAnchor, new KeepAreaLoadedCD
+        {
+            KeepLoadedRadius = KeepLoadedRadius,
+            StartLoadRadius = KeepLoadedRadius + 10f,
+            ImmediateLoadRadius = KeepLoadedRadius,
+        });
+
+        Debug.Log($"[NBZTEST] pinned a {KeepLoadedRadius}-tile area around the origin so the map loads");
+    }
 
     private void Advance()
     {
