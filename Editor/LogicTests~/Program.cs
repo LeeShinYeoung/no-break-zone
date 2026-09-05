@@ -40,6 +40,7 @@ namespace NoBreakZone.LogicTests
             RangeChecks();
             FootprintChecks();
             ProtectionRuleUnitChecks();
+            TileEditChecks();
             WholeDatabaseRegression(csv);
 
             Console.WriteLine(_failures == 0
@@ -131,6 +132,78 @@ namespace NoBreakZone.LogicTests
             IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
                     PlaceablePrefab, true, isTile: true, false, false, false, isOreTile: true),
                 "ore is mined for its material");
+        }
+
+        // ------------------------------------------------------------------ Scripts/Logic/NoBreakZoneTileEdit
+
+        private static void TileEditChecks()
+        {
+            const int add = NoBreakZoneTileEdit.CommandAdd;
+            const int remove = NoBreakZoneTileEdit.CommandRemove;
+            const int clear = NoBreakZoneTileEdit.CommandClear;
+            const int dug = NoBreakZoneTileEdit.TileDugUpGround;
+            const int ground = NoBreakZoneTileEdit.TileGround;
+            const int floor = 64;   // TileType.floor
+            const int ore = 129;    // TileType.ore
+
+            // The one refusal the whole policy exists for.
+            IsTrue(NoBreakZoneTileEdit.RefuseEdit(add, dug, covered: true, clearedAtSamePosition: false),
+                "digging bare ground inside the square is refused");
+
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(add, dug, covered: false, clearedAtSamePosition: false),
+                "digging outside every square is allowed");
+
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(add, dug, covered: true, clearedAtSamePosition: true),
+                "a Clear+Add pair is left alone so the tile is not emptied");
+
+            // Removing is never refused — PlayerController.DigUpTile drops the item through a
+            // separate command buffer, so refusing the removal duplicates the floor (기획서 §6).
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(remove, floor, covered: true, clearedAtSamePosition: false),
+                "lifting a floor is allowed: refusing it would duplicate the item");
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(remove, ground, covered: true, clearedAtSamePosition: false),
+                "removing ground is allowed for the same reason");
+
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(clear, ground, covered: true, clearedAtSamePosition: false),
+                "chunk streaming's Clear is always allowed");
+
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(add, floor, covered: true, clearedAtSamePosition: false),
+                "placing a floor inside your own base still works");
+            IsTrue(!NoBreakZoneTileEdit.RefuseEdit(add, ore, covered: true, clearedAtSamePosition: false),
+                "adding an ore tile is not our business");
+
+            // Exhaustive: across every command, every tile type the game defines, and both flags,
+            // exactly one shape may be refused. A new refusal added without a test lands here.
+            int refusals = 0;
+            int cases = 0;
+            for (int command = 0; command <= 2; command++)
+            {
+                for (int tileType = 0; tileType < 135; tileType++)
+                {
+                    for (int covered = 0; covered < 2; covered++)
+                    {
+                        for (int cleared = 0; cleared < 2; cleared++)
+                        {
+                            cases++;
+                            if (!NoBreakZoneTileEdit.RefuseEdit(command, tileType, covered == 1, cleared == 1))
+                            {
+                                continue;
+                            }
+
+                            refusals++;
+                            bool expected = command == add && tileType == dug && covered == 1 && cleared == 0;
+                            if (!expected)
+                            {
+                                _failures++;
+                                Console.Error.WriteLine(
+                                    $"[FAIL] unexpected refusal: command={command} tile={tileType} "
+                                    + $"covered={covered == 1} cleared={cleared == 1}");
+                            }
+                        }
+                    }
+                }
+            }
+
+            IsTrue(refusals == 1, $"exactly one of {cases} edit shapes is refused (found {refusals})");
         }
 
         private static void WholeDatabaseRegression(string csvPath)
