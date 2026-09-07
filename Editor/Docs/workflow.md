@@ -134,6 +134,9 @@ main 으로 머지     →  검증 완료여야 한다    ← 게이트
 1~3에서 걸리면 사람을 부르지 않고 고쳐서 다시 돈다. 4는 버릴 월드에서만 — 자기검증이 일부러
 타일을 부순다.
 
+**넷이 다 초록이어도 모드가 다 동작한다는 뜻은 아니다.** 어디까지 덮이고 무엇이 원리적으로
+안 덮이는지는 `coverage.md`에 있다. 사람을 부를 때 무엇을 봐 달라고 해야 하는지도 거기서 나온다.
+
 **유니티 테스트 러너는 이 머신에서 못 쓴다.** `Unity.exe -batchmode -runTests`는 프로젝트를 다
 로드한 뒤 `No valid Unity Editor license found`로 exit 198이 된다. 같은 배치모드라도
 `-batchmode -quit -executeMethod`(빌드가 쓰는 길)는 멀쩡하다. 그래서 `Editor/Tests`의 NUnit은

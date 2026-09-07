@@ -158,6 +158,7 @@ Editor/verify.ps1      시스템 순서·동작 (ECS 하네스)      (사람 0)
 | `Editor/Docs/design.md` | 기획서 — 무엇을 만드는가 | 결정이 바뀔 때 (승인 후) |
 | `Editor/Docs/workflow.md` | 일하는 방식 — 이 문서의 원본 | 절차가 바뀔 때 |
 | `Editor/Docs/research.md` | 디컴파일·실험으로 알아낸 것 | 사실을 알아낼 때마다 |
+| `Editor/Docs/coverage.md` | 검사가 초록이면 무엇까지 믿어도 되는가 | 테스트나 기능이 늘 때 |
 | `Editor/Docs/failures.md` | 시도했으나 안 된 것과 이유 | 실패할 때마다 (아직 없음) |
 | `Editor/GameData/` | DB 덤프 정적 참조 | 게임 업데이트 후 재생성 |
 
