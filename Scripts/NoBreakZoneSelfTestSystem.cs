@@ -441,15 +441,23 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // Every ten seconds, not every second: registration is not instant — the first run of
             // this built 43 pylons before the registry reported one, and every extra pylon projects
             // a square that invalidates the control cases.
+            //
+            // AND NEVER WHILE A PYLON ENTITY ALREADY EXISTS, switched on or not. The condition above
+            // reads the registry, which lists switched-ON pylons only, so a pylon we just built and
+            // whose variation has not settled yet is invisible to it — and we build another, and
+            // another. That is the "43 pylons" path, and left alone it is how a world ends up with
+            // 367 of them.
             if (_framesWaitingForPylon >= FramesBeforeSelfProvisioning
                 && _framesWaitingForPylon % 600 == 0
-                && _spawnAttempt < 6)
+                && _spawnAttempt < 6
+                && !AnyPylonEntityExists())
             {
                 ProbeAndBuildPylon();
             }
             else if (_framesWaitingForPylon > SetupTimeoutFrames)
             {
                 Debug.Log("[NBZTEST] SETUP FAIL no switched-on pylon, and building one did not take");
+                RemoveOurOwnPylon();
                 _step = FinalStep + 1;
                 _framesUntilRerun = FramesBetweenRuns;
             }
@@ -483,6 +491,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             {
                 Debug.Log("[NBZTEST] SETUP FAIL never found bare ground both inside and outside "
                           + $"the square around ({pylon.x},{pylon.y})");
+                RemoveOurOwnPylon();
                 _step = FinalStep + 1;
                 _framesUntilRerun = FramesBetweenRuns;
             }
@@ -908,6 +917,17 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
+    /// Any pylon at all, on or off. Deliberately not the registry: that publishes switched-on
+    /// pylons only, and "there is no pylon" is a different question from "no pylon is projecting a
+    /// square" precisely while one we just built is still settling.
+    private bool AnyPylonEntityExists()
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<NoBreakZonePylonCD>());
+
+        return !query.IsEmpty;
+    }
+
     private bool TryGetPylonEntity(out Entity pylon)
     {
         EntityQuery query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<NoBreakZonePylonCD>());
@@ -1171,11 +1191,35 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void Finish()
     {
+        RemoveOurOwnPylon();
+
         Debug.Log($"[NBZTEST] SUMMARY run={_run} pass={_pass} fail={_fail} skip={_skip}");
 
         // Park past the end and count down to the next run.
         _step = FinalStep + 1;
         _framesUntilRerun = FramesBetweenRuns;
+    }
+
+    /// Takes back the pylon this run built, and only that one.
+    ///
+    /// WITHOUT THIS THE TEST POISONS ITS OWN WORLD. Nothing else ever removed a self-provisioned
+    /// pylon, and a run happens every minute for as long as the server is up, so they accumulate in
+    /// the save and survive into every later session. The 2026-09-08 run opened on a world holding
+    /// 367 switched-on pylons, which is what made release-on-switch-off unanswerable: turning one
+    /// off still leaves 366 covering the same wall.
+    ///
+    /// `_lastSpawned` is the whole safety argument. A pylon a human placed was never assigned to it,
+    /// so this cannot take somebody's pylon away — and the next run simply builds itself a fresh one.
+    private void RemoveOurOwnPylon()
+    {
+        if (_lastSpawned == Entity.Null || !EntityManager.Exists(_lastSpawned))
+        {
+            return;
+        }
+
+        EntityManager.DestroyEntity(_lastSpawned);
+        Debug.Log("[NBZTEST] removed the pylon this run built");
+        _lastSpawned = Entity.Null;
     }
 
     /// Resets everything a run owns, so a second run does not inherit the first one's verdicts or
