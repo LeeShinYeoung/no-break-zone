@@ -973,15 +973,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             return;
         }
 
-        DynamicBuffer<HealthChangeBuffer> buffer = HealthChanges();
-        buffer.Add(new HealthChangeBuffer
-        {
-            healthChange = new HealthChange { entity = _insidePlaceable, amount = -ExplosionDamage },
-        });
-        buffer.Add(new HealthChangeBuffer
-        {
-            healthChange = new HealthChange { entity = _outsidePlaceable, amount = -ExplosionDamage },
-        });
+        DamageEntity(_insidePlaceable, ExplosionDamage);
+        DamageEntity(_outsidePlaceable, ExplosionDamage);
 
         Advance(60);
     }
@@ -1090,15 +1083,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             return;
         }
 
-        DynamicBuffer<HealthChangeBuffer> buffer = HealthChanges();
-        buffer.Add(new HealthChangeBuffer
-        {
-            healthChange = new HealthChange { entity = _protectedPylon, amount = -ExplosionDamage },
-        });
-        buffer.Add(new HealthChangeBuffer
-        {
-            healthChange = new HealthChange { entity = _controlPylon, amount = -ExplosionDamage },
-        });
+        DamageEntity(_protectedPylon, ExplosionDamage);
+        DamageEntity(_controlPylon, ExplosionDamage);
 
         Advance(60);
     }
@@ -1390,6 +1376,39 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
                 position = position,
                 tile = new TileCD { tileset = _tileset, tileType = tileType },
             });
+    }
+
+    /// Explosion-shaped damage aimed at an ENTITY rather than at a tilemap square, in the shape the
+    /// game actually accepts. The three flags are not decoration — with any of them missing this
+    /// call silently does nothing at all, which is exactly what it did on 2026-09-08 and why both
+    /// of its controls came back red (Editor/Docs/research.md 22장):
+    ///
+    ///   applyToNonPredicted  UpdateHealthFromBufferSystem computes
+    ///                          flag = !applyToNonPredicted && has Simulate && !Simulate enabled
+    ///                        and when flag is true it applies damage ONLY if health survives it
+    ///                        (`health > -amount`), then `continue`s past the destroy path entirely.
+    ///                        With -9999 that reads "health > 9999", so a 10 HP workbench takes
+    ///                        nothing and can never be destroyed.
+    ///   bypassMaxDamagePerHit  otherwise the amount is clamped to the target's maxDamagePerHit,
+    ///                        the same per-hit cap that lets a wall survive one pickaxe swing.
+    ///   damagedByExplosion   matches what DamageTile below sends, so the two halves of this suite
+    ///                        are asking the game the same question.
+    ///
+    /// Written as one helper because the two call sites each hand-rolled the struct and both
+    /// forgot the same fields.
+    private void DamageEntity(Entity entity, int damage)
+    {
+        HealthChanges().Add(new HealthChangeBuffer
+        {
+            healthChange = new HealthChange
+            {
+                entity = entity,
+                amount = -damage,
+                applyToNonPredicted = true,
+                bypassMaxDamagePerHit = true,
+                damagedByExplosion = true,
+            },
+        });
     }
 
     private void DamageTile(int2 position, int damage, bool explosionShaped)
