@@ -1054,6 +1054,79 @@ PredictedSimulationSystemGroup (OrderFirst)
 그 땅은 영구히 안 부서진다. CLAUDE.md §6의 "세이브 데이터 구조에 영향"에 해당하므로
 **결정 전에는 쓰지 않는다.** 삽 차단과 호미 차단을 한 번에 해결하는 유일한 길이라 열어 둔다.
 
+## 22. 엔티티에 피해를 주는 법 — 필드 셋을 빼먹으면 조용히 아무 일도 안 난다 (2026-09-08)
+
+8장은 모든 피해원이 `HealthChangeBuffer`로 수렴한다는 것까지 밝혔다. **거기에 무엇을 넣어야 실제로
+피해가 되는지**는 안 적혀 있었고, 그 틈에서 자가 테스트 대조군 두 개가 조용히 죽었다.
+
+`UpdateHealthFromBufferSystem`(`Pug.Other.dll`)을 디컴파일하면 관문이 둘이다.
+
+### 22-1. `applyToNonPredicted` — 이걸 빼면 파괴 경로에 도달조차 못 한다
+
+```csharp
+bool flag = !healthChange.applyToNonPredicted
+            && simulationLookup.HasComponent(entity)
+            && !simulationLookup.IsComponentEnabled(entity);
+...
+if (flag)
+{
+    if (healthCD.health > -1 * num && num < 0)
+    {
+        healthCD.health = math.clamp(healthCD.health + num, 0, healthCD.maxHealth);
+        DoDamageEffects(...);
+    }
+    continue;   // ← 전리품·파괴 판정을 통째로 건너뛴다
+}
+```
+
+`Simulate`가 **꺼진** 엔티티에 `applyToNonPredicted = false`로 피해를 쓰면, **엔티티가 살아남을
+때만** 피해가 적용되고(`health > -amount`) 그 뒤 `continue`한다. 즉 **죽일 수 있는 피해는 아예 적용되지
+않는다.** -9999를 넣으면 조건이 `health > 9999`가 되므로 체력 10짜리 작업대는 **피해를 0 받는다.**
+
+로그에도 아무것도 안 남는다. 그래서 "보호가 동작한다"와 "피해가 안 들어갔다"가 구분되지 않는다 —
+**대조군이 없으면 알아챌 수 없는 종류의 실패다.**
+
+### 22-2. `bypassMaxDamagePerHit` — 없으면 금액이 잘린다
+
+```csharp
+if (num < 0 && !healthChange.bypassMaxDamagePerHit
+    && damageReductionGroup.HasComponent(entity)
+    && damageReductionGroup[entity].maxDamagePerHit > 0)
+{
+    num = math.max(num, -damageReductionGroup[entity].maxDamagePerHit);
+}
+```
+
+벽이 곡괭이 한 방에 안 죽는 그 상한이다. 폭발이 그걸 무시하는 이유가 `ExplosionDamageSystem`이
+이 플래그를 세우기 때문이고(8장·21장), 우리도 폭발 흉내를 내려면 똑같이 세워야 한다.
+
+### 22-3. 그래서 올바른 모양
+
+```csharp
+new HealthChange
+{
+    entity = target,
+    amount = -damage,
+    applyToNonPredicted = true,     // 없으면 파괴 판정 자체가 안 일어난다
+    bypassMaxDamagePerHit = true,   // 없으면 금액이 maxDamagePerHit으로 잘린다
+    damagedByExplosion = true,      // 폭발 모양 (전리품·이펙트 경로)
+}
+```
+
+`HealthChange`의 나머지 필드(`causedByEntity`, `skipLootDropOnDestroy`, `pullLootToPlayer` 등)는
+전리품과 연출을 정한다. 파괴 여부에는 관여하지 않는다.
+
+### 22-4. 어디서 물렸나
+
+2026-09-08 첫 인게임 판정에서 `placeable-outside-breaks`와 `pylon-off-breaks`가 FAIL로 나왔다.
+둘 다 **대조군**이었고, 둘 다 아무 보호도 없는 엔티티였다. 통과한 케이스는 전부 타일
+(`TileDamageBuffer`, 이미 `bypassMaxDamagePerHit`을 넘긴다)이고 실패한 둘만 `HealthChangeBuffer`에
+직접 썼다 — 갈리는 선이 정확히 여기였다.
+
+> **교훈은 필드가 아니라 대조군이다.** 계측기가 고장 났는데도 "보호 대상이 살아남았다"는 초록으로
+> 보였을 것이다. 대조군이 빨간 상태의 초록을 SKIP으로 처리하게 해 둔 규칙(21장)이 이번에도
+> 잘못된 결론을 막았다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)

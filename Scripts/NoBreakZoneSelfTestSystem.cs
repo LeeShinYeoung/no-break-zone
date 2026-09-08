@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using Pug.UnityExtensions;
 using PugMod;
 using PugTilemap;
 using Unity.Collections;
@@ -16,16 +18,20 @@ using UnityEngine;
 // need a database, a tilemap and a NetCode world. Answering that used to cost a play session per
 // attempt — three of them went on one pylon sprite. This turns it into a line in Player.log.
 //
-// WHAT ANYONE HAS TO DO: nothing, when it runs on the dedicated server
-// (D:\NoBreakZoneServer\run-selftest.ps1) — it builds its own switched-on pylon and reports. In a
-// real world a human can instead place a pylon within the first ten seconds and it will use that
-// one. Either way the verdict is greppable out of the log:
+// WHAT ANYONE HAS TO DO: nothing but be connected, when it runs on the dedicated server
+// (Editor/Server/start-server.ps1) — it builds its own switched-on pylon and reports. In a real
+// world a human can instead place a pylon within the first ten seconds and it will use that one.
+// Either way the verdict is greppable out of the log:
 //
 //     [NBZTEST] floor-inside-explosion PASS
 //     [NBZTEST] SUMMARY pass=6 fail=0 skip=0
 //
 // OFF BY DEFAULT, AND IT HAS TO STAY THAT WAY. It damages tiles on purpose — including outside the
 // square, where they are supposed to break — so it must never run in somebody's real base.
+//
+// ONE RUN PER WORLD. Being destructive is also why it does not repeat: a second run would be
+// standing on the wreckage of the first, and on 2026-09-08 that produced failures that said nothing
+// about the mod. Restart the server for another verdict — it discards the world on the way up.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
@@ -45,7 +51,18 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     /// One past the last case. Finish runs here, so adding a case means adding to the switch and
     /// moving this.
-    private const int FinalStep = 20;
+    private const int FinalStep = 26;
+
+    /// Where each group of cases that can stand on its own begins.
+    ///
+    /// A step that finds its prerequisite missing skips FORWARD TO THE NEXT GROUP, not to the end.
+    /// Jumping to the end used to take unrelated cases with it — a run that could not switch the
+    /// pylon off lost all three placeable cases with no PASS, no FAIL and no SKIP to say so. The
+    /// whole point of this suite is that one connection answers as many questions as it can, and a
+    /// missing wall is no reason to stop asking about workbenches.
+    private const int PlaceableStep = 17;
+    private const int PylonInvulnStep = 20;
+    private const int BoulderStep = 23;
 
     // Generous on purpose. On a dedicated server the map only streams in once somebody connects, so
     // this has to outlast a human launching the game, picking a character and joining — not just the
@@ -82,8 +99,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private Entity _lastSpawned = Entity.Null;
     private int _spawnAttempt;
 
-    // Roughly a minute at 60 ticks. Long enough that the log stays readable, short enough that a
-    // human who joined to make the map exist does not have to wait around.
+    // Roughly a minute at 60 ticks. Only SETUP FAIL waits this out and tries again — a run that
+    // actually reported is the last one this world gets, for the reason spelled out in OnUpdate.
     private const int FramesBetweenRuns = 3600;
     private int _framesUntilRerun;
 
@@ -106,11 +123,39 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private int _pickaxeSwings;
     private Entity _insidePlaceable = Entity.Null;
     private Entity _outsidePlaceable = Entity.Null;
+    private Entity _protectedPylon = Entity.Null;
+    private Entity _controlPylon = Entity.Null;
+    private Entity _insideBoulder = Entity.Null;
+    private Entity _outsideBoulder = Entity.Null;
 
     /// Enough capped hits to fell a wall. The cap is per hit, so this is the only way to tell the
     /// pickaxe path apart from the explosion one.
     private const int PickaxeSwings = 20;
     private int _tileset;
+
+    /// Ceiling on a bench whose recipes are all drawn at once: the crafting window shows three
+    /// pages of six (research.md 18장). Past it a recipe is in the list and never on screen.
+    private const int MaxDrawableRecipeSlots = 18;
+
+    /// One of the ten ore boulders in object_flags.csv, all of which carry the same flags. Copper is
+    /// the cheapest and exists in every world, so it is the one this asks about.
+    private const string BoulderObjectName = "CopperOreBoulder";
+
+    /// How long to wait for the recipe pass before giving up on it. A minute — the object database
+    /// is up long before the map is, so this never being reached is the normal case.
+    private const int RecipeTimeoutFrames = 3600;
+
+    private bool _recipesJudged;
+    private int _framesWaitingForRecipes;
+
+    private static readonly string[] RecipeCaseNames =
+    {
+        "recipe-bench-at-automation-table",
+        "recipe-pylon-at-our-bench",
+        "recipe-lens-at-our-bench",
+        "recipe-remote-at-our-bench",
+        "recipe-bench-shows-three",
+    };
 
     protected override void OnCreate()
     {
@@ -141,6 +186,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             StartRun();
         }
 
+        JudgeRecipesIfReady();
+
         if (_step == FinalStep)
         {
             Finish();
@@ -148,11 +195,22 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         if (_step > FinalStep)
         {
-            // Finished. Runs again on its own after a pause, so whoever is reading the log never
-            // has to trigger anything: keep the game open and a fresh verdict appears every minute.
-            // Re-reading the config file at runtime was the obvious alternative and is not something
-            // the config API promises, so this does not depend on it.
-            if (--_framesUntilRerun <= 0)
+            // ONE COMPLETED RUN PER WORLD, AND NO MORE. This used to re-arm every minute, and the
+            // repeat runs were worse than useless: the suite is destructive, nothing puts the
+            // terrain back, and so run 2 works on what run 1 chewed up. Watching it happen on
+            // 2026-09-08 is what settled this — release-on-switch-off passed on run 1 and failed on
+            // runs 2 through 6, and the ore pair degraded to SKIP once the earlier runs had blown up
+            // the only ore in reach. A red that means "the previous run ate the evidence" is worse
+            // than no verdict at all, because somebody has to spend a session finding that out.
+            //
+            // To run again, restart the server: it now discards the world, which is the only way to
+            // get the clean terrain a second run would need anyway. Flipping selfTest off and on
+            // still re-arms too, for a world somebody is deliberately reusing.
+            //
+            // _framesUntilRerun still runs the countdown for SETUP FAIL below, which is a different
+            // case: nothing was measured and nothing was destroyed, so retrying costs nothing and
+            // buys the human the freedom to join whenever they like.
+            if (_framesUntilRerun > 0 && --_framesUntilRerun <= 0)
             {
                 _armed = false;
             }
@@ -190,10 +248,205 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             case 17: SpawnPlaceables(); break;
             case 18: DamagePlaceables(); break;
             case 19: CheckPlaceableResult(); break;
+            case 20: SpawnControlPylon(); break;
+            case 21: DamagePylons(); break;
+            case 22: CheckPylonResult(); break;
+            case 23: SpawnBoulders(); break;
+            case 24: DamageBoulders(); break;
+            case 25: CheckBoulderResult(); break;
             default: break;
         }
 
         base.OnUpdate();
+    }
+
+    // ----------------------------------------------------------------------------------- recipes
+
+    /// 기획서 §4's door into the whole mod, judged once per run.
+    ///
+    /// WHY IT IS WORTH CHECKING AT ALL. Our bench's three recipes are authored by NAME
+    /// (Editor/genassets.py's crafts=[...]) and the game's own bake resolves those names to ids.
+    /// That resolution has already failed silently once: the converter beside
+    /// NoBreakZoneRecipeInjectionSystem asked for a numeric id before the mod's objects existed,
+    /// got None, and dropped the bench's own recipe without a word. When it fails the mod is simply
+    /// unreachable — nothing can be crafted, so nothing else in this suite ever gets the chance to
+    /// be wrong — and until now nothing short of a human opening a crafting window would notice.
+    ///
+    /// OUTSIDE THE STEP MACHINE, ON PURPOSE. It needs no pylon, no ground and no tilemap. Running
+    /// it here means a SETUP FAIL — which is what a map that never streams in produces — still
+    /// leaves five verdicts in the log instead of none.
+    private void JudgeRecipesIfReady()
+    {
+        if (_recipesJudged)
+        {
+            return;
+        }
+
+        _framesWaitingForRecipes++;
+
+        // Waiting on the injection pass rather than on a frame count. The two systems sit in
+        // SimulationSystemGroup with no ordering between them, so reading the buffers on our own
+        // schedule could judge them before anything had been written — a FAIL that says nothing
+        // about the mod. Guessing at frame order is the mistake that hid the explosion bug.
+        var injection = World.GetExistingSystemManaged<NoBreakZoneRecipeInjectionSystem>();
+
+        if (!database.IsCreated || injection == null || !injection.Done)
+        {
+            if (_framesWaitingForRecipes < RecipeTimeoutFrames)
+            {
+                return;
+            }
+
+            SkipRecipeCases(injection == null
+                ? "the recipe injection system is not in this world"
+                : "the recipe injection pass never reported done");
+            _recipesJudged = true;
+            return;
+        }
+
+        JudgeRecipes();
+        _recipesJudged = true;
+    }
+
+    private void JudgeRecipes()
+    {
+        ObjectID bench = API.Authoring.GetObjectID(NoBreakZoneObjectNames.Workbench);
+        if (bench == ObjectID.None)
+        {
+            SkipRecipeCases($"the object database does not know {NoBreakZoneObjectNames.Workbench}");
+            return;
+        }
+
+        // 기획서 §4 / coverage.md #38. The one recipe the mod cannot author itself, because only the
+        // game owns this bench — and the target is read off the system that injects it, so the two
+        // cannot drift apart.
+        ObjectID host = NoBreakZoneRecipeInjectionSystem.TargetWorkbench;
+        if (TryReadRecipes(host, out List<ObjectID> hostOffers, out _, out _))
+        {
+            Verdict("recipe-bench-at-automation-table",
+                hostOffers.Contains(bench),
+                $"{host} offers {NoBreakZoneObjectNames.Workbench}");
+        }
+        else
+        {
+            Skip("recipe-bench-at-automation-table", $"{host} has no craftable prefab in this world");
+        }
+
+        if (!TryReadRecipes(bench, out List<ObjectID> ourOffers, out int slots, out int categories))
+        {
+            SkipRecipeCases("our own workbench has no craftable prefab in this world", skipHost: false);
+            return;
+        }
+
+        // coverage.md #1 · #31 · #33 — one verdict each, so a single name that failed to resolve is
+        // named in the log rather than hidden inside a combined result.
+        int found = 0;
+        found += JudgeOneRecipe("recipe-pylon-at-our-bench", NoBreakZoneObjectNames.Pylon, ourOffers);
+        found += JudgeOneRecipe("recipe-lens-at-our-bench", NoBreakZoneObjectNames.Lens, ourOffers);
+        found += JudgeOneRecipe("recipe-remote-at-our-bench", NoBreakZoneObjectNames.Remote, ourOffers);
+
+        // coverage.md #40, and a different question from the three above: being in the list is not
+        // being on screen. research.md 18장 is the record of that difference costing play sessions —
+        // the recipe was in the iron workbench's list the whole time and never drawn, because the
+        // list ran past 18 slots and was split into ranges the UI pages through one at a time.
+        bool drawable = slots <= MaxDrawableRecipeSlots && categories == 0;
+        Verdict("recipe-bench-shows-three",
+            found == 3 && drawable,
+            "all three sit in a list the crafting window draws in one go "
+            + $"(found {found}/3, slots={slots} of {MaxDrawableRecipeSlots}, categories={categories})");
+    }
+
+    /// One recipe, named, so the log says which of the three names failed to resolve.
+    private int JudgeOneRecipe(string caseName, string objectName, List<ObjectID> offers)
+    {
+        ObjectID id = API.Authoring.GetObjectID(objectName);
+        if (id == ObjectID.None)
+        {
+            Skip(caseName, $"the object database does not know {objectName}");
+            return 0;
+        }
+
+        bool listed = offers.Contains(id);
+        Verdict(caseName, listed, $"the Pylon Workbench offers {objectName}");
+        return listed ? 1 : 0;
+    }
+
+    private void SkipRecipeCases(string why, bool skipHost = true)
+    {
+        foreach (string name in RecipeCaseNames)
+        {
+            if (!skipHost && name == RecipeCaseNames[0])
+            {
+                continue;  // already judged against the vanilla bench
+            }
+
+            Skip(name, why);
+        }
+    }
+
+    /// The recipe list of whichever prefab of `owner` offers the most, with the two numbers that
+    /// decide whether the crafting window ever draws it (research.md 18장).
+    ///
+    /// The most-offering prefab rather than the first one: an object can have several prefabs and
+    /// genassets.py deliberately authors the recipes onto one of them, so "the first" would be a
+    /// coin flip. Every prefab is logged either way, as the injection system's Report does, so a
+    /// failure is diagnosed off Player.log instead of guessed at.
+    private bool TryReadRecipes(
+        ObjectID owner, out List<ObjectID> recipes, out int slots, out int categories)
+    {
+        recipes = null;
+        slots = 0;
+        categories = 0;
+
+        ref var infos = ref database.Value.objectInfos;
+        var em = EntityManager;
+
+        for (int i = 0; i < infos.Length; i++)
+        {
+            ref var info = ref infos[i];
+            if (info.objectID != owner)
+            {
+                continue;
+            }
+
+            for (int p = 0; p < info.prefabEntities.Length; p++)
+            {
+                Entity prefab = info.prefabEntities[p];
+                if (!em.Exists(prefab) || !em.HasBuffer<CanCraftObjectsBuffer>(prefab))
+                {
+                    continue;
+                }
+
+                DynamicBuffer<CanCraftObjectsBuffer> buffer =
+                    em.GetBuffer<CanCraftObjectsBuffer>(prefab);
+
+                var offered = new List<ObjectID>();
+                for (int r = 0; r < buffer.Length; r++)
+                {
+                    // ObjectID.None is an authored-but-empty slot, not a recipe.
+                    if (buffer[r].objectID != ObjectID.None)
+                    {
+                        offered.Add(buffer[r].objectID);
+                    }
+                }
+
+                int included = em.HasBuffer<IncludedCraftingBuildingsBuffer>(prefab)
+                    ? em.GetBuffer<IncludedCraftingBuildingsBuffer>(prefab).Length
+                    : 0;
+
+                Debug.Log($"[NBZTEST] recipes on {owner} prefab {p}: slots={buffer.Length}, "
+                          + $"offers={offered.Count}, categories={included}");
+
+                if (recipes == null || offered.Count > recipes.Count)
+                {
+                    recipes = offered;
+                    slots = buffer.Length;
+                    categories = included;
+                }
+            }
+        }
+
+        return recipes != null;
     }
 
     // ------------------------------------------------------------------------------------- steps
@@ -213,15 +466,23 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // Every ten seconds, not every second: registration is not instant — the first run of
             // this built 43 pylons before the registry reported one, and every extra pylon projects
             // a square that invalidates the control cases.
+            //
+            // AND NEVER WHILE A PYLON ENTITY ALREADY EXISTS, switched on or not. The condition above
+            // reads the registry, which lists switched-ON pylons only, so a pylon we just built and
+            // whose variation has not settled yet is invisible to it — and we build another, and
+            // another. That is the "43 pylons" path, and left alone it is how a world ends up with
+            // 367 of them.
             if (_framesWaitingForPylon >= FramesBeforeSelfProvisioning
                 && _framesWaitingForPylon % 600 == 0
-                && _spawnAttempt < 6)
+                && _spawnAttempt < 6
+                && !AnyPylonEntityExists())
             {
                 ProbeAndBuildPylon();
             }
             else if (_framesWaitingForPylon > SetupTimeoutFrames)
             {
                 Debug.Log("[NBZTEST] SETUP FAIL no switched-on pylon, and building one did not take");
+                RemoveOurOwnPylon();
                 _step = FinalStep + 1;
                 _framesUntilRerun = FramesBetweenRuns;
             }
@@ -255,6 +516,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             {
                 Debug.Log("[NBZTEST] SETUP FAIL never found bare ground both inside and outside "
                           + $"the square around ({pylon.x},{pylon.y})");
+                RemoveOurOwnPylon();
                 _step = FinalStep + 1;
                 _framesUntilRerun = FramesBetweenRuns;
             }
@@ -568,8 +830,21 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         if (outsideGone)
         {
             // THE ONE THAT MATTERS MOST. A protected ore tile is an infinite resource.
+            bool insideGone = tiles.GetTopType(_insideOre) != TileType.ore;
+
+            // A red here says the rule and the game disagree, and the rule is not the interesting
+            // half — NoBreakZoneProtectionRule excludes ore outright and 2278 objects are checked
+            // against it offline. What is worth knowing is what the mod is looking at when it
+            // decides, so say it rather than leaving the next session to guess. Guessing is what
+            // cost this project three play sessions on one sprite (status.md 체크포인트 1).
+            if (!insideGone)
+            {
+                Debug.Log("[NBZTEST] ore diagnosis @inside — " + DescribeEntityAt(_insideOre));
+                Debug.Log("[NBZTEST] ore diagnosis @outside(control) — " + DescribeEntityAt(_outsideOre));
+            }
+
             Verdict("ore-inside-still-breaks",
-                tiles.GetTopType(_insideOre) != TileType.ore,
+                insideGone,
                 "ore INSIDE the square still breaks — protecting it would duplicate resources");
         }
         else
@@ -642,7 +917,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         if (!_haveWalls || !TryGetPylonEntity(out Entity pylon))
         {
             Skip("release-on-switch-off", "no pylon entity to switch off");
-            _step = FinalStep;
+            _step = PlaceableStep;
             return;
         }
 
@@ -651,8 +926,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         EntityManager.SetComponentData(pylon, data);
 
         Debug.Log("[NBZTEST] switched the pylon off");
-        _wait = 60;
-        Advance();
+        Advance(60);
     }
 
     private void BlowUpTheReleasedWall()
@@ -681,6 +955,17 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
+    /// Any pylon at all, on or off. Deliberately not the registry: that publishes switched-on
+    /// pylons only, and "there is no pylon" is a different question from "no pylon is projecting a
+    /// square" precisely while one we just built is still settling.
+    private bool AnyPylonEntityExists()
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<NoBreakZonePylonCD>());
+
+        return !query.IsEmpty;
+    }
+
     private bool TryGetPylonEntity(out Entity pylon)
     {
         EntityQuery query = EntityManager.CreateEntityQuery(ComponentType.ReadOnly<NoBreakZonePylonCD>());
@@ -707,7 +992,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("placeable-inside-survives", "the database does not know WoodenWorkBench");
             Skip("placeable-outside-breaks", "same");
-            _step = FinalStep;
+            _step = PylonInvulnStep;
             return;
         }
 
@@ -720,7 +1005,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("placeable-inside-survives", "could not spawn a workbench");
             Skip("placeable-outside-breaks", "same");
-            _step = FinalStep;
+            _step = PylonInvulnStep;
             return;
         }
 
@@ -729,8 +1014,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         // Long enough for the protection system to see them and for the game to reject either
         // placement if it wants to.
-        _wait = 60;
-        Advance();
+        Advance(60);
     }
 
     /// Damage written straight into HealthChangeBuffer, which is what a mob, a boss or an
@@ -743,22 +1027,14 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("placeable-inside-survives", "a workbench did not survive being placed at all");
             Skip("placeable-outside-breaks", "same");
-            _step = FinalStep;
+            _step = PylonInvulnStep;
             return;
         }
 
-        DynamicBuffer<HealthChangeBuffer> buffer = HealthChanges();
-        buffer.Add(new HealthChangeBuffer
-        {
-            healthChange = new HealthChange { entity = _insidePlaceable, amount = -ExplosionDamage },
-        });
-        buffer.Add(new HealthChangeBuffer
-        {
-            healthChange = new HealthChange { entity = _outsidePlaceable, amount = -ExplosionDamage },
-        });
+        DamageEntity(_insidePlaceable, ExplosionDamage);
+        DamageEntity(_outsidePlaceable, ExplosionDamage);
 
-        _wait = 60;
-        Advance();
+        Advance(60);
     }
 
     private void CheckPlaceableResult()
@@ -791,6 +1067,298 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
+    /// design.md:320 — "켜져 있는 동안 파일런은 무적이다. 폭발로도, 곡괭이로도, 몹 공격으로도
+    /// 파괴되지 않는다" — and the line after it says why: if the pylon falls, every square it was
+    /// projecting falls with it, so this is the case that stands under all the others.
+    ///
+    /// THE CONTROL IS A SECOND PYLON, SWITCHED OFF. "A workbench outside the square dies" would
+    /// prove nothing here: it says nothing about whether a pylon left unguarded would have died.
+    /// Only the same object with the switch in the other position answers that. It also means this
+    /// case brushes 기획서 §5 on the way past — a switched-off pylon is an ordinary object.
+    ///
+    /// Standing a second pylon in the world is safe precisely because it is off: the registry
+    /// collects positions only from pylons at VariationOn, so this one is not in Positions and
+    /// projects no square of its own. That matters — an earlier version of this test managed to
+    /// build 43 pylons and invalidate every control it had.
+    private void SpawnControlPylon()
+    {
+        // Captured by position, not by "whichever pylon the query returns first". In a moment there
+        // will be two, and the later steps must not be able to confuse them.
+        if (!TryGetPylonEntityAt(_pylon, out _protectedPylon))
+        {
+            Skip("pylon-on-survives", "no switched-on pylon entity to damage");
+            Skip("pylon-off-breaks", "same");
+            _step = BoulderStep;
+            return;
+        }
+
+        ObjectID pylonId = API.Authoring.GetObjectID(NoBreakZonePylonRegistrySystem.PylonObjectName);
+        if (pylonId == ObjectID.None)
+        {
+            Skip("pylon-on-survives", "the object database does not know the pylon");
+            Skip("pylon-off-breaks", "same");
+            _step = BoulderStep;
+            return;
+        }
+
+        _controlPylon = EntityUtility.CreateEntity(
+            World, new Vector3(_outside.x, 0f, _outside.y), pylonId, 1, database,
+            NoBreakZonePylonGraphics.VariationOff);
+
+        if (_controlPylon == Entity.Null)
+        {
+            Skip("pylon-off-breaks", "could not spawn a second pylon as the control");
+            Skip("pylon-on-survives", "same");
+            _step = BoulderStep;
+            return;
+        }
+
+        // Set outright for the same reason ProbeAndBuildPylon does: the registry decides on/off from
+        // this field, not from which prefab the database handed back.
+        ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(_controlPylon);
+        data.variation = NoBreakZonePylonGraphics.VariationOff;
+        EntityManager.SetComponentData(_controlPylon, data);
+
+        Debug.Log($"[NBZTEST] control pylon (switched off) at ({_outside.x},{_outside.y}), "
+                  + $"protected pylon at ({_pylon.x},{_pylon.y})");
+
+        // Long enough for the registry to classify both and for the protection to settle on each.
+        Advance(60);
+    }
+
+    /// Damage written straight into HealthChangeBuffer — a mob, a boss, an explosion or the
+    /// environment all end up here (research.md 8장). It is also the only shape of damage this test
+    /// can aim at a pylon at all, since the pickaxe path is client-predicted, and it is exactly the
+    /// path IndestructibleCD does NOT guard. Before the fix that came with this case, the switched-on
+    /// pylon died right here.
+    private void DamagePylons()
+    {
+        if (!EntityManager.Exists(_protectedPylon) || !EntityManager.Exists(_controlPylon))
+        {
+            Skip("pylon-off-breaks", "a pylon stopped existing before it could be damaged");
+            Skip("pylon-on-survives", "same");
+            _step = BoulderStep;
+            return;
+        }
+
+        DamageEntity(_protectedPylon, ExplosionDamage);
+        DamageEntity(_controlPylon, ExplosionDamage);
+
+        Advance(60);
+    }
+
+    private void CheckPylonResult()
+    {
+        bool controlGone = IsDestroyed(_controlPylon);
+
+        Verdict("pylon-off-breaks", controlGone,
+            "a switched-off pylon is destroyed by explosion-sized damage — the control");
+
+        if (controlGone)
+        {
+            Verdict("pylon-on-survives",
+                !IsDestroyed(_protectedPylon),
+                "and a switched-on one shrugs off the same damage (design.md:320)");
+        }
+        else
+        {
+            Skip("pylon-on-survives", "the control survived too, so this proves nothing");
+        }
+
+        // Never leave the control standing: switched off it is harmless, but a stray pylon somebody
+        // later switches on would move every square the next run measures against.
+        if (EntityManager.Exists(_controlPylon))
+        {
+            EntityManager.DestroyEntity(_controlPylon);
+        }
+
+        _controlPylon = Entity.Null;
+
+        Advance();
+    }
+
+    /// 기획서 §6 names this exact scenario as the worst thing this mod could do:
+    ///
+    ///   "드릴은 보호 대상이지만 광석 덩어리는 아니다. 만약 구현이 이 둘을 구분하지 못해 덩어리까지
+    ///    보호해버리면, 덩어리가 고갈되지 않아 광석이 무한정 나온다."
+    ///
+    /// A protected boulder is an infinite resource: the drill keeps mining, the boulder never
+    /// depletes, and the save's economy is broken in a way no later fix can undo. Nothing checked it
+    /// in game until now.
+    ///
+    /// SPAWNED, NOT SEARCHED FOR. The ore-tile pair beside this one has to find ore both inside and
+    /// outside the square, and on 2026-09-08 it reported SKIP for want of it. A boulder is an
+    /// entity, not a tile (object_flags.csv: PlaceablePrefab, health=1, requiresDrill=1, tileCD=0),
+    /// so it can be placed exactly like the workbench and the case never depends on terrain luck.
+    ///
+    /// THE EXPECTATION IS THE OPPOSITE OF THE PLACEABLE CASE ABOVE. A workbench inside the square
+    /// must survive; a boulder inside the square must still die.
+    private void SpawnBoulders()
+    {
+        ObjectID boulderId = API.Authoring.GetObjectID(BoulderObjectName);
+        if (boulderId == ObjectID.None)
+        {
+            Skip("boulder-outside-breaks", $"the database does not know {BoulderObjectName}");
+            Skip("boulder-inside-still-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        _insideBoulder = EntityUtility.CreateEntity(
+            World, new Vector3(_inside.x, 0f, _inside.y), boulderId, 1, database);
+        _outsideBoulder = EntityUtility.CreateEntity(
+            World, new Vector3(_outside.x, 0f, _outside.y), boulderId, 1, database);
+
+        if (_insideBoulder == Entity.Null || _outsideBoulder == Entity.Null)
+        {
+            Skip("boulder-outside-breaks", "could not spawn a boulder");
+            Skip("boulder-inside-still-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        Debug.Log($"[NBZTEST] placed a {BoulderObjectName} inside ({_inside.x},{_inside.y}) and "
+                  + $"outside ({_outside.x},{_outside.y})");
+
+        // Long enough for the protection system to judge them — which is the whole question here.
+        Advance(60);
+    }
+
+    private void DamageBoulders()
+    {
+        if (!EntityManager.Exists(_insideBoulder) || !EntityManager.Exists(_outsideBoulder))
+        {
+            Skip("boulder-outside-breaks", "a boulder did not survive being placed at all");
+            Skip("boulder-inside-still-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        DamageEntity(_insideBoulder, ExplosionDamage);
+        DamageEntity(_outsideBoulder, ExplosionDamage);
+
+        Advance(60);
+    }
+
+    private void CheckBoulderResult()
+    {
+        bool outsideGone = IsDestroyed(_outsideBoulder);
+
+        Verdict("boulder-outside-breaks", outsideGone,
+            "a boulder outside every square is destroyed — the control");
+
+        if (outsideGone)
+        {
+            bool insideGone = IsDestroyed(_insideBoulder);
+
+            if (!insideGone)
+            {
+                Debug.Log("[NBZTEST] boulder diagnosis @inside — " + DescribeEntityAt(_inside));
+            }
+
+            Verdict("boulder-inside-still-breaks", insideGone,
+                "and one INSIDE the square is destroyed too — protecting it would let a drill mine "
+                + "it forever (기획서 §6)");
+        }
+        else
+        {
+            Skip("boulder-inside-still-breaks", "the control survived too, so this proves nothing");
+        }
+
+        foreach (Entity e in new[] { _insideBoulder, _outsideBoulder })
+        {
+            if (EntityManager.Exists(e))
+            {
+                EntityManager.DestroyEntity(e);
+            }
+        }
+
+        _insideBoulder = Entity.Null;
+        _outsideBoulder = Entity.Null;
+
+        Advance();
+    }
+
+    /// The pylon standing on a given tile, rather than whichever one the query happens to return
+    /// first. Once this test stands up a control there is more than one, and picking the wrong one
+    /// would invert every verdict that follows.
+    private bool TryGetPylonEntityAt(int2 tile, out Entity pylon)
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<NoBreakZonePylonCD>(),
+            ComponentType.ReadOnly<LocalTransform>());
+
+        using NativeArray<Entity> found = query.ToEntityArray(Allocator.Temp);
+        using NativeArray<LocalTransform> transforms =
+            query.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+
+        for (int i = 0; i < found.Length; i++)
+        {
+            if (transforms[i].Position.RoundToInt2().Equals(tile))
+            {
+                pylon = found[i];
+                return true;
+            }
+        }
+
+        pylon = Entity.Null;
+        return false;
+    }
+
+    /// Everything the protection decision turns on, for whatever entity is standing on a tile.
+    ///
+    /// Deliberately NOT the protection system's own query: that one excludes anything already
+    /// carrying NoBreakZoneEvaluatedCD, and "was it judged and then never looked at again" is one of
+    /// the two things this is here to tell apart. The other is which tile the game actually put an
+    /// entity on — ore sits in walls, and a wall IS protected since design.md's 2026-08-07 decision,
+    /// so an ore square whose entity reports tileType=wall would explain the failure completely.
+    private string DescribeEntityAt(int2 tile)
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<HealthCD>(),
+            ComponentType.ReadOnly<ObjectDataCD>(),
+            ComponentType.ReadOnly<LocalTransform>());
+
+        using NativeArray<Entity> found = query.ToEntityArray(Allocator.Temp);
+        using NativeArray<LocalTransform> transforms =
+            query.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+
+        var em = EntityManager;
+
+        for (int i = 0; i < found.Length; i++)
+        {
+            if (!transforms[i].Position.RoundToInt2().Equals(tile))
+            {
+                continue;
+            }
+
+            Entity e = found[i];
+            HealthCD health = em.GetComponentData<HealthCD>(e);
+            ObjectDataCD data = em.GetComponentData<ObjectDataCD>(e);
+
+            string tilePart = em.HasComponent<TileCD>(e)
+                ? $"tileType={em.GetComponentData<TileCD>(e).tileType}"
+                : "no TileCD";
+
+            string gate = em.HasComponent<DontDestroyOnZeroHealthCD>(e)
+                ? $"dontDestroy.disabled={em.GetComponentData<DontDestroyOnZeroHealthCD>(e).disabled}"
+                : "no DontDestroyOnZeroHealthCD";
+
+            string indestructible = em.HasComponent<IndestructibleCD>(e)
+                ? $"indestructible={em.IsComponentEnabled<IndestructibleCD>(e)}"
+                : "no IndestructibleCD";
+
+            return $"({tile.x},{tile.y}) objectID={data.objectID} {tilePart} "
+                   + $"health={health.health}/{health.maxHealth} {gate} {indestructible} "
+                   + $"ours={em.HasComponent<NoBreakZoneProtectedCD>(e)} "
+                   + $"judged={em.HasComponent<NoBreakZoneEvaluatedCD>(e)}";
+        }
+
+        // Also an answer, and a useful one: a tile only becomes an entity while it is being damaged
+        // (research.md 21장), so nothing here means the damage never reached it.
+        return $"({tile.x},{tile.y}) no entity with health stands here";
+    }
+
     private bool IsDestroyed(Entity entity)
     {
         if (!EntityManager.Exists(entity))
@@ -817,11 +1385,38 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void Finish()
     {
-        Debug.Log($"[NBZTEST] SUMMARY run={_run} pass={_pass} fail={_fail} skip={_skip}");
+        RemoveOurOwnPylon();
 
-        // Park past the end and count down to the next run.
+        Debug.Log($"[NBZTEST] SUMMARY run={_run} pass={_pass} fail={_fail} skip={_skip}");
+        Debug.Log("[NBZTEST] done — restart the server for another run, on terrain this one has not "
+                  + "already destroyed");
+
+        // Park past the end for good. Zero means the countdown in OnUpdate never fires, so nothing
+        // re-arms this until the config flag is toggled or the server restarts.
         _step = FinalStep + 1;
-        _framesUntilRerun = FramesBetweenRuns;
+        _framesUntilRerun = 0;
+    }
+
+    /// Takes back the pylon this run built, and only that one.
+    ///
+    /// WITHOUT THIS THE TEST POISONS ITS OWN WORLD. Nothing else ever removed a self-provisioned
+    /// pylon, and a run happens every minute for as long as the server is up, so they accumulate in
+    /// the save and survive into every later session. The 2026-09-08 run opened on a world holding
+    /// 367 switched-on pylons, which is what made release-on-switch-off unanswerable: turning one
+    /// off still leaves 366 covering the same wall.
+    ///
+    /// `_lastSpawned` is the whole safety argument. A pylon a human placed was never assigned to it,
+    /// so this cannot take somebody's pylon away — and the next run simply builds itself a fresh one.
+    private void RemoveOurOwnPylon()
+    {
+        if (_lastSpawned == Entity.Null || !EntityManager.Exists(_lastSpawned))
+        {
+            return;
+        }
+
+        EntityManager.DestroyEntity(_lastSpawned);
+        Debug.Log("[NBZTEST] removed the pylon this run built");
+        _lastSpawned = Entity.Null;
     }
 
     /// Resets everything a run owns, so a second run does not inherit the first one's verdicts or
@@ -835,6 +1430,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _pass = 0;
         _fail = 0;
         _skip = 0;
+        _recipesJudged = false;
+        _framesWaitingForRecipes = 0;
         _announcedNoGround = false;
         _announcedNoProbes = false;
         _floorIsDamageable = false;
@@ -842,6 +1439,10 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _pickaxeSwings = 0;
         _insidePlaceable = Entity.Null;
         _outsidePlaceable = Entity.Null;
+        _protectedPylon = Entity.Null;
+        _controlPylon = Entity.Null;
+        _insideBoulder = Entity.Null;
+        _outsideBoulder = Entity.Null;
         _lastSpawned = Entity.Null;
         _spawnAttempt = 0;
 
@@ -979,8 +1580,15 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void Advance()
     {
+        Advance(FramesBetweenSteps);
+    }
+
+    /// Advance and wait longer than the usual gap, for a step whose effect the game needs more than
+    /// a few frames to apply.
+    private void Advance(int wait)
+    {
         _step++;
-        _wait = FramesBetweenSteps;
+        _wait = wait;
     }
 
     private void Verdict(string name, bool passed, string what)
@@ -1011,6 +1619,39 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
                 position = position,
                 tile = new TileCD { tileset = _tileset, tileType = tileType },
             });
+    }
+
+    /// Explosion-shaped damage aimed at an ENTITY rather than at a tilemap square, in the shape the
+    /// game actually accepts. The three flags are not decoration — with any of them missing this
+    /// call silently does nothing at all, which is exactly what it did on 2026-09-08 and why both
+    /// of its controls came back red (Editor/Docs/research.md 22장):
+    ///
+    ///   applyToNonPredicted  UpdateHealthFromBufferSystem computes
+    ///                          flag = !applyToNonPredicted && has Simulate && !Simulate enabled
+    ///                        and when flag is true it applies damage ONLY if health survives it
+    ///                        (`health > -amount`), then `continue`s past the destroy path entirely.
+    ///                        With -9999 that reads "health > 9999", so a 10 HP workbench takes
+    ///                        nothing and can never be destroyed.
+    ///   bypassMaxDamagePerHit  otherwise the amount is clamped to the target's maxDamagePerHit,
+    ///                        the same per-hit cap that lets a wall survive one pickaxe swing.
+    ///   damagedByExplosion   matches what DamageTile below sends, so the two halves of this suite
+    ///                        are asking the game the same question.
+    ///
+    /// Written as one helper because the two call sites each hand-rolled the struct and both
+    /// forgot the same fields.
+    private void DamageEntity(Entity entity, int damage)
+    {
+        HealthChanges().Add(new HealthChangeBuffer
+        {
+            healthChange = new HealthChange
+            {
+                entity = entity,
+                amount = -damage,
+                applyToNonPredicted = true,
+                bypassMaxDamagePerHit = true,
+                damagedByExplosion = true,
+            },
+        });
     }
 
     private void DamageTile(int2 position, int damage, bool explosionShaped)

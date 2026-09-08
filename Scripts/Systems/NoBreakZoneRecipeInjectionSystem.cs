@@ -27,9 +27,21 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     // and not the iron workbench 기획서 §4 first named: the iron bench authors all 18 of the slots
     // the UI can show, and it absorbs three lower benches, which splits its recipe list into ranges
     // that are drawn one at a time. The Automation Table holds 6 of 18 and absorbs nobody.
-    private const ObjectID TargetWorkbench = ObjectID.AutomationTable;
+    /// Public so NoBreakZoneSelfTestSystem checks the bench this system actually targets rather
+    /// than a second copy of the decision that could drift away from it.
+    public const ObjectID TargetWorkbench = ObjectID.AutomationTable;
 
     private bool _done;
+
+    /// True once TryInject has run against a real bench, which is the earliest moment any recipe
+    /// is guaranteed to be in place.
+    ///
+    /// Exists for NoBreakZoneSelfTestSystem. Both systems sit in SimulationSystemGroup with no
+    /// ordering between them, so a test reading the recipe buffers on its own schedule could judge
+    /// them before this system had written anything and report a failure that says nothing about
+    /// the mod. Waiting on a flag beats waiting a guessed number of frames — guessing frame order
+    /// is the mistake that hid the explosion bug (Editor/Docs/status.md).
+    public bool Done => _done;
 
     protected override void OnCreate()
     {

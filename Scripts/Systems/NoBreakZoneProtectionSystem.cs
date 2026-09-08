@@ -122,8 +122,9 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 // 기획서 §6 does want that eventually ("켜져 있는 동안 파일런은 무적"), but the same
                 // sentence continues "회수하려면 먼저 꺼야 한다" — and nothing can switch a pylon off
                 // until 4단계. Self-protecting it now would mean a pylon placed during 체크포인트 1
-                // could never be picked up again. 4단계 grants the pylon IndestructibleCD directly,
-                // tied to its variation, rather than through this discriminator.
+                // could never be picked up again. NoBreakZonePylonRegistrySystem.ApplySelfProtection
+                // grants the pylon both guards directly, tied to its variation, rather than through
+                // this discriminator.
                 ComponentType.ReadOnly<NoBreakZonePylonCD>(),
             },
         });

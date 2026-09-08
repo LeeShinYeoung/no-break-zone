@@ -231,8 +231,24 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     // both permanently unrecoverable.
     //
     // Safe to own outright rather than checking for native indestructibility first, the way the
-    // protection system must: this is our object and it ships without IndestructibleCD.
+    // protection system must: this is our object and it ships without either component.
+    //
+    // IT TAKES BOTH COMPONENTS, because they guard different halves of that sentence and for a long
+    // time only one of them was here. IndestructibleCD alone delivers "곡괭이로도" and nothing else:
+    // the player's own mining consults it, and everything that reaches an object some other way —
+    // an explosion, a mob, environmental damage — goes through the shared HealthChangeBuffer, which
+    // reads DontDestroyOnZeroHealthCD instead (research.md 8·9장, and the same split is spelled out
+    // in NoBreakZoneProtectionSystem.Protect). So a switched-on pylon used to shrug off a pickaxe
+    // and die to the first bomb thrown at it.
     private static void ApplySelfProtection(EntityManager em, Entity pylon, bool on)
+    {
+        ApplyIndestructible(em, pylon, on);
+        ApplyDestroyGate(em, pylon, on);
+    }
+
+    /// What the player's own mining and attacks consult (PlayerController.DealDamageToObject reads
+    /// this and nothing else).
+    private static void ApplyIndestructible(EntityManager em, Entity pylon, bool on)
     {
         if (!em.HasComponent<IndestructibleCD>(pylon))
         {
@@ -247,6 +263,40 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
         if (em.IsComponentEnabled<IndestructibleCD>(pylon) != on)
         {
             em.SetComponentEnabled<IndestructibleCD>(pylon, on);
+        }
+    }
+
+    /// The single gate every damage source passes through on its way to destroying something, and
+    /// therefore the half that answers "폭발로도 … 몹 공격으로도".
+    ///
+    /// NOT TIED TO THE 몹 피해 차단 SETTING, unlike an ordinary protected object. The protection
+    /// system already carves out the same exception for tiles, and its comment says why: the
+    /// setting decides what may finish off an installation, not whether the base still stands.
+    /// design.md:322 puts the pylon on the second side of that line in as many words — "파일런이
+    /// 먼저 부서지면 그 순간 기지 전체가 무방비가 된다". A setting that can drop every square in the
+    /// world by letting one mob through is not the choice that row is offering.
+    ///
+    /// Flag rather than component removal, for the reason Release() gives: NetCode fixes a ghost's
+    /// component set at bake time, and the flag is the part the damage path actually reads
+    /// (research.md 9장). Switching the pylon off clears it in the same frame, so recovering one
+    /// still only takes turning it off first — 기획서 §6's other half.
+    private static void ApplyDestroyGate(EntityManager em, Entity pylon, bool on)
+    {
+        if (!em.HasComponent<DontDestroyOnZeroHealthCD>(pylon))
+        {
+            if (!on)
+            {
+                return;  // nothing to add and nothing to clear
+            }
+
+            em.AddComponentData(pylon, new DontDestroyOnZeroHealthCD { disabled = false });
+            return;
+        }
+
+        // `disabled == on` is precisely the wrong state: guarding while off, or open while on.
+        if (em.GetComponentData<DontDestroyOnZeroHealthCD>(pylon).disabled == on)
+        {
+            em.SetComponentData(pylon, new DontDestroyOnZeroHealthCD { disabled = !on });
         }
     }
 
