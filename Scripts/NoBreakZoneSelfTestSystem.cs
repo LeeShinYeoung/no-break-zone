@@ -51,7 +51,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     /// One past the last case. Finish runs here, so adding a case means adding to the switch and
     /// moving this.
-    private const int FinalStep = 23;
+    private const int FinalStep = 26;
 
     /// Where each group of cases that can stand on its own begins.
     ///
@@ -62,6 +62,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// missing wall is no reason to stop asking about workbenches.
     private const int PlaceableStep = 17;
     private const int PylonInvulnStep = 20;
+    private const int BoulderStep = 23;
 
     // Generous on purpose. On a dedicated server the map only streams in once somebody connects, so
     // this has to outlast a human launching the game, picking a character and joining — not just the
@@ -124,6 +125,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private Entity _outsidePlaceable = Entity.Null;
     private Entity _protectedPylon = Entity.Null;
     private Entity _controlPylon = Entity.Null;
+    private Entity _insideBoulder = Entity.Null;
+    private Entity _outsideBoulder = Entity.Null;
 
     /// Enough capped hits to fell a wall. The cap is per hit, so this is the only way to tell the
     /// pickaxe path apart from the explosion one.
@@ -133,6 +136,10 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// Ceiling on a bench whose recipes are all drawn at once: the crafting window shows three
     /// pages of six (research.md 18장). Past it a recipe is in the list and never on screen.
     private const int MaxDrawableRecipeSlots = 18;
+
+    /// One of the ten ore boulders in object_flags.csv, all of which carry the same flags. Copper is
+    /// the cheapest and exists in every world, so it is the one this asks about.
+    private const string BoulderObjectName = "CopperOreBoulder";
 
     /// How long to wait for the recipe pass before giving up on it. A minute — the object database
     /// is up long before the map is, so this never being reached is the normal case.
@@ -244,6 +251,9 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             case 20: SpawnControlPylon(); break;
             case 21: DamagePylons(); break;
             case 22: CheckPylonResult(); break;
+            case 23: SpawnBoulders(); break;
+            case 24: DamageBoulders(); break;
+            case 25: CheckBoulderResult(); break;
             default: break;
         }
 
@@ -820,8 +830,21 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         if (outsideGone)
         {
             // THE ONE THAT MATTERS MOST. A protected ore tile is an infinite resource.
+            bool insideGone = tiles.GetTopType(_insideOre) != TileType.ore;
+
+            // A red here says the rule and the game disagree, and the rule is not the interesting
+            // half — NoBreakZoneProtectionRule excludes ore outright and 2278 objects are checked
+            // against it offline. What is worth knowing is what the mod is looking at when it
+            // decides, so say it rather than leaving the next session to guess. Guessing is what
+            // cost this project three play sessions on one sprite (status.md 체크포인트 1).
+            if (!insideGone)
+            {
+                Debug.Log("[NBZTEST] ore diagnosis @inside — " + DescribeEntityAt(_insideOre));
+                Debug.Log("[NBZTEST] ore diagnosis @outside(control) — " + DescribeEntityAt(_outsideOre));
+            }
+
             Verdict("ore-inside-still-breaks",
-                tiles.GetTopType(_insideOre) != TileType.ore,
+                insideGone,
                 "ore INSIDE the square still breaks — protecting it would duplicate resources");
         }
         else
@@ -1065,7 +1088,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("pylon-on-survives", "no switched-on pylon entity to damage");
             Skip("pylon-off-breaks", "same");
-            _step = FinalStep;
+            _step = BoulderStep;
             return;
         }
 
@@ -1074,7 +1097,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("pylon-on-survives", "the object database does not know the pylon");
             Skip("pylon-off-breaks", "same");
-            _step = FinalStep;
+            _step = BoulderStep;
             return;
         }
 
@@ -1086,7 +1109,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("pylon-off-breaks", "could not spawn a second pylon as the control");
             Skip("pylon-on-survives", "same");
-            _step = FinalStep;
+            _step = BoulderStep;
             return;
         }
 
@@ -1114,7 +1137,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("pylon-off-breaks", "a pylon stopped existing before it could be damaged");
             Skip("pylon-on-survives", "same");
-            _step = FinalStep;
+            _step = BoulderStep;
             return;
         }
 
@@ -1154,6 +1177,108 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
+    /// 기획서 §6 names this exact scenario as the worst thing this mod could do:
+    ///
+    ///   "드릴은 보호 대상이지만 광석 덩어리는 아니다. 만약 구현이 이 둘을 구분하지 못해 덩어리까지
+    ///    보호해버리면, 덩어리가 고갈되지 않아 광석이 무한정 나온다."
+    ///
+    /// A protected boulder is an infinite resource: the drill keeps mining, the boulder never
+    /// depletes, and the save's economy is broken in a way no later fix can undo. Nothing checked it
+    /// in game until now.
+    ///
+    /// SPAWNED, NOT SEARCHED FOR. The ore-tile pair beside this one has to find ore both inside and
+    /// outside the square, and on 2026-09-08 it reported SKIP for want of it. A boulder is an
+    /// entity, not a tile (object_flags.csv: PlaceablePrefab, health=1, requiresDrill=1, tileCD=0),
+    /// so it can be placed exactly like the workbench and the case never depends on terrain luck.
+    ///
+    /// THE EXPECTATION IS THE OPPOSITE OF THE PLACEABLE CASE ABOVE. A workbench inside the square
+    /// must survive; a boulder inside the square must still die.
+    private void SpawnBoulders()
+    {
+        ObjectID boulderId = API.Authoring.GetObjectID(BoulderObjectName);
+        if (boulderId == ObjectID.None)
+        {
+            Skip("boulder-outside-breaks", $"the database does not know {BoulderObjectName}");
+            Skip("boulder-inside-still-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        _insideBoulder = EntityUtility.CreateEntity(
+            World, new Vector3(_inside.x, 0f, _inside.y), boulderId, 1, database);
+        _outsideBoulder = EntityUtility.CreateEntity(
+            World, new Vector3(_outside.x, 0f, _outside.y), boulderId, 1, database);
+
+        if (_insideBoulder == Entity.Null || _outsideBoulder == Entity.Null)
+        {
+            Skip("boulder-outside-breaks", "could not spawn a boulder");
+            Skip("boulder-inside-still-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        Debug.Log($"[NBZTEST] placed a {BoulderObjectName} inside ({_inside.x},{_inside.y}) and "
+                  + $"outside ({_outside.x},{_outside.y})");
+
+        // Long enough for the protection system to judge them — which is the whole question here.
+        Advance(60);
+    }
+
+    private void DamageBoulders()
+    {
+        if (!EntityManager.Exists(_insideBoulder) || !EntityManager.Exists(_outsideBoulder))
+        {
+            Skip("boulder-outside-breaks", "a boulder did not survive being placed at all");
+            Skip("boulder-inside-still-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        DamageEntity(_insideBoulder, ExplosionDamage);
+        DamageEntity(_outsideBoulder, ExplosionDamage);
+
+        Advance(60);
+    }
+
+    private void CheckBoulderResult()
+    {
+        bool outsideGone = IsDestroyed(_outsideBoulder);
+
+        Verdict("boulder-outside-breaks", outsideGone,
+            "a boulder outside every square is destroyed — the control");
+
+        if (outsideGone)
+        {
+            bool insideGone = IsDestroyed(_insideBoulder);
+
+            if (!insideGone)
+            {
+                Debug.Log("[NBZTEST] boulder diagnosis @inside — " + DescribeEntityAt(_inside));
+            }
+
+            Verdict("boulder-inside-still-breaks", insideGone,
+                "and one INSIDE the square is destroyed too — protecting it would let a drill mine "
+                + "it forever (기획서 §6)");
+        }
+        else
+        {
+            Skip("boulder-inside-still-breaks", "the control survived too, so this proves nothing");
+        }
+
+        foreach (Entity e in new[] { _insideBoulder, _outsideBoulder })
+        {
+            if (EntityManager.Exists(e))
+            {
+                EntityManager.DestroyEntity(e);
+            }
+        }
+
+        _insideBoulder = Entity.Null;
+        _outsideBoulder = Entity.Null;
+
+        Advance();
+    }
+
     /// The pylon standing on a given tile, rather than whichever one the query happens to return
     /// first. Once this test stands up a control there is more than one, and picking the wrong one
     /// would invert every verdict that follows.
@@ -1178,6 +1303,60 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         pylon = Entity.Null;
         return false;
+    }
+
+    /// Everything the protection decision turns on, for whatever entity is standing on a tile.
+    ///
+    /// Deliberately NOT the protection system's own query: that one excludes anything already
+    /// carrying NoBreakZoneEvaluatedCD, and "was it judged and then never looked at again" is one of
+    /// the two things this is here to tell apart. The other is which tile the game actually put an
+    /// entity on — ore sits in walls, and a wall IS protected since design.md's 2026-08-07 decision,
+    /// so an ore square whose entity reports tileType=wall would explain the failure completely.
+    private string DescribeEntityAt(int2 tile)
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<HealthCD>(),
+            ComponentType.ReadOnly<ObjectDataCD>(),
+            ComponentType.ReadOnly<LocalTransform>());
+
+        using NativeArray<Entity> found = query.ToEntityArray(Allocator.Temp);
+        using NativeArray<LocalTransform> transforms =
+            query.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+
+        var em = EntityManager;
+
+        for (int i = 0; i < found.Length; i++)
+        {
+            if (!transforms[i].Position.RoundToInt2().Equals(tile))
+            {
+                continue;
+            }
+
+            Entity e = found[i];
+            HealthCD health = em.GetComponentData<HealthCD>(e);
+            ObjectDataCD data = em.GetComponentData<ObjectDataCD>(e);
+
+            string tilePart = em.HasComponent<TileCD>(e)
+                ? $"tileType={em.GetComponentData<TileCD>(e).tileType}"
+                : "no TileCD";
+
+            string gate = em.HasComponent<DontDestroyOnZeroHealthCD>(e)
+                ? $"dontDestroy.disabled={em.GetComponentData<DontDestroyOnZeroHealthCD>(e).disabled}"
+                : "no DontDestroyOnZeroHealthCD";
+
+            string indestructible = em.HasComponent<IndestructibleCD>(e)
+                ? $"indestructible={em.IsComponentEnabled<IndestructibleCD>(e)}"
+                : "no IndestructibleCD";
+
+            return $"({tile.x},{tile.y}) objectID={data.objectID} {tilePart} "
+                   + $"health={health.health}/{health.maxHealth} {gate} {indestructible} "
+                   + $"ours={em.HasComponent<NoBreakZoneProtectedCD>(e)} "
+                   + $"judged={em.HasComponent<NoBreakZoneEvaluatedCD>(e)}";
+        }
+
+        // Also an answer, and a useful one: a tile only becomes an entity while it is being damaged
+        // (research.md 21장), so nothing here means the damage never reached it.
+        return $"({tile.x},{tile.y}) no entity with health stands here";
     }
 
     private bool IsDestroyed(Entity entity)
@@ -1262,6 +1441,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _outsidePlaceable = Entity.Null;
         _protectedPylon = Entity.Null;
         _controlPylon = Entity.Null;
+        _insideBoulder = Entity.Null;
+        _outsideBoulder = Entity.Null;
         _lastSpawned = Entity.Null;
         _spawnAttempt = 0;
 
