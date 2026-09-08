@@ -879,8 +879,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         EntityManager.SetComponentData(pylon, data);
 
         Debug.Log("[NBZTEST] switched the pylon off");
-        _wait = 60;
-        Advance();
+        Advance(60);
     }
 
     private void BlowUpTheReleasedWall()
@@ -957,8 +956,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         // Long enough for the protection system to see them and for the game to reject either
         // placement if it wants to.
-        _wait = 60;
-        Advance();
+        Advance(60);
     }
 
     /// Damage written straight into HealthChangeBuffer, which is what a mob, a boss or an
@@ -985,8 +983,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             healthChange = new HealthChange { entity = _outsidePlaceable, amount = -ExplosionDamage },
         });
 
-        _wait = 60;
-        Advance();
+        Advance(60);
     }
 
     private void CheckPlaceableResult()
