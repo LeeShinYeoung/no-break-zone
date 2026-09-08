@@ -31,6 +31,16 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
 
     private bool _done;
 
+    /// True once TryInject has run against a real bench, which is the earliest moment any recipe
+    /// is guaranteed to be in place.
+    ///
+    /// Exists for NoBreakZoneSelfTestSystem. Both systems sit in SimulationSystemGroup with no
+    /// ordering between them, so a test reading the recipe buffers on its own schedule could judge
+    /// them before this system had written anything and report a failure that says nothing about
+    /// the mod. Waiting on a flag beats waiting a guessed number of frames — guessing frame order
+    /// is the mistake that hid the explosion bug (Editor/Docs/status.md).
+    public bool Done => _done;
+
     protected override void OnCreate()
     {
         base.OnCreate();
