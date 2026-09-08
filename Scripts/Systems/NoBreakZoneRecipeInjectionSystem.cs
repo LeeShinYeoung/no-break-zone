@@ -27,7 +27,9 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     // and not the iron workbench 기획서 §4 first named: the iron bench authors all 18 of the slots
     // the UI can show, and it absorbs three lower benches, which splits its recipe list into ranges
     // that are drawn one at a time. The Automation Table holds 6 of 18 and absorbs nobody.
-    private const ObjectID TargetWorkbench = ObjectID.AutomationTable;
+    /// Public so NoBreakZoneSelfTestSystem checks the bench this system actually targets rather
+    /// than a second copy of the decision that could drift away from it.
+    public const ObjectID TargetWorkbench = ObjectID.AutomationTable;
 
     private bool _done;
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using PugMod;
 using PugTilemap;
 using Unity.Collections;
@@ -112,6 +113,26 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private const int PickaxeSwings = 20;
     private int _tileset;
 
+    /// Ceiling on a bench whose recipes are all drawn at once: the crafting window shows three
+    /// pages of six (research.md 18장). Past it a recipe is in the list and never on screen.
+    private const int MaxDrawableRecipeSlots = 18;
+
+    /// How long to wait for the recipe pass before giving up on it. A minute — the object database
+    /// is up long before the map is, so this never being reached is the normal case.
+    private const int RecipeTimeoutFrames = 3600;
+
+    private bool _recipesJudged;
+    private int _framesWaitingForRecipes;
+
+    private static readonly string[] RecipeCaseNames =
+    {
+        "recipe-bench-at-automation-table",
+        "recipe-pylon-at-our-bench",
+        "recipe-lens-at-our-bench",
+        "recipe-remote-at-our-bench",
+        "recipe-bench-shows-three",
+    };
+
     protected override void OnCreate()
     {
         NeedDatabase();
@@ -140,6 +161,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             _armed = true;
             StartRun();
         }
+
+        JudgeRecipesIfReady();
 
         if (_step == FinalStep)
         {
@@ -194,6 +217,195 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         }
 
         base.OnUpdate();
+    }
+
+    // ----------------------------------------------------------------------------------- recipes
+
+    /// 기획서 §4's door into the whole mod, judged once per run.
+    ///
+    /// WHY IT IS WORTH CHECKING AT ALL. Our bench's three recipes are authored by NAME
+    /// (Editor/genassets.py's crafts=[...]) and the game's own bake resolves those names to ids.
+    /// That resolution has already failed silently once: the converter beside
+    /// NoBreakZoneRecipeInjectionSystem asked for a numeric id before the mod's objects existed,
+    /// got None, and dropped the bench's own recipe without a word. When it fails the mod is simply
+    /// unreachable — nothing can be crafted, so nothing else in this suite ever gets the chance to
+    /// be wrong — and until now nothing short of a human opening a crafting window would notice.
+    ///
+    /// OUTSIDE THE STEP MACHINE, ON PURPOSE. It needs no pylon, no ground and no tilemap. Running
+    /// it here means a SETUP FAIL — which is what a map that never streams in produces — still
+    /// leaves five verdicts in the log instead of none.
+    private void JudgeRecipesIfReady()
+    {
+        if (_recipesJudged)
+        {
+            return;
+        }
+
+        _framesWaitingForRecipes++;
+
+        // Waiting on the injection pass rather than on a frame count. The two systems sit in
+        // SimulationSystemGroup with no ordering between them, so reading the buffers on our own
+        // schedule could judge them before anything had been written — a FAIL that says nothing
+        // about the mod. Guessing at frame order is the mistake that hid the explosion bug.
+        var injection = World.GetExistingSystemManaged<NoBreakZoneRecipeInjectionSystem>();
+
+        if (!database.IsCreated || injection == null || !injection.Done)
+        {
+            if (_framesWaitingForRecipes < RecipeTimeoutFrames)
+            {
+                return;
+            }
+
+            SkipRecipeCases(injection == null
+                ? "the recipe injection system is not in this world"
+                : "the recipe injection pass never reported done");
+            _recipesJudged = true;
+            return;
+        }
+
+        JudgeRecipes();
+        _recipesJudged = true;
+    }
+
+    private void JudgeRecipes()
+    {
+        ObjectID bench = API.Authoring.GetObjectID(NoBreakZoneObjectNames.Workbench);
+        if (bench == ObjectID.None)
+        {
+            SkipRecipeCases($"the object database does not know {NoBreakZoneObjectNames.Workbench}");
+            return;
+        }
+
+        // 기획서 §4 / coverage.md #38. The one recipe the mod cannot author itself, because only the
+        // game owns this bench — and the target is read off the system that injects it, so the two
+        // cannot drift apart.
+        ObjectID host = NoBreakZoneRecipeInjectionSystem.TargetWorkbench;
+        if (TryReadRecipes(host, out List<ObjectID> hostOffers, out _, out _))
+        {
+            Verdict("recipe-bench-at-automation-table",
+                hostOffers.Contains(bench),
+                $"{host} offers {NoBreakZoneObjectNames.Workbench}");
+        }
+        else
+        {
+            Skip("recipe-bench-at-automation-table", $"{host} has no craftable prefab in this world");
+        }
+
+        if (!TryReadRecipes(bench, out List<ObjectID> ourOffers, out int slots, out int categories))
+        {
+            SkipRecipeCases("our own workbench has no craftable prefab in this world", skipHost: false);
+            return;
+        }
+
+        // coverage.md #1 · #31 · #33 — one verdict each, so a single name that failed to resolve is
+        // named in the log rather than hidden inside a combined result.
+        int found = 0;
+        found += JudgeOneRecipe("recipe-pylon-at-our-bench", NoBreakZoneObjectNames.Pylon, ourOffers);
+        found += JudgeOneRecipe("recipe-lens-at-our-bench", NoBreakZoneObjectNames.Lens, ourOffers);
+        found += JudgeOneRecipe("recipe-remote-at-our-bench", NoBreakZoneObjectNames.Remote, ourOffers);
+
+        // coverage.md #40, and a different question from the three above: being in the list is not
+        // being on screen. research.md 18장 is the record of that difference costing play sessions —
+        // the recipe was in the iron workbench's list the whole time and never drawn, because the
+        // list ran past 18 slots and was split into ranges the UI pages through one at a time.
+        bool drawable = slots <= MaxDrawableRecipeSlots && categories == 0;
+        Verdict("recipe-bench-shows-three",
+            found == 3 && drawable,
+            "all three sit in a list the crafting window draws in one go "
+            + $"(found {found}/3, slots={slots} of {MaxDrawableRecipeSlots}, categories={categories})");
+    }
+
+    /// One recipe, named, so the log says which of the three names failed to resolve.
+    private int JudgeOneRecipe(string caseName, string objectName, List<ObjectID> offers)
+    {
+        ObjectID id = API.Authoring.GetObjectID(objectName);
+        if (id == ObjectID.None)
+        {
+            Skip(caseName, $"the object database does not know {objectName}");
+            return 0;
+        }
+
+        bool listed = offers.Contains(id);
+        Verdict(caseName, listed, $"the Pylon Workbench offers {objectName}");
+        return listed ? 1 : 0;
+    }
+
+    private void SkipRecipeCases(string why, bool skipHost = true)
+    {
+        foreach (string name in RecipeCaseNames)
+        {
+            if (!skipHost && name == RecipeCaseNames[0])
+            {
+                continue;  // already judged against the vanilla bench
+            }
+
+            Skip(name, why);
+        }
+    }
+
+    /// The recipe list of whichever prefab of `owner` offers the most, with the two numbers that
+    /// decide whether the crafting window ever draws it (research.md 18장).
+    ///
+    /// The most-offering prefab rather than the first one: an object can have several prefabs and
+    /// genassets.py deliberately authors the recipes onto one of them, so "the first" would be a
+    /// coin flip. Every prefab is logged either way, as the injection system's Report does, so a
+    /// failure is diagnosed off Player.log instead of guessed at.
+    private bool TryReadRecipes(
+        ObjectID owner, out List<ObjectID> recipes, out int slots, out int categories)
+    {
+        recipes = null;
+        slots = 0;
+        categories = 0;
+
+        ref var infos = ref database.Value.objectInfos;
+        var em = EntityManager;
+
+        for (int i = 0; i < infos.Length; i++)
+        {
+            ref var info = ref infos[i];
+            if (info.objectID != owner)
+            {
+                continue;
+            }
+
+            for (int p = 0; p < info.prefabEntities.Length; p++)
+            {
+                Entity prefab = info.prefabEntities[p];
+                if (!em.Exists(prefab) || !em.HasBuffer<CanCraftObjectsBuffer>(prefab))
+                {
+                    continue;
+                }
+
+                DynamicBuffer<CanCraftObjectsBuffer> buffer =
+                    em.GetBuffer<CanCraftObjectsBuffer>(prefab);
+
+                var offered = new List<ObjectID>();
+                for (int r = 0; r < buffer.Length; r++)
+                {
+                    // ObjectID.None is an authored-but-empty slot, not a recipe.
+                    if (buffer[r].objectID != ObjectID.None)
+                    {
+                        offered.Add(buffer[r].objectID);
+                    }
+                }
+
+                int included = em.HasBuffer<IncludedCraftingBuildingsBuffer>(prefab)
+                    ? em.GetBuffer<IncludedCraftingBuildingsBuffer>(prefab).Length
+                    : 0;
+
+                Debug.Log($"[NBZTEST] recipes on {owner} prefab {p}: slots={buffer.Length}, "
+                          + $"offers={offered.Count}, categories={included}");
+
+                if (recipes == null || offered.Count > recipes.Count)
+                {
+                    recipes = offered;
+                    slots = buffer.Length;
+                    categories = included;
+                }
+            }
+        }
+
+        return recipes != null;
     }
 
     // ------------------------------------------------------------------------------------- steps
@@ -835,6 +1047,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _pass = 0;
         _fail = 0;
         _skip = 0;
+        _recipesJudged = false;
+        _framesWaitingForRecipes = 0;
         _announcedNoGround = false;
         _announcedNoProbes = false;
         _floorIsDamageable = false;
