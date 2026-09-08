@@ -29,7 +29,7 @@ Copy-Item "C:\Unity\CoreKeeper\Assets\NoBreakZone\Editor\Server\start-server.ps1
 ```powershell
 powershell -File D:\NoBreakZoneServer\start-server.ps1
 # 게임 -> 멀티플레이 -> Game ID: NoBreakZoneTestServer1 로 접속해서 가만히 있는다
-# 판정: D:\NoBreakZoneServer\data\selftest.log 의 [NBZTEST] 줄, 1분마다 한 판
+# 판정: D:\NoBreakZoneServer\data\selftest.log 의 [NBZTEST] 줄. 한 판만 돌고 멈춘다
 ```
 
 멈출 때는 `Stop-Process -Name CoreKeeperServer -Force`. (스크립트 주석이 예전에 `stop-server.ps1`을

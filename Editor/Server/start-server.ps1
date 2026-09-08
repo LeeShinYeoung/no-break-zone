@@ -8,8 +8,9 @@
 # was standing in the world. Nothing here ever stops the server: Stop-Process -Name CoreKeeperServer.
 #
 # Join with the Game ID printed below. The mod's self test runs on its own once the map is streamed
-# in, repeats about once a minute, and writes every verdict to the log — so a connected player never
-# has to do anything but be there.
+# in and writes every verdict to the log, so a connected player never has to do anything but be
+# there. It runs ONCE: the suite is destructive, so a second run would be judging terrain the first
+# one destroyed. Rerun this script for another verdict — it hands the test a fresh world.
 #
 # WHY IT THROWS THE WORLD AWAY EVERY TIME. The self test is destructive by design: it blows up walls,
 # digs holes and builds pylons. Until 2026-09-08 this all landed in one save that was reused run

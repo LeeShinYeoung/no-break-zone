@@ -18,16 +18,20 @@ using UnityEngine;
 // need a database, a tilemap and a NetCode world. Answering that used to cost a play session per
 // attempt — three of them went on one pylon sprite. This turns it into a line in Player.log.
 //
-// WHAT ANYONE HAS TO DO: nothing, when it runs on the dedicated server
-// (D:\NoBreakZoneServer\run-selftest.ps1) — it builds its own switched-on pylon and reports. In a
-// real world a human can instead place a pylon within the first ten seconds and it will use that
-// one. Either way the verdict is greppable out of the log:
+// WHAT ANYONE HAS TO DO: nothing but be connected, when it runs on the dedicated server
+// (Editor/Server/start-server.ps1) — it builds its own switched-on pylon and reports. In a real
+// world a human can instead place a pylon within the first ten seconds and it will use that one.
+// Either way the verdict is greppable out of the log:
 //
 //     [NBZTEST] floor-inside-explosion PASS
 //     [NBZTEST] SUMMARY pass=6 fail=0 skip=0
 //
 // OFF BY DEFAULT, AND IT HAS TO STAY THAT WAY. It damages tiles on purpose — including outside the
 // square, where they are supposed to break — so it must never run in somebody's real base.
+//
+// ONE RUN PER WORLD. Being destructive is also why it does not repeat: a second run would be
+// standing on the wreckage of the first, and on 2026-09-08 that produced failures that said nothing
+// about the mod. Restart the server for another verdict — it discards the world on the way up.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation)]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
@@ -94,8 +98,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private Entity _lastSpawned = Entity.Null;
     private int _spawnAttempt;
 
-    // Roughly a minute at 60 ticks. Long enough that the log stays readable, short enough that a
-    // human who joined to make the map exist does not have to wait around.
+    // Roughly a minute at 60 ticks. Only SETUP FAIL waits this out and tries again — a run that
+    // actually reported is the last one this world gets, for the reason spelled out in OnUpdate.
     private const int FramesBetweenRuns = 3600;
     private int _framesUntilRerun;
 
@@ -184,11 +188,22 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         if (_step > FinalStep)
         {
-            // Finished. Runs again on its own after a pause, so whoever is reading the log never
-            // has to trigger anything: keep the game open and a fresh verdict appears every minute.
-            // Re-reading the config file at runtime was the obvious alternative and is not something
-            // the config API promises, so this does not depend on it.
-            if (--_framesUntilRerun <= 0)
+            // ONE COMPLETED RUN PER WORLD, AND NO MORE. This used to re-arm every minute, and the
+            // repeat runs were worse than useless: the suite is destructive, nothing puts the
+            // terrain back, and so run 2 works on what run 1 chewed up. Watching it happen on
+            // 2026-09-08 is what settled this — release-on-switch-off passed on run 1 and failed on
+            // runs 2 through 6, and the ore pair degraded to SKIP once the earlier runs had blown up
+            // the only ore in reach. A red that means "the previous run ate the evidence" is worse
+            // than no verdict at all, because somebody has to spend a session finding that out.
+            //
+            // To run again, restart the server: it now discards the world, which is the only way to
+            // get the clean terrain a second run would need anyway. Flipping selfTest off and on
+            // still re-arms too, for a world somebody is deliberately reusing.
+            //
+            // _framesUntilRerun still runs the countdown for SETUP FAIL below, which is a different
+            // case: nothing was measured and nothing was destroyed, so retrying costs nothing and
+            // buys the human the freedom to join whenever they like.
+            if (_framesUntilRerun > 0 && --_framesUntilRerun <= 0)
             {
                 _armed = false;
             }
@@ -1194,10 +1209,13 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         RemoveOurOwnPylon();
 
         Debug.Log($"[NBZTEST] SUMMARY run={_run} pass={_pass} fail={_fail} skip={_skip}");
+        Debug.Log("[NBZTEST] done — restart the server for another run, on terrain this one has not "
+                  + "already destroyed");
 
-        // Park past the end and count down to the next run.
+        // Park past the end for good. Zero means the countdown in OnUpdate never fires, so nothing
+        // re-arms this until the config flag is toggled or the server restarts.
         _step = FinalStep + 1;
-        _framesUntilRerun = FramesBetweenRuns;
+        _framesUntilRerun = 0;
     }
 
     /// Takes back the pylon this run built, and only that one.

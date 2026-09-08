@@ -153,7 +153,7 @@ pylon-on-survives               ?   켜진 파일런은 같은 피해를 버티�
 | 모드 ECS 시스템이 서버 월드에서 돎 | ✅ `pylon object id = 32768 (world=ServerWorld)` |
 | 플레이어 0명 자동 일시정지 우회 | ✅ `IMod.Update`에서 `Manager.ecs.Resume()` |
 | 맵이 메모리에 실림 | 플레이어 1명이 접속해 있어야 한다. 0명이면 스트리밍이 안 돈다 |
-| 접속 후 전 과정 자동 | 파일런 자가 생성 -> 6케이스 -> 1분마다 반복 |
+| 접속 후 전 과정 자동 | 파일런 자가 생성 -> 전 케이스 -> **한 판만** (아래 이유) |
 
 **핵심 함정:** 로드 안 된 칸은 `TileAccessor.DefaultTile` = **`{tileset=2, tileType=wall}`**로
 읽힌다. 로그의 "온통 벽"은 지형이 아니라 **"아직 안 실렸다"**는 뜻이다. `KeepAreaLoadedCD`는
