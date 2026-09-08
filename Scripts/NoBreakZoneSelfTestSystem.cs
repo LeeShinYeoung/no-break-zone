@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Pug.UnityExtensions;
 using PugMod;
 using PugTilemap;
 using Unity.Collections;
@@ -46,7 +47,17 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     /// One past the last case. Finish runs here, so adding a case means adding to the switch and
     /// moving this.
-    private const int FinalStep = 20;
+    private const int FinalStep = 23;
+
+    /// Where each group of cases that can stand on its own begins.
+    ///
+    /// A step that finds its prerequisite missing skips FORWARD TO THE NEXT GROUP, not to the end.
+    /// Jumping to the end used to take unrelated cases with it — a run that could not switch the
+    /// pylon off lost all three placeable cases with no PASS, no FAIL and no SKIP to say so. The
+    /// whole point of this suite is that one connection answers as many questions as it can, and a
+    /// missing wall is no reason to stop asking about workbenches.
+    private const int PlaceableStep = 17;
+    private const int PylonInvulnStep = 20;
 
     // Generous on purpose. On a dedicated server the map only streams in once somebody connects, so
     // this has to outlast a human launching the game, picking a character and joining — not just the
@@ -107,6 +118,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private int _pickaxeSwings;
     private Entity _insidePlaceable = Entity.Null;
     private Entity _outsidePlaceable = Entity.Null;
+    private Entity _protectedPylon = Entity.Null;
+    private Entity _controlPylon = Entity.Null;
 
     /// Enough capped hits to fell a wall. The cap is per hit, so this is the only way to tell the
     /// pickaxe path apart from the explosion one.
@@ -213,6 +226,9 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             case 17: SpawnPlaceables(); break;
             case 18: DamagePlaceables(); break;
             case 19: CheckPlaceableResult(); break;
+            case 20: SpawnControlPylon(); break;
+            case 21: DamagePylons(); break;
+            case 22: CheckPylonResult(); break;
             default: break;
         }
 
@@ -854,7 +870,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         if (!_haveWalls || !TryGetPylonEntity(out Entity pylon))
         {
             Skip("release-on-switch-off", "no pylon entity to switch off");
-            _step = FinalStep;
+            _step = PlaceableStep;
             return;
         }
 
@@ -919,7 +935,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("placeable-inside-survives", "the database does not know WoodenWorkBench");
             Skip("placeable-outside-breaks", "same");
-            _step = FinalStep;
+            _step = PylonInvulnStep;
             return;
         }
 
@@ -932,7 +948,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("placeable-inside-survives", "could not spawn a workbench");
             Skip("placeable-outside-breaks", "same");
-            _step = FinalStep;
+            _step = PylonInvulnStep;
             return;
         }
 
@@ -955,7 +971,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("placeable-inside-survives", "a workbench did not survive being placed at all");
             Skip("placeable-outside-breaks", "same");
-            _step = FinalStep;
+            _step = PylonInvulnStep;
             return;
         }
 
@@ -1001,6 +1017,149 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         }
 
         Advance();
+    }
+
+    /// design.md:320 — "켜져 있는 동안 파일런은 무적이다. 폭발로도, 곡괭이로도, 몹 공격으로도
+    /// 파괴되지 않는다" — and the line after it says why: if the pylon falls, every square it was
+    /// projecting falls with it, so this is the case that stands under all the others.
+    ///
+    /// THE CONTROL IS A SECOND PYLON, SWITCHED OFF. "A workbench outside the square dies" would
+    /// prove nothing here: it says nothing about whether a pylon left unguarded would have died.
+    /// Only the same object with the switch in the other position answers that. It also means this
+    /// case brushes 기획서 §5 on the way past — a switched-off pylon is an ordinary object.
+    ///
+    /// Standing a second pylon in the world is safe precisely because it is off: the registry
+    /// collects positions only from pylons at VariationOn, so this one is not in Positions and
+    /// projects no square of its own. That matters — an earlier version of this test managed to
+    /// build 43 pylons and invalidate every control it had.
+    private void SpawnControlPylon()
+    {
+        // Captured by position, not by "whichever pylon the query returns first". In a moment there
+        // will be two, and the later steps must not be able to confuse them.
+        if (!TryGetPylonEntityAt(_pylon, out _protectedPylon))
+        {
+            Skip("pylon-on-survives", "no switched-on pylon entity to damage");
+            Skip("pylon-off-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        ObjectID pylonId = API.Authoring.GetObjectID(NoBreakZonePylonRegistrySystem.PylonObjectName);
+        if (pylonId == ObjectID.None)
+        {
+            Skip("pylon-on-survives", "the object database does not know the pylon");
+            Skip("pylon-off-breaks", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        _controlPylon = EntityUtility.CreateEntity(
+            World, new Vector3(_outside.x, 0f, _outside.y), pylonId, 1, database,
+            NoBreakZonePylonGraphics.VariationOff);
+
+        if (_controlPylon == Entity.Null)
+        {
+            Skip("pylon-off-breaks", "could not spawn a second pylon as the control");
+            Skip("pylon-on-survives", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        // Set outright for the same reason ProbeAndBuildPylon does: the registry decides on/off from
+        // this field, not from which prefab the database handed back.
+        ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(_controlPylon);
+        data.variation = NoBreakZonePylonGraphics.VariationOff;
+        EntityManager.SetComponentData(_controlPylon, data);
+
+        Debug.Log($"[NBZTEST] control pylon (switched off) at ({_outside.x},{_outside.y}), "
+                  + $"protected pylon at ({_pylon.x},{_pylon.y})");
+
+        // Long enough for the registry to classify both and for the protection to settle on each.
+        Advance(60);
+    }
+
+    /// Damage written straight into HealthChangeBuffer — a mob, a boss, an explosion or the
+    /// environment all end up here (research.md 8장). It is also the only shape of damage this test
+    /// can aim at a pylon at all, since the pickaxe path is client-predicted, and it is exactly the
+    /// path IndestructibleCD does NOT guard. Before the fix that came with this case, the switched-on
+    /// pylon died right here.
+    private void DamagePylons()
+    {
+        if (!EntityManager.Exists(_protectedPylon) || !EntityManager.Exists(_controlPylon))
+        {
+            Skip("pylon-off-breaks", "a pylon stopped existing before it could be damaged");
+            Skip("pylon-on-survives", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        DynamicBuffer<HealthChangeBuffer> buffer = HealthChanges();
+        buffer.Add(new HealthChangeBuffer
+        {
+            healthChange = new HealthChange { entity = _protectedPylon, amount = -ExplosionDamage },
+        });
+        buffer.Add(new HealthChangeBuffer
+        {
+            healthChange = new HealthChange { entity = _controlPylon, amount = -ExplosionDamage },
+        });
+
+        Advance(60);
+    }
+
+    private void CheckPylonResult()
+    {
+        bool controlGone = IsDestroyed(_controlPylon);
+
+        Verdict("pylon-off-breaks", controlGone,
+            "a switched-off pylon is destroyed by explosion-sized damage — the control");
+
+        if (controlGone)
+        {
+            Verdict("pylon-on-survives",
+                !IsDestroyed(_protectedPylon),
+                "and a switched-on one shrugs off the same damage (design.md:320)");
+        }
+        else
+        {
+            Skip("pylon-on-survives", "the control survived too, so this proves nothing");
+        }
+
+        // Never leave the control standing: switched off it is harmless, but a stray pylon somebody
+        // later switches on would move every square the next run measures against.
+        if (EntityManager.Exists(_controlPylon))
+        {
+            EntityManager.DestroyEntity(_controlPylon);
+        }
+
+        _controlPylon = Entity.Null;
+
+        Advance();
+    }
+
+    /// The pylon standing on a given tile, rather than whichever one the query happens to return
+    /// first. Once this test stands up a control there is more than one, and picking the wrong one
+    /// would invert every verdict that follows.
+    private bool TryGetPylonEntityAt(int2 tile, out Entity pylon)
+    {
+        EntityQuery query = EntityManager.CreateEntityQuery(
+            ComponentType.ReadOnly<NoBreakZonePylonCD>(),
+            ComponentType.ReadOnly<LocalTransform>());
+
+        using NativeArray<Entity> found = query.ToEntityArray(Allocator.Temp);
+        using NativeArray<LocalTransform> transforms =
+            query.ToComponentDataArray<LocalTransform>(Allocator.Temp);
+
+        for (int i = 0; i < found.Length; i++)
+        {
+            if (transforms[i].Position.RoundToInt2().Equals(tile))
+            {
+                pylon = found[i];
+                return true;
+            }
+        }
+
+        pylon = Entity.Null;
+        return false;
     }
 
     private bool IsDestroyed(Entity entity)
@@ -1056,6 +1215,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _pickaxeSwings = 0;
         _insidePlaceable = Entity.Null;
         _outsidePlaceable = Entity.Null;
+        _protectedPylon = Entity.Null;
+        _controlPylon = Entity.Null;
         _lastSpawned = Entity.Null;
         _spawnAttempt = 0;
 
@@ -1193,8 +1354,15 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     private void Advance()
     {
+        Advance(FramesBetweenSteps);
+    }
+
+    /// Advance and wait longer than the usual gap, for a step whose effect the game needs more than
+    /// a few frames to apply.
+    private void Advance(int wait)
+    {
         _step++;
-        _wait = FramesBetweenSteps;
+        _wait = wait;
     }
 
     private void Verdict(string name, bool passed, string what)
