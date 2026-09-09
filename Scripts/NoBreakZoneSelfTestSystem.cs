@@ -258,7 +258,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             case 21: DamagePylons(); break;
             case 22: CheckPylonResult(); break;
             case 23: SpawnBoulders(); break;
-            case 24: DamageBoulders(); break;
+            case 24: SettleBoulders(); break;
             case 25: CheckBoulderResult(); break;
             case 26: ScenarioSetUp(); break;
             case 27: ScenarioMineAndLeaveAlone(); break;
@@ -665,7 +665,11 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             DamageTile(_outsideWall, ExplosionDamage, explosionShaped: true);
         }
 
-        Advance();
+        // Sixty frames, not the usual twelve. On 2026-09-09 wall-outside-explosion failed here and
+        // wall-outside-pickaxe passed LATER ON THE SAME TILE, which can only mean the explosion had
+        // killed it and this check looked before the game finished. A control that loses a race
+        // reads exactly like a control that is broken, and it costs a session to tell apart.
+        Advance(60);
     }
 
     private void CheckExplosionResult()
@@ -799,9 +803,29 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
-    /// 기획서 §6 ranks resource duplication above every other property of this mod, and until now
-    /// nothing checked it inside the game. Ore inside a protected square MUST still break: protect
-    /// it and a drill mines it forever without ever depleting it.
+    /// ORE INSIDE A PROTECTED SQUARE IS SUPPOSED TO STAY PUT, AND THIS CASE USED TO SAY THE
+    /// OPPOSITE. It failed in game for three worlds running and was reported as a resource
+    /// duplication bug. It was neither — the expectation was wrong, and here is why.
+    ///
+    /// Pickaxe ore is not a thing standing on a tile. It is a resource CONTAINED IN A WALL, and the
+    /// entity holding the health at that position is the wall:
+    ///
+    ///     if (tileType.IsContainedResource()
+    ///         && tileAccessor.GetType(position, TileType.wall, out var tileCD))   // PlayerController
+    ///
+    /// Walls have been protected since design.md's 2026-08-07 decision, so a protected wall means
+    /// the ore inside it does not come out either. The mod never protects ore itself and could not
+    /// if it wanted to: all ten ore tiles in object_flags.csv have health = 0, and
+    /// NoBreakZoneProtectionRule returns false on its first line for anything without health. That
+    /// is why no PROTECT line for ore ever appeared in the log.
+    ///
+    /// AND IT IS NOT RESOURCE DUPLICATION. Duplication needs something that pays out while refusing
+    /// to die. Pickaxe ore is lootOnDmg=0 — hitting it yields nothing, so protecting it yields
+    /// nothing forever. The one that pays out per hit is the DRILL's boulder, lootOnDmg=1, and
+    /// boulder-inside-is-not-protected below is the case that guards it.
+    ///
+    /// A human confirmed the behaviour is what they want (2026-09-10): ore inside your base stays
+    /// there while the pylon is on, exactly like the wall around it.
     private void BlowUpOre()
     {
         var tiles = CreateTileAccessor();
@@ -813,7 +837,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         if (!_haveOre)
         {
-            Skip("ore-inside-still-breaks", "no ore both inside and outside the square here");
+            Skip("ore-inside-is-protected", "no ore both inside and outside the square here");
             Skip("ore-outside-still-breaks", "same");
             Advance();
             return;
@@ -843,7 +867,6 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         if (outsideGone)
         {
-            // THE ONE THAT MATTERS MOST. A protected ore tile is an infinite resource.
             bool insideGone = tiles.GetTopType(_insideOre) != TileType.ore;
 
             // A red here says the rule and the game disagree, and the rule is not the interesting
@@ -851,19 +874,22 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // against it offline. What is worth knowing is what the mod is looking at when it
             // decides, so say it rather than leaving the next session to guess. Guessing is what
             // cost this project three play sessions on one sprite (status.md 체크포인트 1).
-            if (!insideGone)
+            // Diagnosis on the failing side, which is now the side that BREAKS. If ore inside a
+            // protected square comes out, the wall holding it went with it, and that is the
+            // interesting failure.
+            if (insideGone)
             {
                 Debug.Log("[NBZTEST] ore diagnosis @inside — " + DescribeEntityAt(_insideOre));
                 Debug.Log("[NBZTEST] ore diagnosis @outside(control) — " + DescribeEntityAt(_outsideOre));
             }
 
-            Verdict("ore-inside-still-breaks",
-                insideGone,
-                "ore INSIDE the square still breaks — protecting it would duplicate resources");
+            Verdict("ore-inside-is-protected",
+                !insideGone,
+                "ore inside the square stays put — it sits in a wall, and the wall is protected");
         }
         else
         {
-            Skip("ore-inside-still-breaks", "the control did not break, so this proves nothing");
+            Skip("ore-inside-is-protected", "the control did not break, so this proves nothing");
         }
 
         Advance();
@@ -1201,19 +1227,24 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// in game until now.
     ///
     /// SPAWNED, NOT SEARCHED FOR. The ore-tile pair beside this one has to find ore both inside and
-    /// outside the square, and on 2026-09-08 it reported SKIP for want of it. A boulder is an
-    /// entity, not a tile (object_flags.csv: PlaceablePrefab, health=1, requiresDrill=1, tileCD=0),
-    /// so it can be placed exactly like the workbench and the case never depends on terrain luck.
+    /// outside the square, and reported SKIP on three worlds running. A boulder is an entity, not a
+    /// tile (object_flags.csv: PlaceablePrefab, health=1, requiresDrill=1, tileCD=0), so it can be
+    /// placed exactly like the workbench and never depends on terrain luck.
     ///
-    /// THE EXPECTATION IS THE OPPOSITE OF THE PLACEABLE CASE ABOVE. A workbench inside the square
-    /// must survive; a boulder inside the square must still die.
+    /// IT ASKS ABOUT PROTECTION, NOT DESTRUCTION, AND THE FIRST VERSION GOT THAT WRONG. It damaged
+    /// the boulder and expected it to die, which failed — a boulder is damageable=0 and
+    /// requiresDrill=1, so it is DEPLETED BY A DRILL rather than destroyed by damage, and hitting it
+    /// drops loot instead of killing it. "Big damage kills it" was never a valid stand-in.
+    ///
+    /// The claim 기획서 §6 actually makes is that the mod must not PROTECT it — "덩어리가 고갈되지
+    /// 않아 광석이 무한정 나온다" — so that is what gets measured, straight off the component the
+    /// mod would have added.
     private void SpawnBoulders()
     {
         ObjectID boulderId = API.Authoring.GetObjectID(BoulderObjectName);
         if (boulderId == ObjectID.None)
         {
-            Skip("boulder-outside-breaks", $"the database does not know {BoulderObjectName}");
-            Skip("boulder-inside-still-breaks", "same");
+            Skip("boulder-inside-is-not-protected", $"the database does not know {BoulderObjectName}");
             _step = ScenarioStep;
             return;
         }
@@ -1225,8 +1256,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
         if (_insideBoulder == Entity.Null || _outsideBoulder == Entity.Null)
         {
-            Skip("boulder-outside-breaks", "could not spawn a boulder");
-            Skip("boulder-inside-still-breaks", "same");
+            Skip("boulder-inside-is-not-protected", "could not spawn a boulder");
             _step = ScenarioStep;
             return;
         }
@@ -1238,46 +1268,44 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance(60);
     }
 
-    private void DamageBoulders()
+    /// Nothing is damaged here, which is the correction. The old version hit the boulders and
+    /// expected them to die; they do not, because a boulder is depleted by a drill rather than
+    /// destroyed. Waiting is all this step does — the protection system needs a frame or two to
+    /// judge the pair.
+    private void SettleBoulders()
     {
         if (!EntityManager.Exists(_insideBoulder) || !EntityManager.Exists(_outsideBoulder))
         {
-            Skip("boulder-outside-breaks", "a boulder did not survive being placed at all");
-            Skip("boulder-inside-still-breaks", "same");
+            Skip("boulder-inside-is-not-protected", "a boulder did not survive being placed at all");
             _step = ScenarioStep;
             return;
         }
-
-        DamageEntity(_insideBoulder, ExplosionDamage);
-        DamageEntity(_outsideBoulder, ExplosionDamage);
 
         Advance(60);
     }
 
     private void CheckBoulderResult()
     {
-        bool outsideGone = IsDestroyed(_outsideBoulder);
+        // Straight off the component the mod would have added. NoBreakZoneProtectedCD means "we made
+        // this indestructible"; on a drill's boulder that is the one failure 기획서 §6 puts above
+        // every other property of this mod, because the drill would then mine it forever.
+        bool claimed = EntityManager.Exists(_insideBoulder)
+                       && EntityManager.HasComponent<NoBreakZoneProtectedCD>(_insideBoulder);
 
-        Verdict("boulder-outside-breaks", outsideGone,
-            "a boulder outside every square is destroyed — the control");
+        bool guarded = EntityManager.Exists(_insideBoulder)
+                       && EntityManager.HasComponent<DontDestroyOnZeroHealthCD>(_insideBoulder)
+                       && !EntityManager.GetComponentData<DontDestroyOnZeroHealthCD>(_insideBoulder)
+                               .disabled;
 
-        if (outsideGone)
+        if (claimed || guarded)
         {
-            bool insideGone = IsDestroyed(_insideBoulder);
-
-            if (!insideGone)
-            {
-                Debug.Log("[NBZTEST] boulder diagnosis @inside — " + DescribeEntityAt(_inside));
-            }
-
-            Verdict("boulder-inside-still-breaks", insideGone,
-                "and one INSIDE the square is destroyed too — protecting it would let a drill mine "
-                + "it forever (기획서 §6)");
+            Debug.Log("[NBZTEST] boulder diagnosis @inside — " + DescribeEntityAt(_inside));
         }
-        else
-        {
-            Skip("boulder-inside-still-breaks", "the control survived too, so this proves nothing");
-        }
+
+        Verdict("boulder-inside-is-not-protected",
+            !claimed && !guarded,
+            "a drill's boulder inside the square is left unprotected — protecting it is the "
+            + "resource duplication 기획서 §6 forbids outright");
 
         foreach (Entity e in new[] { _insideBoulder, _outsideBoulder })
         {

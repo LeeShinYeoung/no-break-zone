@@ -65,6 +65,22 @@ public partial class NoBreakZoneHealthFloorSystem : SystemBase
 
         for (int i = 0; i < entities.Length; i++)
         {
+            // NEVER FEED SOMETHING THAT PAYS OUT WHEN HIT. DropsLootWhenDamagedCD marks the objects
+            // that yield every time they are damaged rather than when they die — a drill's ore
+            // boulder above all. Restoring one to full each frame would remove the only brake the
+            // game has on it: the health pipeline skips entities already at zero
+            // (`if (healthCD.health <= 0) continue;`), so a depleted boulder simply stops paying.
+            // With a floor under it the loop becomes hit, pay, restore, hit — the resource
+            // duplication 기획서 §6 puts above every other property of this mod.
+            //
+            // NoBreakZoneProtectionRule already refuses to protect these, so this should be
+            // unreachable. It is here because "unreachable" is a claim about code that keeps
+            // changing, and the cost of being wrong is a save nobody can repair.
+            if (em.HasComponent<DropsLootWhenDamagedCD>(entities[i]))
+            {
+                continue;
+            }
+
             HealthCD health = em.GetComponentData<HealthCD>(entities[i]);
             if (health.health > 0)
             {

@@ -26,6 +26,7 @@ namespace NoBreakZone.EditorTools
         private const int FloorId = 9003;
         private const int OreId = 9004;
         private const int WallId = 9005;
+        private const int PayerId = 9006;
 
         internal static void Run(VerifyReport report)
         {
@@ -112,6 +113,8 @@ namespace NoBreakZone.EditorTools
 
                 CheckProtectionIsNotDeferredDestruction(
                     em, registry, protection, healthFloor, floorInside, report);
+
+                CheckTheFloorNeverFeedsAPayer(em, healthFloor, report);
 
                 report.Check(!BlocksEveryDamageSource(em, oreInside),
                     "an ore tile inside the square stays breakable");
@@ -240,6 +243,48 @@ namespace NoBreakZone.EditorTools
             healthFloor.Update();
         }
 
+        /// The health floor exists to stop protected things dying when the guard comes off. Applied
+        /// to the wrong kind of object it would do something far worse.
+        ///
+        /// DropsLootWhenDamagedCD marks the things that pay out EVERY TIME THEY ARE HIT rather than
+        /// when they die — a drill's ore boulder is the one that matters. Before the floor existed,
+        /// such a thing could at least be walked to zero and then ignored, because the health
+        /// pipeline skips entities already at zero:
+        ///
+        ///     if (healthCD.health <= 0) { continue; }      // UpdateHealthFromBufferSystem
+        ///
+        /// With a floor restoring it to full every frame, that brake is gone: hit, pay out, restore,
+        /// hit again, forever. The floor turns any leak in the discriminator into the exact failure
+        /// 기획서 §6 puts above every other property of this mod.
+        ///
+        /// The discriminator does exclude these today, so this is a condition that should be
+        /// unreachable. It is checked anyway because "unreachable" is a claim about code that keeps
+        /// changing, and the cost of being wrong is a save nobody can repair.
+        private static void CheckTheFloorNeverFeedsAPayer(
+            EntityManager em,
+            NoBreakZoneHealthFloorSystem healthFloor,
+            VerifyReport report)
+        {
+            // Built by hand rather than through the discriminator, precisely because the
+            // discriminator is what would refuse it. The question is what the FLOOR does when it
+            // meets one, not whether it can happen today.
+            Entity payer = MakeObject(em, PayerId, 1, 0);
+            em.AddComponentData(payer, new DropsLootWhenDamagedCD());
+            em.AddComponent<NoBreakZoneProtectedCD>(payer);
+
+            HealthCD health = em.GetComponentData<HealthCD>(payer);
+            health.health = 0;
+            em.SetComponentData(payer, health);
+
+            healthFloor.Update();
+
+            report.Check(em.GetComponentData<HealthCD>(payer).health <= 0,
+                "the health floor leaves something that pays out when damaged at zero — restoring "
+                + "it would let a drill mine one boulder forever");
+
+            em.DestroyEntity(payer);
+        }
+
         /// SetEntitiesDestroyedSystem's condition, written out. The harness does not run the game's
         /// pipeline, so this is how it asks what that pipeline would decide.
         private static bool GameWouldDestroy(EntityManager em, Entity entity)
@@ -307,7 +352,7 @@ namespace NoBreakZone.EditorTools
         {
             var database = new Dictionary<ObjectDataCD, ObjectInfo>();
 
-            foreach (int id in new[] { PylonId, ChestId, FloorId, OreId, WallId })
+            foreach (int id in new[] { PylonId, ChestId, FloorId, OreId, WallId, PayerId })
             {
                 for (int variation = 0; variation <= 1; variation++)
                 {
