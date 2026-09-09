@@ -1,10 +1,20 @@
 # Builds the NoBreakZone mod via Unity batch mode and installs it straight into the
-# game's local Mods folder. No editor GUI, no clicking.
+# game's local Mods folder — and into the dedicated test server's, when that exists.
+# No editor GUI, no clicking.
 #
 # Usage:   powershell -File build.ps1
 #          powershell -File build.ps1 -ExportPath "D:\...\StreamingAssets\Mods"
+#          powershell -File build.ps1 -ServerPath ""     # skip the server copy
 #
-# Exit codes: 0 = build OK, 1 = build failed, 2 = editor is open (close it first).
+# WHY THE SERVER COPY IS HERE. The self test runs on the dedicated server, and the server loads the
+# mod from its OWN StreamingAssets — a different folder from the game client's. Until 2026-09-09 this
+# script only wrote to the client, so the server kept running whatever build was last copied there by
+# hand. On 2026-09-08 that was a four-day-old build, and the mistake was caught with a human already
+# connected and waiting. A verdict from stale code is worse than no verdict, so the copy belongs
+# where the build is, not in somebody's memory.
+#
+# Exit codes: 0 = build OK (and installed everywhere it could be), 1 = build failed or the
+#             server copy failed, 2 = editor is open (close it first).
 #
 # The Unity editor for this project MUST be closed while this runs: a running editor
 # holds Temp/UnityLockfile and batch mode cannot open the project a second time.
@@ -13,6 +23,7 @@ param(
     [string]$Unity       = "C:\Program Files\Unity\Hub\Editor\6000.0.59f2\Editor\Unity.exe",
     [string]$ProjectPath = "C:\Unity\CoreKeeper",
     [string]$ExportPath  = "D:\SteamLibrary\steamapps\common\Core Keeper\CoreKeeper_Data\StreamingAssets\Mods",
+    [string]$ServerPath  = "D:\NoBreakZoneServer\server\CoreKeeperServer_Data\StreamingAssets\Mods",
     [string]$LogFile     = (Join-Path $env:TEMP "nbz_build.log")
 )
 
@@ -55,9 +66,34 @@ if (Test-Path $LogFile) {
     Write-Host "--------------------------"
 }
 
-if ($code -eq 0) {
-    Write-Host "BUILD OK  -> $ExportPath\NoBreakZone"
-} else {
+if ($code -ne 0) {
     Write-Host "BUILD FAILED (Unity exit $code). Full log: $LogFile"
+    exit $code
 }
-exit $code
+
+Write-Host "BUILD OK  -> $ExportPath\NoBreakZone"
+
+# The dedicated server only exists on the machine that set one up, so its absence is normal and
+# silent-ish rather than an error. Mirroring (not copying) so a file the build stopped producing does
+# not linger on the server and get loaded.
+if ($ServerPath -and (Test-Path $ServerPath)) {
+    $from = Join-Path $ExportPath "NoBreakZone"
+    $to   = Join-Path $ServerPath "NoBreakZone"
+
+    robocopy $from $to /MIR /NFL /NDL /NJH /NJS /NP | Out-Null
+
+    # robocopy uses exit codes as a bit field: 0-7 are success (0 = nothing to do, 1 = files copied),
+    # 8 and up are real failures. $LASTEXITCODE has to be read before anything else runs.
+    $rc = $LASTEXITCODE
+    if ($rc -lt 8) {
+        Write-Host "SERVER OK -> $to"
+    } else {
+        Write-Host "SERVER COPY FAILED (robocopy $rc) -> $to"
+        Write-Host "The build is installed for the game but the server still holds an older one."
+        exit 1
+    }
+} elseif ($ServerPath) {
+    Write-Host "(no dedicated server at $ServerPath — skipping that copy)"
+}
+
+exit 0
