@@ -39,6 +39,11 @@ namespace NoBreakZone.EditorTools
                 var registry = world.GetOrCreateSystemManaged<NoBreakZonePylonRegistrySystem>();
                 var protection = world.GetOrCreateSystemManaged<NoBreakZoneProtectionSystem>();
 
+                // Part of the protection behaviour now, so the harness has to drive it too. In the
+                // game its ordering attributes put it after the health update and before the destroy
+                // gate; here the order is whatever these calls do, which is the same order.
+                var healthFloor = world.GetOrCreateSystemManaged<NoBreakZoneHealthFloorSystem>();
+
                 // The registry asks PugMod's API for the pylon's id, and there is no mod runtime in
                 // a batch-mode editor. Reaching in from here beats adding a test seam to shipping
                 // code for something only this file will ever use; if the field is renamed, this
@@ -60,6 +65,7 @@ namespace NoBreakZone.EditorTools
 
                 registry.Update();
                 protection.Update();
+                healthFloor.Update();
 
                 report.Check(em.HasComponent<NoBreakZonePylonCD>(pylon),
                     "the registry recognised the pylon");
@@ -102,7 +108,10 @@ namespace NoBreakZone.EditorTools
                 report.Check(BlocksEveryDamageSource(em, wallInside),
                     "a wall inside the square refuses to die at zero health");
 
-                CheckJudgementDoesNotSetInStone(em, registry, protection, wallInside, report);
+                CheckJudgementDoesNotSetInStone(em, registry, protection, healthFloor, wallInside, report);
+
+                CheckProtectionIsNotDeferredDestruction(
+                    em, registry, protection, healthFloor, floorInside, report);
 
                 report.Check(!BlocksEveryDamageSource(em, oreInside),
                     "an ore tile inside the square stays breakable");
@@ -120,8 +129,10 @@ namespace NoBreakZone.EditorTools
 
                 registry.Update();
                 protection.Update();
+                healthFloor.Update();
                 registry.Update();
                 protection.Update();
+                healthFloor.Update();
 
                 report.Check(!IsIndestructible(em, chestInside),
                     "switching the pylon off releases the chest");
@@ -151,6 +162,96 @@ namespace NoBreakZone.EditorTools
             }
         }
 
+        /// The question every other check in this file forgets to ask: what state does protection
+        /// LEAVE something in?
+        ///
+        /// This mod protects by blocking destruction, not by preventing damage. The game's health
+        /// pipeline clamps to [0, max] and then decides separately whether to destroy:
+        ///
+        ///     healthCD.health = math.clamp(healthCD.health + num, 0, healthCD.maxHealth);
+        ///     if ((hasDontDestroy && !disabled) || health > 0) return;   // else: destroy
+        ///
+        /// So mining a protected wall drives its health to zero and the guard holds it there. The
+        /// object is not safe — it is one component away from dead, and switching the pylon off is
+        /// exactly what removes that component. A player who mines inside their own base and then
+        /// switches off loses the lot in a single frame. That is what happened in game on
+        /// 2026-09-09, and 45 offline checks plus 40 harness checks all passed while it was true.
+        ///
+        /// THE HARNESS CANNOT MINE, so it does the next best thing: set health to zero directly, the
+        /// state mining would leave, and then ask the question the game asks. Both halves matter —
+        /// while protected AND after release — because it is the release that cashes the damage in.
+        private static void CheckProtectionIsNotDeferredDestruction(
+            EntityManager em,
+            NoBreakZonePylonRegistrySystem registry,
+            NoBreakZoneProtectionSystem protection,
+            NoBreakZoneHealthFloorSystem healthFloor,
+            Entity protectedTile,
+            VerifyReport report)
+        {
+            if (!em.HasComponent<NoBreakZoneProtectedCD>(protectedTile))
+            {
+                report.Check(false, "the harness still has a protected tile to mine");
+                return;
+            }
+
+            HealthCD health = em.GetComponentData<HealthCD>(protectedTile);
+            health.health = 0;
+            em.SetComponentData(protectedTile, health);
+
+            registry.Update();
+            protection.Update();
+            healthFloor.Update();
+
+            report.Check(!GameWouldDestroy(em, protectedTile),
+                "a protected tile mined to zero health is not left one component away from dead");
+
+            // Now the part the player actually did: switch off without touching it again.
+            Entity pylon = em.CreateEntityQuery(ComponentType.ReadOnly<NoBreakZonePylonCD>())
+                             .GetSingletonEntity();
+
+            em.SetComponentData(pylon, new ObjectDataCD
+            {
+                objectID = (ObjectID)PylonId,
+                amount = 1,
+                variation = 0,
+            });
+
+            registry.Update();
+            protection.Update();
+            healthFloor.Update();
+            registry.Update();
+            protection.Update();
+            healthFloor.Update();
+
+            report.Check(!GameWouldDestroy(em, protectedTile),
+                "and switching the pylon off does not destroy it — protection has to be protection, "
+                + "not destruction deferred until the switch is flipped");
+
+            // Back on, so the release checks after this one still have something to release.
+            em.SetComponentData(pylon, new ObjectDataCD
+            {
+                objectID = (ObjectID)PylonId,
+                amount = 1,
+                variation = 1,
+            });
+
+            registry.Update();
+            protection.Update();
+            healthFloor.Update();
+        }
+
+        /// SetEntitiesDestroyedSystem's condition, written out. The harness does not run the game's
+        /// pipeline, so this is how it asks what that pipeline would decide.
+        private static bool GameWouldDestroy(EntityManager em, Entity entity)
+        {
+            if (!em.HasComponent<HealthCD>(entity) || em.GetComponentData<HealthCD>(entity).health > 0)
+            {
+                return false;
+            }
+
+            return !BlocksEveryDamageSource(em, entity);
+        }
+
         /// Chases one of the two live hypotheses behind the resource-duplication failure on main
         /// (`ore-inside-still-breaks`, status.md): does a tile keep the answer it was first given
         /// after the tile itself changes?
@@ -176,6 +277,7 @@ namespace NoBreakZone.EditorTools
             EntityManager em,
             NoBreakZonePylonRegistrySystem registry,
             NoBreakZoneProtectionSystem protection,
+            NoBreakZoneHealthFloorSystem healthFloor,
             Entity wall,
             VerifyReport report)
         {
@@ -183,8 +285,10 @@ namespace NoBreakZone.EditorTools
 
             registry.Update();
             protection.Update();
+            healthFloor.Update();
             registry.Update();
             protection.Update();
+            healthFloor.Update();
 
             report.Check(!BlocksEveryDamageSource(em, wall),
                 "a tile that turns into ore stops being protected, with no pylon change to prompt "
@@ -194,6 +298,7 @@ namespace NoBreakZone.EditorTools
             em.SetComponentData(wall, new TileCD { tileset = 0, tileType = TileType.wall });
             registry.Update();
             protection.Update();
+            healthFloor.Update();
         }
 
         /// PugDatabase.GetObjectInfo reads a plain static dictionary, so the harness can answer for

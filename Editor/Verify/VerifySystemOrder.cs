@@ -84,6 +84,8 @@ namespace NoBreakZone.EditorTools
                     $"{name} is still inside PredictedSimulationSystemGroup");
             }
 
+            HealthFloorOrder(report);
+
             // Why the mod does not simply join BeforePredictedSimulationSystemGroup, where the game's
             // own ImmunityZoneSystem sits: nothing orders that group against the command buffer, so
             // the sorter's tie-break decides and the fix becomes a coin flip. Asserted so that if a
@@ -95,6 +97,46 @@ namespace NoBreakZone.EditorTools
                     "BeforePredictedSimulationSystemGroup still has no edge to the command buffer "
                     + "(if this fails, the explicit constraints above can collapse into that group)");
             }
+        }
+
+        /// NoBreakZoneHealthFloorSystem has to land in one exact slot, and outside it the fix it
+        /// carries is worth nothing.
+        ///
+        /// It restores protected objects that have been mined to zero, so that
+        /// SetEntitiesDestroyedSystem — which destroys anything at zero health once the guard comes
+        /// off — never finds one. Too early and it reads health the game has not finished subtracting
+        /// from; too late and the thing is already dead. Between the health group and the destroy
+        /// gate is the only place that works.
+        ///
+        /// Pinned as tightly as the registry and protection systems are, and for the same reason:
+        /// this project has already lost play sessions to a frame-order assumption that read
+        /// correctly and was wrong (research.md 21장).
+        private static void HealthFloorOrder(VerifyReport report)
+        {
+            Type ours = typeof(NoBreakZoneHealthFloorSystem);
+
+            report.Check(IsInsideGroup(ours, typeof(PredictedSimulationSystemGroup)),
+                "the health floor updates inside PredictedSimulationSystemGroup, where the damage "
+                + "it is undoing is applied");
+
+            Type healthGroup = FindGameSystem("UpdateHealthSystemGroup");
+            Type destroyGate = FindGameSystem("SetEntitiesDestroyedSystem");
+
+            if (healthGroup == null || destroyGate == null)
+            {
+                report.Check(false,
+                    "the game still has UpdateHealthSystemGroup and SetEntitiesDestroyedSystem to "
+                    + "sit between");
+                return;
+            }
+
+            report.Check(UpdatesAfter(ours, healthGroup),
+                "the health floor runs AFTER health is applied — earlier and it reads a number the "
+                + "game has not finished subtracting from");
+
+            report.Check(UpdatesBefore(ours, destroyGate),
+                "and BEFORE the destroy gate — later and the base is already rubble. This is the "
+                + "check the whole fix rests on");
         }
 
         private static bool UpdatesAfter(Type system, Type other)
