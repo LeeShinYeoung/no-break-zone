@@ -39,6 +39,11 @@ namespace NoBreakZone.EditorTools
                 var registry = world.GetOrCreateSystemManaged<NoBreakZonePylonRegistrySystem>();
                 var protection = world.GetOrCreateSystemManaged<NoBreakZoneProtectionSystem>();
 
+                // Part of the protection behaviour now, so the harness has to drive it too. In the
+                // game its ordering attributes put it after the health update and before the destroy
+                // gate; here the order is whatever these calls do, which is the same order.
+                var healthFloor = world.GetOrCreateSystemManaged<NoBreakZoneHealthFloorSystem>();
+
                 // The registry asks PugMod's API for the pylon's id, and there is no mod runtime in
                 // a batch-mode editor. Reaching in from here beats adding a test seam to shipping
                 // code for something only this file will ever use; if the field is renamed, this
@@ -60,6 +65,7 @@ namespace NoBreakZone.EditorTools
 
                 registry.Update();
                 protection.Update();
+                healthFloor.Update();
 
                 report.Check(em.HasComponent<NoBreakZonePylonCD>(pylon),
                     "the registry recognised the pylon");
@@ -102,9 +108,10 @@ namespace NoBreakZone.EditorTools
                 report.Check(BlocksEveryDamageSource(em, wallInside),
                     "a wall inside the square refuses to die at zero health");
 
-                CheckJudgementDoesNotSetInStone(em, registry, protection, wallInside, report);
+                CheckJudgementDoesNotSetInStone(em, registry, protection, healthFloor, wallInside, report);
 
-                CheckProtectionIsNotDeferredDestruction(em, registry, protection, floorInside, report);
+                CheckProtectionIsNotDeferredDestruction(
+                    em, registry, protection, healthFloor, floorInside, report);
 
                 report.Check(!BlocksEveryDamageSource(em, oreInside),
                     "an ore tile inside the square stays breakable");
@@ -122,8 +129,10 @@ namespace NoBreakZone.EditorTools
 
                 registry.Update();
                 protection.Update();
+                healthFloor.Update();
                 registry.Update();
                 protection.Update();
+                healthFloor.Update();
 
                 report.Check(!IsIndestructible(em, chestInside),
                     "switching the pylon off releases the chest");
@@ -175,6 +184,7 @@ namespace NoBreakZone.EditorTools
             EntityManager em,
             NoBreakZonePylonRegistrySystem registry,
             NoBreakZoneProtectionSystem protection,
+            NoBreakZoneHealthFloorSystem healthFloor,
             Entity protectedTile,
             VerifyReport report)
         {
@@ -190,6 +200,7 @@ namespace NoBreakZone.EditorTools
 
             registry.Update();
             protection.Update();
+            healthFloor.Update();
 
             report.Check(!GameWouldDestroy(em, protectedTile),
                 "a protected tile mined to zero health is not left one component away from dead");
@@ -207,8 +218,10 @@ namespace NoBreakZone.EditorTools
 
             registry.Update();
             protection.Update();
+            healthFloor.Update();
             registry.Update();
             protection.Update();
+            healthFloor.Update();
 
             report.Check(!GameWouldDestroy(em, protectedTile),
                 "and switching the pylon off does not destroy it — protection has to be protection, "
@@ -224,6 +237,7 @@ namespace NoBreakZone.EditorTools
 
             registry.Update();
             protection.Update();
+            healthFloor.Update();
         }
 
         /// SetEntitiesDestroyedSystem's condition, written out. The harness does not run the game's
@@ -263,6 +277,7 @@ namespace NoBreakZone.EditorTools
             EntityManager em,
             NoBreakZonePylonRegistrySystem registry,
             NoBreakZoneProtectionSystem protection,
+            NoBreakZoneHealthFloorSystem healthFloor,
             Entity wall,
             VerifyReport report)
         {
@@ -270,8 +285,10 @@ namespace NoBreakZone.EditorTools
 
             registry.Update();
             protection.Update();
+            healthFloor.Update();
             registry.Update();
             protection.Update();
+            healthFloor.Update();
 
             report.Check(!BlocksEveryDamageSource(em, wall),
                 "a tile that turns into ore stops being protected, with no pylon change to prompt "
@@ -281,6 +298,7 @@ namespace NoBreakZone.EditorTools
             em.SetComponentData(wall, new TileCD { tileset = 0, tileType = TileType.wall });
             registry.Update();
             protection.Update();
+            healthFloor.Update();
         }
 
         /// PugDatabase.GetObjectInfo reads a plain static dictionary, so the harness can answer for
