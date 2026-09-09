@@ -38,6 +38,7 @@ namespace NoBreakZone.LogicTests
             }
 
             RangeChecks();
+            RemoteReachChecks();
             FootprintChecks();
             ProtectionRuleUnitChecks();
             TileEditChecks();
@@ -84,6 +85,54 @@ namespace NoBreakZone.LogicTests
         private static bool Covered(int[] px, int[] pz, int count, int x, int z, int radius)
         {
             return NoBreakZoneRange.AllTilesCovered(px, pz, count, x, z, x, z, radius);
+        }
+
+        // ---------------------------------------------- Scripts/Logic/NoBreakZoneRange.IsWithinReach
+
+        /// 기획서 §4's remote: right-click a pylon from up to 30 tiles away and it switches.
+        ///
+        /// coverage.md counted #35 and #36 as work for the in-game suite, on the grounds that the
+        /// remote runs on the server. That was the wrong reason: the REACH DECISION is a pure
+        /// function of two coordinates and a number, so it needs no game, no server and no human.
+        /// Only the input path — reading a real player's cursor — needs those.
+        private static void RemoteReachChecks()
+        {
+            const int reach = NoBreakZoneRange.DefaultRemoteReach;
+
+            IsTrue(reach == 30, "the remote reaches 30 tiles by default");
+
+            IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 30, 0, reach),
+                "a pylon exactly 30 tiles away is in reach");
+            IsTrue(!NoBreakZoneRange.IsWithinReach(0, 0, 31, 0, reach),
+                "one tile further is not");
+
+            // ROUND, NOT SQUARE, and this is the check that holds it that way. A square would quietly
+            // give 41% more reach on the diagonal than along an axis — the reason IsWithinReach
+            // compares squared distances rather than max(|dx|,|dz|) the way the protection square
+            // does. (21,21) is 29.7 tiles out; (22,22) is 31.1.
+            IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 21, 21, reach),
+                "the diagonal is measured as a circle: 21,21 is inside");
+            IsTrue(!NoBreakZoneRange.IsWithinReach(0, 0, 22, 22, reach),
+                "and 22,22 is outside, where a square would have let it through");
+
+            IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, reach),
+                "standing on the pylon is in reach");
+            IsTrue(NoBreakZoneRange.IsWithinReach(-30, 0, 0, 0, reach),
+                "reach is symmetric about the player");
+
+            IsTrue(!NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, -1),
+                "a negative reach touches nothing, not even its own tile");
+
+            // 기획서 §4 #36, "벽 너머로도 통한다", and it does not look like the others because the
+            // claim is structural rather than numeric. There is no line-of-sight input to this
+            // decision — the arguments are two positions and a distance, and nothing else can be
+            // consulted. Walls cannot matter because there is nowhere for them to enter.
+            //
+            // What this pins down is that it stays that way. If somebody later adds an obstruction
+            // test, the call below stops compiling or stops answering true, and the design decision
+            // gets revisited on purpose instead of by accident.
+            IsTrue(NoBreakZoneRange.IsWithinReach(0, 0, 20, 0, reach),
+                "reach ignores what stands between: distance is the only input");
         }
 
         // -------------------------------------------------------------- Scripts/Logic/NoBreakZoneFootprint

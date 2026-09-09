@@ -65,6 +65,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 {
     private EntityQuery _candidates;
     private EntityQuery _ours;
+    private EntityQuery _changedTiles;
     private NoBreakZonePylonRegistrySystem _registry;
     private readonly HashSet<ObjectID> _logged = new HashSet<ObjectID>();
 
@@ -135,6 +136,31 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             ComponentType.ReadOnly<NoBreakZoneProtectedCD>(),
             ComponentType.ReadOnly<LocalTransform>(),
             ComponentType.ReadOnly<ObjectDataCD>());
+
+        // A TILE CAN CHANGE INTO A DIFFERENT TILE, AND THE ANSWER HAS TO CHANGE WITH IT.
+        //
+        // NoBreakZoneEvaluatedCD exists so an object is judged once (기획서 §9), and for an object
+        // that is a sound assumption: a chest never becomes an ore boulder. A tilemap square is not
+        // like that. Judge one as WALL — protected since design.md's 2026-08-07 decision — let it
+        // become ORE, and the stale answer keeps the ore indestructible. A protected ore tile never
+        // depletes, which is the resource duplication 기획서 §6 forbids above everything else.
+        //
+        // The change filter is what keeps this from undoing the tag's whole purpose: it matches only
+        // chunks whose TileCD was actually written since this system last ran, so a base full of
+        // untouched walls costs nothing.
+        _changedTiles = GetEntityQuery(new EntityQueryDesc
+        {
+            All = new[]
+            {
+                ComponentType.ReadOnly<TileCD>(),
+                ComponentType.ReadOnly<NoBreakZoneEvaluatedCD>(),
+            },
+            None = new[]
+            {
+                ComponentType.ReadOnly<NoBreakZonePylonCD>(),
+            },
+        });
+        _changedTiles.SetChangedVersionFilter(ComponentType.ReadOnly<TileCD>());
     }
 
     protected override void OnUpdate()
@@ -161,6 +187,12 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         {
             ReleaseUncovered(radius);
         }
+
+        // Then: any tile that has become a different tile since we judged it goes back in the queue.
+        // Ordered after the release above and before the early exits below for the same reason that
+        // one is — a tile that turned into ore has to be handed back even in a frame where nothing
+        // new is waiting to be judged.
+        ReJudgeChangedTiles();
 
         if (_candidates.IsEmpty)
         {
@@ -274,6 +306,39 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         {
             Debug.Log($"[NoBreakZone] released {released} object(s) (world={World.Name})");
         }
+    }
+
+    /// Drops our answer for every tile whose TileCD was rewritten since the last pass, so the
+    /// discriminator sees it again with its new identity.
+    ///
+    /// Releasing first matters. A tile judged as a wall is holding DontDestroyOnZeroHealthCD; if it
+    /// is now ore, simply re-queuing it is not enough, because the discriminator only ever ADDS
+    /// protection — it has no path that takes it away from something it decides against. Release
+    /// hands back exactly what we gave and nothing the game owned itself.
+    private void ReJudgeChangedTiles()
+    {
+        if (_changedTiles.IsEmpty)
+        {
+            return;
+        }
+
+        var em = EntityManager;
+        using var entities = _changedTiles.ToEntityArray(Allocator.Temp);
+
+        for (int i = 0; i < entities.Length; i++)
+        {
+            Entity entity = entities[i];
+
+            if (em.HasComponent<NoBreakZoneProtectedCD>(entity))
+            {
+                Release(em, entity);
+            }
+
+            em.RemoveComponent<NoBreakZoneEvaluatedCD>(entity);
+        }
+
+        Debug.Log($"[NoBreakZone] re-judging {entities.Length} tile(s) that changed type "
+                  + $"(world={World.Name})");
     }
 
     private static void Release(EntityManager em, Entity entity)
