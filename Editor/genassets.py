@@ -1161,6 +1161,16 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         "  playFailedEffectOnZeroDamage: 0\n",
     )
     body += _authoring(
+        # hasHealthRegeneration BELOW IS OFF, AND WAS ON.
+        #
+        # A chest does not heal itself and neither should ours. With it on, a pylon somebody is
+        # trying to collect claws back 100% of its health five seconds after the last swing —
+        # HealthConverter adds StopHealthRegenOnDamageTakenCD when healInCombatAsWell is false,
+        # so it pauses while you are actively hitting and resumes the moment you stop.
+        #
+        # maxHealth is what this feeds; ComputeMaxHealth only scales it by area level when the
+        # prefab carries AreaLevelAuthoring, which ours do not. So health really is the number
+        # written here.
         ids["health"], root, "HealthAuthoring",
         "  dontCalculateHealthFromLevel: 0\n"
         "  overrideStartHealth: 0\n"
@@ -1168,7 +1178,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         f"  startHealth: {spec.health}\n"
         f"  maxHealth: {spec.health}\n"
         "  maxHealthMultiplier: 1\n"
-        "  hasHealthRegeneration: 1\n"
+        "  hasHealthRegeneration: 0\n"
         "  healInCombatAsWell: 0\n"
         "  healthIncreasePercentPerFiveSeconds: 100\n"
         "  healDelayAfterLeavingCombat: 5\n"
@@ -1218,11 +1228,23 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         "  skipDeathAnimation: 0\n",
     )
     body += _authoring(
+        # maxDamagePerHit BELOW IS ZERO ON PURPOSE, MEANING NO CAP.
+        #
+        # It was 1, and that is the real reason a switched-off pylon shrugged off a Solarite
+        # pickaxe: UpdateHealthFromBufferSystem clamps every hit to maxDamagePerHit unless the
+        # damage sets bypassMaxDamagePerHit, so 1 meant ten swings minimum on a 10 HP object no
+        # matter what tool you held. The game only applies the clamp when the value is above
+        # zero, so zero turns it off.
+        #
+        # PROTECTION DOES NOT COME FROM HERE. It comes from IndestructibleCD and
+        # DontDestroyOnZeroHealthCD, so a switched-ON pylon is still untouchable. This only
+        # decides how long collecting a switched-off one takes, and 기획서 §6 wants that to be
+        # the easy half of "회수하려면 먼저 꺼야 한다".
         ids["damageReduction"], root, "DamageReductionAuthoring",
         "  calculateReductionFromLevel: 0\n"
         "  reductionMultiplier: 1\n"
         "  reduction: 0\n"
-        "  maxDamagePerHit: 1\n"
+        "  maxDamagePerHit: 0\n"
         "  minDamagePerHit: 0\n"
         "  ignoreReductionWhenDamagedByDrill: 0\n"
         "  level: {fileID: 0}\n",
