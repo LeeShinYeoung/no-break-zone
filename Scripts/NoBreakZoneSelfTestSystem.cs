@@ -51,7 +51,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     /// One past the last case. Finish runs here, so adding a case means adding to the switch and
     /// moving this.
-    private const int FinalStep = 26;
+    private const int FinalStep = 34;
 
     /// Where each group of cases that can stand on its own begins.
     ///
@@ -63,6 +63,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private const int PlaceableStep = 17;
     private const int PylonInvulnStep = 20;
     private const int BoulderStep = 23;
+    private const int ScenarioStep = 26;
 
     // Generous on purpose. On a dedicated server the map only streams in once somebody connects, so
     // this has to outlast a human launching the game, picking a character and joining — not just the
@@ -127,6 +128,11 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private Entity _controlPylon = Entity.Null;
     private Entity _insideBoulder = Entity.Null;
     private Entity _outsideBoulder = Entity.Null;
+    private Entity _scenarioChest = Entity.Null;
+    private int2 _scenarioWall;
+    private bool _haveScenarioWall;
+    private int _scenarioSwings;
+    private int _toggleCycles;
 
     /// Enough capped hits to fell a wall. The cap is per hit, so this is the only way to tell the
     /// pickaxe path apart from the explosion one.
@@ -254,6 +260,14 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             case 23: SpawnBoulders(); break;
             case 24: DamageBoulders(); break;
             case 25: CheckBoulderResult(); break;
+            case 26: ScenarioSetUp(); break;
+            case 27: ScenarioMineAndLeaveAlone(); break;
+            case 28: ScenarioCheckIdle(); break;
+            case 29: ScenarioSwitchOffAndWatch(); break;
+            case 30: ScenarioCheckAfterSwitchOff(); break;
+            case 31: ScenarioToggleCycle(); break;
+            case 32: ScenarioCheckToggleThenMine(); break;
+            case 33: ScenarioCheckRelease(); break;
             default: break;
         }
 
@@ -1200,7 +1214,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("boulder-outside-breaks", $"the database does not know {BoulderObjectName}");
             Skip("boulder-inside-still-breaks", "same");
-            _step = FinalStep;
+            _step = ScenarioStep;
             return;
         }
 
@@ -1213,7 +1227,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("boulder-outside-breaks", "could not spawn a boulder");
             Skip("boulder-inside-still-breaks", "same");
-            _step = FinalStep;
+            _step = ScenarioStep;
             return;
         }
 
@@ -1230,7 +1244,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         {
             Skip("boulder-outside-breaks", "a boulder did not survive being placed at all");
             Skip("boulder-inside-still-breaks", "same");
-            _step = FinalStep;
+            _step = ScenarioStep;
             return;
         }
 
@@ -1277,6 +1291,230 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _outsideBoulder = Entity.Null;
 
         Advance();
+    }
+
+    // ------------------------------------------------------------------------------- scenarios
+    //
+    // EVERY CASE ABOVE POKES AND LOOKS IN THE SAME BREATH, AND THAT IS WHY THEY ALL PASSED WHILE THE
+    // MOD WAS BADLY BROKEN. A human switched a pylon on, mined their own base, switched it off, and
+    // watched the whole base turn into items — the damage had been banked at zero health the whole
+    // time, held up by one component that switching off removes.
+    //
+    // No case could see it. release-on-switch-off comes closest and still misses, because it applies
+    // FRESH damage after switching off and then reports that the wall broke. It cannot tell "the
+    // release worked" from "the release killed everything", and it says PASS either way.
+    //
+    // What these add is a gap. Hit something, then do nothing to it, then look. The interesting
+    // failures of a mod that changes when things die are all in that gap.
+
+    private void ScenarioSetUp()
+    {
+        var tiles = CreateTileAccessor();
+        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
+
+        // A wall of its own, so the earlier cases' leftovers are not what gets measured.
+        _haveScenarioWall = TryFindTile(tiles, _pylon, 1, radius - 1, 3, TileType.wall, out _scenarioWall);
+
+        ObjectID benchId = API.Authoring.GetObjectID("WoodenWorkBench");
+        if (benchId != ObjectID.None)
+        {
+            _scenarioChest = EntityUtility.CreateEntity(
+                World, new Vector3(_inside.x, 0f, _inside.y), benchId, 1, database);
+        }
+
+        if (!_haveScenarioWall && _scenarioChest == Entity.Null)
+        {
+            SkipScenarios("no wall and no workbench to work with inside the square");
+            _step = FinalStep;
+            return;
+        }
+
+        Debug.Log($"[NBZTEST] scenario: wall={_haveScenarioWall} at ({_scenarioWall.x},{_scenarioWall.y}), "
+                  + $"placeable={_scenarioChest != Entity.Null}");
+
+        Advance(60);
+    }
+
+    /// Mine, and then stop. The stopping is the point.
+    private void ScenarioMineAndLeaveAlone()
+    {
+        if (_haveScenarioWall)
+        {
+            DamageTile(_scenarioWall, PickaxeDamage, explosionShaped: false);
+        }
+
+        if (EntityManager.Exists(_scenarioChest))
+        {
+            DamageEntity(_scenarioChest, ExplosionDamage);
+        }
+
+        if (++_scenarioSwings < PickaxeSwings)
+        {
+            _wait = 4;
+            return;
+        }
+
+        // Two full seconds of nothing at all. Anything that dies on a timer, or on the next tick of
+        // some system we have not thought about, dies inside this window.
+        Advance(120);
+    }
+
+    private void ScenarioCheckIdle()
+    {
+        if (_haveScenarioWall)
+        {
+            Verdict("damaged-wall-survives-idle",
+                CreateTileAccessor().GetTopType(_scenarioWall) == TileType.wall,
+                "a wall mined inside the square is still standing two seconds later, with nobody "
+                + "touching it");
+        }
+        else
+        {
+            Skip("damaged-wall-survives-idle", "no wall inside the square to mine");
+        }
+
+        Advance();
+    }
+
+    /// The exact sequence a player performed on 2026-09-09: mine inside your base, then switch off.
+    /// Nothing is hit after the switch — that is what separates this from release-on-switch-off.
+    private void ScenarioSwitchOffAndWatch()
+    {
+        if (!TryGetPylonEntityAt(_pylon, out Entity pylon))
+        {
+            SkipScenarios("no pylon entity to switch off");
+            _step = FinalStep;
+            return;
+        }
+
+        ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
+        data.variation = NoBreakZonePylonGraphics.VariationOff;
+        EntityManager.SetComponentData(pylon, data);
+
+        Debug.Log("[NBZTEST] scenario: switched off without hitting anything first");
+        Advance(60);
+    }
+
+    private void ScenarioCheckAfterSwitchOff()
+    {
+        if (_haveScenarioWall)
+        {
+            Verdict("damaged-wall-survives-switch-off",
+                CreateTileAccessor().GetTopType(_scenarioWall) == TileType.wall,
+                "switching the pylon off does not destroy what was mined while it was on — "
+                + "protection has to be protection, not destruction deferred");
+        }
+        else
+        {
+            Skip("damaged-wall-survives-switch-off", "no wall inside the square to mine");
+        }
+
+        if (EntityManager.Exists(_scenarioChest) || _scenarioChest != Entity.Null)
+        {
+            Verdict("damaged-placeable-survives-switch-off",
+                !IsDestroyed(_scenarioChest),
+                "and the same for a workbench, which takes damage by a different route");
+        }
+        else
+        {
+            Skip("damaged-placeable-survives-switch-off", "no workbench was placed");
+        }
+
+        Advance();
+    }
+
+    /// Flip the switch repeatedly with damage in between. State machines that are right once are not
+    /// always right the third time, and a player toggling a pylon while building is ordinary.
+    private void ScenarioToggleCycle()
+    {
+        if (!TryGetPylonEntityAt(_pylon, out Entity pylon))
+        {
+            Skip("toggle-cycle-destroys-nothing", "no pylon entity to toggle");
+            Skip("release-still-lets-you-mine", "same");
+            _step = FinalStep;
+            return;
+        }
+
+        ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
+        bool on = data.variation == NoBreakZonePylonGraphics.VariationOn;
+
+        data.variation = on
+            ? NoBreakZonePylonGraphics.VariationOff
+            : NoBreakZonePylonGraphics.VariationOn;
+        EntityManager.SetComponentData(pylon, data);
+
+        // Hit it while switched on, so each cycle banks something new if banking is possible again.
+        if (!on && _haveScenarioWall)
+        {
+            DamageTile(_scenarioWall, PickaxeDamage, explosionShaped: false);
+        }
+
+        if (++_toggleCycles < 6)
+        {
+            _wait = 30;
+            return;
+        }
+
+        // Leave it OFF, which sets up the last case.
+        data.variation = NoBreakZonePylonGraphics.VariationOff;
+        EntityManager.SetComponentData(pylon, data);
+
+        Debug.Log("[NBZTEST] scenario: toggled six times, left off");
+        Advance(60);
+    }
+
+    private void ScenarioCheckToggleThenMine()
+    {
+        if (!_haveScenarioWall)
+        {
+            Skip("toggle-cycle-destroys-nothing", "no wall inside the square to mine");
+            Skip("release-still-lets-you-mine", "same");
+            CleanUpScenario();
+            _step = FinalStep;
+            return;
+        }
+
+        Verdict("toggle-cycle-destroys-nothing",
+            CreateTileAccessor().GetTopType(_scenarioWall) == TileType.wall,
+            "six on/off cycles with mining in between destroy nothing");
+
+        // Now the control, with the pylon left off by the step before: hit it once more, for real.
+        DamageTile(_scenarioWall, ExplosionDamage, explosionShaped: true);
+        Advance(60);
+    }
+
+    /// THE CONTROL FOR EVERY SCENARIO ABOVE, and without it they are worth nothing: making
+    /// everything permanently indestructible would score five greens. With the pylon off this wall
+    /// has to break like any other. A red here means the health floor went too far and protection
+    /// no longer lets go — which would be a worse bug than the one it fixed, because 기획서 §6's
+    /// answer to "how do I change my base" is "switch the pylon off".
+    private void ScenarioCheckRelease()
+    {
+        Verdict("release-still-lets-you-mine",
+            CreateTileAccessor().GetTopType(_scenarioWall) != TileType.wall,
+            "with the pylon off, that same wall breaks again — protection lets go");
+
+        CleanUpScenario();
+        Advance();
+    }
+
+    private void SkipScenarios(string why)
+    {
+        Skip("damaged-wall-survives-idle", why);
+        Skip("damaged-wall-survives-switch-off", why);
+        Skip("damaged-placeable-survives-switch-off", why);
+        Skip("toggle-cycle-destroys-nothing", why);
+        Skip("release-still-lets-you-mine", why);
+    }
+
+    private void CleanUpScenario()
+    {
+        if (EntityManager.Exists(_scenarioChest))
+        {
+            EntityManager.DestroyEntity(_scenarioChest);
+        }
+
+        _scenarioChest = Entity.Null;
     }
 
     /// The pylon standing on a given tile, rather than whichever one the query happens to return
@@ -1443,6 +1681,10 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         _controlPylon = Entity.Null;
         _insideBoulder = Entity.Null;
         _outsideBoulder = Entity.Null;
+        _scenarioChest = Entity.Null;
+        _haveScenarioWall = false;
+        _scenarioSwings = 0;
+        _toggleCycles = 0;
         _lastSpawned = Entity.Null;
         _spawnAttempt = 0;
 
