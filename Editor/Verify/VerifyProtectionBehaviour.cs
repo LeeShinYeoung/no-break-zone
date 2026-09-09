@@ -104,6 +104,8 @@ namespace NoBreakZone.EditorTools
 
                 CheckJudgementDoesNotSetInStone(em, registry, protection, wallInside, report);
 
+                CheckProtectionIsNotDeferredDestruction(em, registry, protection, floorInside, report);
+
                 report.Check(!BlocksEveryDamageSource(em, oreInside),
                     "an ore tile inside the square stays breakable");
                 report.Check(!em.HasComponent<NoBreakZoneProtectedCD>(oreInside),
@@ -149,6 +151,91 @@ namespace NoBreakZone.EditorTools
                 world.Dispose();
                 PugDatabase.objectsByType = savedDatabase;
             }
+        }
+
+        /// The question every other check in this file forgets to ask: what state does protection
+        /// LEAVE something in?
+        ///
+        /// This mod protects by blocking destruction, not by preventing damage. The game's health
+        /// pipeline clamps to [0, max] and then decides separately whether to destroy:
+        ///
+        ///     healthCD.health = math.clamp(healthCD.health + num, 0, healthCD.maxHealth);
+        ///     if ((hasDontDestroy && !disabled) || health > 0) return;   // else: destroy
+        ///
+        /// So mining a protected wall drives its health to zero and the guard holds it there. The
+        /// object is not safe — it is one component away from dead, and switching the pylon off is
+        /// exactly what removes that component. A player who mines inside their own base and then
+        /// switches off loses the lot in a single frame. That is what happened in game on
+        /// 2026-09-09, and 45 offline checks plus 40 harness checks all passed while it was true.
+        ///
+        /// THE HARNESS CANNOT MINE, so it does the next best thing: set health to zero directly, the
+        /// state mining would leave, and then ask the question the game asks. Both halves matter —
+        /// while protected AND after release — because it is the release that cashes the damage in.
+        private static void CheckProtectionIsNotDeferredDestruction(
+            EntityManager em,
+            NoBreakZonePylonRegistrySystem registry,
+            NoBreakZoneProtectionSystem protection,
+            Entity protectedTile,
+            VerifyReport report)
+        {
+            if (!em.HasComponent<NoBreakZoneProtectedCD>(protectedTile))
+            {
+                report.Check(false, "the harness still has a protected tile to mine");
+                return;
+            }
+
+            HealthCD health = em.GetComponentData<HealthCD>(protectedTile);
+            health.health = 0;
+            em.SetComponentData(protectedTile, health);
+
+            registry.Update();
+            protection.Update();
+
+            report.Check(!GameWouldDestroy(em, protectedTile),
+                "a protected tile mined to zero health is not left one component away from dead");
+
+            // Now the part the player actually did: switch off without touching it again.
+            Entity pylon = em.CreateEntityQuery(ComponentType.ReadOnly<NoBreakZonePylonCD>())
+                             .GetSingletonEntity();
+
+            em.SetComponentData(pylon, new ObjectDataCD
+            {
+                objectID = (ObjectID)PylonId,
+                amount = 1,
+                variation = 0,
+            });
+
+            registry.Update();
+            protection.Update();
+            registry.Update();
+            protection.Update();
+
+            report.Check(!GameWouldDestroy(em, protectedTile),
+                "and switching the pylon off does not destroy it — protection has to be protection, "
+                + "not destruction deferred until the switch is flipped");
+
+            // Back on, so the release checks after this one still have something to release.
+            em.SetComponentData(pylon, new ObjectDataCD
+            {
+                objectID = (ObjectID)PylonId,
+                amount = 1,
+                variation = 1,
+            });
+
+            registry.Update();
+            protection.Update();
+        }
+
+        /// SetEntitiesDestroyedSystem's condition, written out. The harness does not run the game's
+        /// pipeline, so this is how it asks what that pipeline would decide.
+        private static bool GameWouldDestroy(EntityManager em, Entity entity)
+        {
+            if (!em.HasComponent<HealthCD>(entity) || em.GetComponentData<HealthCD>(entity).health > 0)
+            {
+                return false;
+            }
+
+            return !BlocksEveryDamageSource(em, entity);
         }
 
         /// Chases one of the two live hypotheses behind the resource-duplication failure on main
