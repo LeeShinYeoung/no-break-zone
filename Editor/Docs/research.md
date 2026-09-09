@@ -1127,6 +1127,75 @@ new HealthChange
 > 보였을 것이다. 대조군이 빨간 상태의 초록을 SKIP으로 처리하게 해 둔 규칙(21장)이 이번에도
 > 잘못된 결론을 막았다.
 
+## 23. 곡괭이 광석은 벽 안에 들어있다 (2026-09-10)
+
+이 사실 하나를 몰라서 **오진을 두 번** 했다. `ore-inside-still-breaks`가 인게임에서 세 판 연속
+실패한 것을 자원 복제 버그로 보고했는데, 버그도 아니었고 복제도 아니었다.
+
+### 23-1. 광석은 타일 위의 물건이 아니라 벽 속의 자원이다
+
+`PlayerController`가 그렇게 다룬다.
+
+```csharp
+// 광석을 맞았을 때, 같은 자리의 '벽'을 찾아본다
+if (tileType.IsContainedResource()
+    && playerAttackShared.tileAccessor.GetType(position.RoundToInt2(), TileType.wall, out var tileCD))
+
+// 채굴 판정은 벽과 '담긴 자원'을 한 부류로 본다
+if (top.tileType != TileType.wall && !top.tileType.IsContainedResource())
+```
+
+**체력을 들고 있는 엔티티는 벽이다.** 2026-08-07 결정으로 벽이 보호 대상이 됐으므로,
+**벽이 안 부서지면 그 안의 광석도 안 나온다.** 모드가 광석을 보호한 것이 아니라 벽을 보호한 것이다.
+
+### 23-2. 규칙은 광석에 닿지도 못한다
+
+`object_flags.csv`의 **광석 타일 10종이 전부 `health = 0`**이고,
+`NoBreakZoneProtectionRule`의 첫 줄이 `if (!hasHealth) return false;`다. 로그에 `PROTECT <광석>`
+줄이 한 번도 없던 이유이고, "규칙이 광석을 보호하고 있다"는 가설이 애초에 성립할 수 없던 이유다.
+
+### 23-3. 복제는 광석이 아니라 **덩어리**의 성질이다
+
+복제는 **"안 죽으면서 계속 뱉는"** 것이라야 성립한다. 결정적인 것은 `lootOnDmg`다.
+
+| | `lootOnDmg` | 보호하면 |
+| --- | --- | --- |
+| 곡괭이 광석 (벽 속) | **0** | 맞아도 아무것도 안 나옴 → **복제 아님**, 그냥 안 캐짐 |
+| 드릴 광석 (덩어리) | **1** | 드릴이 때릴 때마다 나옴 → **이것이 진짜 복제** |
+
+기획서 §6이 지목한 것도 정확히 덩어리다("드릴이 광석 덩어리를 캐는 경우가 위험하다"). 그리고
+기획서 271줄("지형에 박힌 광석 = 보호한다")과 282·476줄("광석은 제외")은 **모순이 아니다** —
+앞은 *관찰되는 동작*, 뒤는 *규칙*을 말하고 둘 다 맞다.
+
+> **교훈은 용어였다.** "광석"이라는 한 단어가 성질이 정반대인 두 물건을 가리키고 있었고, 그것을
+> 구분하지 않은 채로 코드를 읽어서 없는 버그를 두 번 쫓았다. 사람이 "안 캐져도 괜찮은 거 아냐?"라고
+> 되물어 준 것이 그 구분을 강제했다.
+
+## 24. 우리 오브젝트가 곡괭이에 안 부서지던 이유 (2026-09-10)
+
+파일런을 끄고 태양석 곡괭이로 한참 때려야 회수됐다. 체력은 10인데 그렇다.
+
+`genassets.py`가 `DamageReductionAuthoring`에 **`maxDamagePerHit: 1`**을 써넣고 있었다.
+
+```csharp
+if (num < 0 && !healthChange.bypassMaxDamagePerHit
+    && damageReductionGroup.HasComponent(entity)
+    && damageReductionGroup[entity].maxDamagePerHit > 0)
+    num = math.max(num, -damageReductionGroup[entity].maxDamagePerHit);
+```
+
+**한 대에 1 피해로 잘린다.** 채굴은 `bypassMaxDamagePerHit`을 안 세우므로 어떤 도구를 써도
+**최소 10대**다. 게임은 이 값이 **0보다 클 때만** 자르므로 0이 "상한 없음"이다.
+
+거기에 `hasHealthRegeneration: 1` + `100%/5초`까지 있었다. `HealthConverter`는
+`healInCombatAsWell`이 false면 `StopHealthRegenOnDamageTakenCD`를 붙이므로 **때리는 동안은 멈추고
+손을 떼면 5초 뒤 만피로 돌아온다.** 둘이 겹쳐서 회수가 끝나지 않았다.
+
+체력 자체는 10이 맞다 — `ComputeMaxHealth`의 레벨 스케일링은 프리팹에 `AreaLevelAuthoring`이
+있을 때만 걸리는데 우리 것에는 없다.
+
+**보호와는 무관한 값들이다.** 보호는 `IndestructibleCD`·`DontDestroyOnZeroHealthCD`로 걸린다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
