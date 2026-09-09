@@ -129,7 +129,7 @@ MonoBehaviour:
   startHealth: 10
   maxHealth: 10
   maxHealthMultiplier: 1
-  hasHealthRegeneration: 1
+  hasHealthRegeneration: 0
   healInCombatAsWell: 0
   healthIncreasePercentPerFiveSeconds: 100
   healDelayAfterLeavingCombat: 5
@@ -254,7 +254,7 @@ MonoBehaviour:
   calculateReductionFromLevel: 0
   reductionMultiplier: 1
   reduction: 0
-  maxDamagePerHit: 1
+  maxDamagePerHit: 0
   minDamagePerHit: 0
   ignoreReductionWhenDamagedByDrill: 0
   level: {fileID: 0}
