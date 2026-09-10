@@ -7,7 +7,14 @@ from PIL import Image
 OUT = pathlib.Path(__file__).resolve().parent
 
 T = (0, 0, 0, 0)
+# TWO OUTLINE TONES, NOT ONE. A single near-black line around the whole silhouette made the pylon and
+# the bench look pasted onto the floor next to the game's own objects ("혼자 합성같이 튀는 느낌",
+# 2026-09-11). The game's sprites outline in a dark shade of their own material and let the light
+# come from above: top and side edges are the softer tone, only the underside gets the darkest one
+# (the SDK bench: mid red along its top edge, the deepest red only on its feet). OUTLINE is now that
+# underside tone; OUTLINE_LIT goes everywhere else.
 OUTLINE = (36, 31, 46, 255)
+OUTLINE_LIT = (52, 48, 68, 255)
 SHADOW = (24, 21, 32, 120)
 STONE = [
     (45, 41, 62, 255),
@@ -122,10 +129,12 @@ def build_image(c, regions, shifts, glow_on):
         for x in range(c.w):
             if c.r[y][x] is None:
                 continue
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            for dx, dy in ((0, 1), (1, 0), (-1, 0), (0, -1)):
                 nx, ny = x + dx, y + dy
                 if not (0 <= nx < c.w and 0 <= ny < c.h) or c.r[ny][nx] is None:
-                    out[y][x] = OUTLINE
+                    # Below is checked first so a corner that is both a side and an underside
+                    # takes the dark tone: the shadow wins where the object meets the floor.
+                    out[y][x] = OUTLINE if dy == 1 else OUTLINE_LIT
                     break
 
     pal = GLOW_ON if glow_on else GLOW_OFF
@@ -173,7 +182,7 @@ def build_image(c, regions, shifts, glow_on):
                     nxt.add((nx, ny))
                     # The silhouette edge stays dark — light spreading onto it would blur the shape
                     # against the background — but the glow still travels past it to cells beyond.
-                    if out[ny][nx] == OUTLINE:
+                    if out[ny][nx] in (OUTLINE, OUTLINE_LIT):
                         continue
                     b = out[ny][nx]
                     out[ny][nx] = (min(255, b[0] + red), min(255, b[1] + green),
@@ -245,7 +254,9 @@ IRON = {
 }
 BENCH_PALETTE = {
     ".": T,
-    "O": OUTLINE,
+    "O": OUTLINE,                # underside only
+    "o": (96, 50, 30, 255),      # wood outline: top edge and sides
+    "k": OUTLINE_LIT,            # iron and stone outline: props and leg sides
     "K": STONE[1],               # legs: the pylon's own body colour
     "G": GLOW_ON["mid"],
     "g": GLOW_ON["core"],
@@ -255,24 +266,24 @@ BENCH_PALETTE = {
     **IRON,
 }
 BENCH_ROWS = [
-    "..Ojj......OKO..",   # 0   props above the top edge: hammer head (left), a small pylon (right)
-    ".OjjjO....OKgKO.",   # 1
-    "OOOOOOOOOOOOOOOO",   # 2   top edge
-    "OLLLLLLLLLLLLLLO",   # 3   top plane
-    "OLlllllLlllllllO",   # 4
-    "OlllllllllllLllO",   # 5
-    "OMMMMMMMMMMMMMMO",   # 6   lip
-    "ODDIIIIIIIIIIDDO",   # 7   front, with an iron plate
-    "ODDIiiiirriiiIDO",   # 8
-    "ODDIiiirGGGriiDO",   # 9   the pylon's gem, set in the plate
-    "ODDIiirGghGGrIDO",   # 10
-    "ODDIiiirGGGriiDO",   # 11
-    "ODDIiiiirriiiIDO",   # 12
-    "ODdIIIIIIIIIIdDO",   # 13
-    "OOOOOOOOOOOOOOOO",   # 14  bottom edge
-    "OKKO........OKKO",   # 15  legs, open in the middle like the reference
-    "OKKO........OKKO",   # 16
-    "OOOO........OOOO",   # 17
+    "..kjj......kKk..",   # 0   props above the top edge: hammer head (left), a small pylon (right)
+    ".kjjjk....kKgKk.",   # 1
+    "oooooooooooooooo",   # 2   top edge, in wood
+    "oLLLLLLLLLLLLLLo",   # 3   top plane
+    "oLlllllLlllllllo",   # 4
+    "olllllllllllLllo",   # 5
+    "oMMMMMMMMMMMMMMo",   # 6   lip
+    "oDDIIIIIIIIIIDDo",   # 7   front, with an iron plate
+    "oDDIiiiirriiiIDo",   # 8
+    "oDDIiiirGGGriiDo",   # 9   the pylon's gem, set in the plate
+    "oDDIiirGghGGrIDo",   # 10
+    "oDDIiiirGGGriiDo",   # 11
+    "oDDIiiiirriiiIDo",   # 12
+    "oDdIIIIIIIIIIdDo",   # 13
+    "dddddddddddddddd",   # 14  underside of the body: wood shadow, not black
+    "kKKk........kKKk",   # 15  legs, open in the middle like the reference
+    "kKKk........kKKk",   # 16
+    "OOOO........OOOO",   # 17  feet: the one place the darkest tone belongs
 ]
 
 
@@ -306,7 +317,9 @@ def remote(c):
 # was copied for. Lens and remote never stand in the world -- they are inventory icons only -- so
 # they are a plain 16x16.
 DESIGNS = {
-    "pylon": (16, 18, pylon, ["base", "shaft", "tip"], {"base": -2, "tip": 1}),
+    # base -1 rather than -2: at -2 the base reached STONE[0], darker than OUTLINE_LIT, and the
+    # side outline would have read as a highlight.
+    "pylon": (16, 18, pylon, ["base", "shaft", "tip"], {"base": -1, "tip": 1}),
     "remote": (16, 16, remote, ["tip", "ant", "body", "btn"],
                {"tip": 1, "ant": 0, "body": 0, "btn": 2}),
     "lens": (16, 16, lens, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
