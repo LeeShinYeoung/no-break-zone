@@ -38,6 +38,7 @@ public static class NoBreakZoneRangeOverlay
     private static bool _loggedFirstDraw;
     private static bool _warnedNoIcon;
     private static bool _loggedMarkerSetup;
+    private static Color _markerColour = Color.white;
 
     // One tile is 16 texture pixels — SpriteObject.PixelsPerUnit is a hardcoded 16f and the marker
     // texture is one tile wide, so the sprite has to be built at the same scale or every edge comes
@@ -290,6 +291,19 @@ public static class NoBreakZoneRangeOverlay
             Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f));
 
         marker.transform.localScale = new Vector3(length, 1f, 1f);
+        marker.color = _markerColour;
+
+        if (NoBreakZoneConfig.LensDebugMarkers)
+        {
+            // Everything a marker could be failing on, pushed past any doubt at once: opaque
+            // magenta so tinting cannot hide it, thick so a sliver cannot be missed, and lifted a
+            // long way clear of the floor so nothing at ground level can cover it. Nobody would
+            // ship this; the point is that seeing it narrows the fault to appearance, and not
+            // seeing it rules appearance out entirely.
+            marker.color = Color.magenta;
+            marker.transform.localScale = new Vector3(length, 8f, 1f);
+            marker.transform.position = new Vector3(centreX, 1.5f, centreZ);
+        }
         SetActive(marker, true);
     }
 
@@ -337,6 +351,12 @@ public static class NoBreakZoneRangeOverlay
             return;
         }
 
+        // COLOUR IS COPIED TOO, AND WAS NOT BEFORE. Everything else here came from the icon while
+        // the tint was left at whatever a fresh SpriteRenderer defaults to. On a material that
+        // multiplies by vertex colour that alone can render a sprite invisible, which puts it on the
+        // short list of reasons the markers exist and cannot be seen.
+        _markerColour = icon.SR.color;
+
         renderer.sharedMaterial = icon.SR.sharedMaterial;
         renderer.sortingLayerID = icon.SR.sortingLayerID;
         // Above the placement icon rather than below it. Below was the tidier choice — an outline is
@@ -350,9 +370,19 @@ public static class NoBreakZoneRangeOverlay
         if (!_loggedMarkerSetup)
         {
             _loggedMarkerSetup = true;
+
+            // THE REFERENCE HALF IS THE POINT. The lines above copy the icon's material and sorting;
+            // rotation, colour and height we still choose ourselves, and those three are all that is
+            // left to explain markers that exist and cannot be seen. The icon is a ground sprite
+            // that demonstrably renders, so what IT uses is the answer — printed here rather than
+            // guessed at, which is the lesson research.md 20장 cost three play sessions to learn.
+            Transform iconTransform = icon.SR.transform;
             Debug.Log($"[NoBreakZone] marker material={renderer.sharedMaterial.name} "
                       + $"sortingLayer={renderer.sortingLayerID} order={renderer.sortingOrder} "
                       + $"layer={renderer.gameObject.layer}");
+            Debug.Log($"[NoBreakZone] reference icon: rotation={iconTransform.eulerAngles} "
+                      + $"colour={icon.SR.color} y={iconTransform.position.y} "
+                      + $"enabled={icon.SR.enabled} scale={iconTransform.localScale}");
         }
     }
 

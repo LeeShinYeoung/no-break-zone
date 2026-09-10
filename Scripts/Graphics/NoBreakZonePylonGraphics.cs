@@ -70,11 +70,28 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
     // 범위 경계까지 퍼지게 하지 않는다. 그렇게 하면 껐다 켜는 것만으로 범위를 알 수 있어 렌즈의
     // 존재 이유가 사라진다." PlayPuff bursts particles at one point and cannot expand to a radius,
     // so this stays true by construction rather than by tuning.
+    /// Boss cues are mixed for a boss. A pylon is switched whenever somebody rearranges a base.
+    private const float ToggleVolume = 0.6f;
+
     private void PlayToggleFeedback(bool switchedOn)
     {
         // Named rather than numbered, for the reason ObjectID taught us: names resolve against the
         // real game assembly at build time. Chosen to match 기획서 §4's framing of the pylon as a
         // 고대 유물 같은 장치.
+        //
+        // SfxTableID, NOT SfxID, AND THE DIFFERENCE IS WHY THIS WAS SILENT UNTIL 2026-09-10.
+        // The two look interchangeable and are not. SfxID is an ordinary sequential enum;
+        // SfxTableID is a static class of ints built by Animator.StringToHash(name), so its values
+        // are string hashes. `PlaySfx(int sfxTableID, ...)` wants the hash, and a cast SfxID is a
+        // small sequential number that matches no hash at all — the call succeeded and played
+        // nothing, every time, with no error to show for it. The SDK's own example
+        // (Examples/SpawnStuffFromTiles.cs:79) passes SfxTableID, which is what settled it.
+        //
+        // A MATCHED PAIR FROM ONE SOURCE. coreBossOrbPowerUp and coreBossOrbPowerDown are an
+        // on/off pair the game already treats as one device powering up and down, which is what
+        // 기획서 §4 calls the pylon — 고대 유물 같은 장치. Turned down because a boss cue at full
+        // volume is too much for something a player flips whenever they rearrange their base.
+        // AFSFXPortalAppear is the nearest alternative but has no counterpart for switching off.
         //
         // The first pass used AncientBurst at 10 particles and it read as almost nothing in game.
         // Switching a pylon on is the single most consequential thing the player does with this mod
@@ -88,16 +105,25 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         //
         // With the lit sprite finally switching, the picture is what says "this is on" and the
         // effect only has to mark the moment.
+        //
+        // AncientSparks at 6 was still too faint when a human looked (2026-09-10), so this is one
+        // step up rather than a leap: AncientFlashingSparks keeps the same character and reads
+        // brighter. AncientEnergyBurst is the next rung if it is still not enough — but not
+        // AncientEnergyRing, which an earlier pass found overpowering and which 기획서 §7 warns
+        // against for a different reason: an effect that reaches the square's edge would give the
+        // range away and make the lens pointless.
         if (switchedOn)
         {
-            API.Effects.PlayPuff((int)PuffID.AncientSparks, transform.position, 6);
-            API.Audio.PlaySfx((int)SfxID.AF_portal_teleport, transform.position);
+            API.Effects.PlayPuff((int)PuffID.AncientFlashingSparks, transform.position, 10);
+            API.Audio.PlaySfx(SfxTableID.coreBossOrbPowerUp, transform.position,
+                              volumeMultiplier: ToggleVolume);
             return;
         }
 
         // 기획서 §7 wants the off state to fade rather than pop, so this stays deliberately smaller
         // than its counterpart rather than mirroring it.
         API.Effects.PlayPuff((int)PuffID.SmallAncientSmoke, transform.position, 4);
-        API.Audio.PlaySfx((int)SfxID.AF_portal_collapse, transform.position);
+        API.Audio.PlaySfx(SfxTableID.coreBossOrbPowerDown, transform.position,
+                          volumeMultiplier: ToggleVolume);
     }
 }

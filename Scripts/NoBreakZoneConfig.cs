@@ -22,6 +22,7 @@ public static class NoBreakZoneConfig
     private static IConfigEntry<bool> _showRangeWithLens;
     private static IConfigEntry<int> _remoteReachTiles;
     private static IConfigEntry<bool> _selfTest;
+    private static IConfigEntry<bool> _lensDebug;
 
     /// 기획서 §6. Odd by nature — the pylon owns the centre tile.
     public static int ProtectionDiameter =>
@@ -50,6 +51,20 @@ public static class NoBreakZoneConfig
     /// the mod wins the frame-order race against the game's real damage pipeline — becomes a line
     /// in a log instead of a play session.
     public static bool SelfTest => Read(_selfTest, false);
+
+    /// Draws the lens range markers deliberately, unmissably wrong: opaque magenta, thick, and
+    /// lifted well clear of the ground.
+    ///
+    /// 기획서 §7's range display has been reported as "nothing happens" twice while the log said the
+    /// markers were being created and drawn. That leaves only how they are drawn, and the cheapest
+    /// way to split "drawn but invisible" from "not drawn at all" is to make them impossible to miss
+    /// and see whether anything appears. If it does, the fault is in the appearance we chose —
+    /// rotation, colour or height. If it does not, it is somewhere deeper and worth a session of its
+    /// own rather than another guess.
+    ///
+    /// A setting rather than a build flag so one connection can answer both halves: play with it
+    /// off, then on, without rebuilding or rejoining.
+    public static bool LensDebugMarkers => Read(_lensDebug, false);
 
     public static void Register()
     {
@@ -80,6 +95,12 @@ public static class NoBreakZoneConfig
             ModName, Section,
             "How far, in tiles, the Pylon Remote reaches.",
             "remoteReachTiles", NoBreakZoneRange.DefaultRemoteReach);
+
+        _lensDebug = API.Config.Register(
+            ModName, Section,
+            "Draw the Pylon Lens range markers in an unmissable debug form. For working out why the "
+            + "range outline is not showing; leave off for normal play.",
+            "lensDebugMarkers", false);
 
         _selfTest = API.Config.Register(
             ModName, Section,
