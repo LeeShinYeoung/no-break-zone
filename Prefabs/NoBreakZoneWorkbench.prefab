@@ -228,10 +228,10 @@ MonoBehaviour:
   dontCalculateHealthFromLevel: 0
   overrideStartHealth: 0
   normalizedOverrideStartHealth: 1
-  startHealth: 10
-  maxHealth: 10
+  startHealth: 2
+  maxHealth: 2
   maxHealthMultiplier: 1
-  hasHealthRegeneration: 0
+  hasHealthRegeneration: 1
   healInCombatAsWell: 0
   healthIncreasePercentPerFiveSeconds: 100
   healDelayAfterLeavingCombat: 5
@@ -356,7 +356,7 @@ MonoBehaviour:
   calculateReductionFromLevel: 0
   reductionMultiplier: 1
   reduction: 0
-  maxDamagePerHit: 0
+  maxDamagePerHit: 1
   minDamagePerHit: 0
   ignoreReductionWhenDamagedByDrill: 0
   level: {fileID: 0}

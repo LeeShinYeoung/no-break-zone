@@ -13,6 +13,21 @@ using UnityEngine;
 // CLIENT ONLY. Driven from NoBreakZoneMod.Update (IMod.Update), never from a system, so it cannot
 // end up in the server simulation (design.md §9). It reads the pylon registry out of the client
 // world, which already runs there — NoBreakZonePylonRegistrySystem is filtered to both worlds.
+//
+// TWO COORDINATE SPACES, AND THE MARKERS WERE IN THE WRONG ONE FOR A MONTH. Every position the
+// simulation hands out — a pylon's tile, the player's LocalToWorld — is in world space. Nothing the
+// player sees is drawn there. The game keeps a render origin at the camera's rounded position
+// (CameraManager.RenderOrigo, refreshed as the camera moves) and every visible transform sits at
+// world minus that origin, so that what is on screen is always near zero and float precision holds
+// however far from spawn the world grows. PlacementIcon shows the seam in one line:
+//
+//     Vector3 vec = Manager.camera.RenderOrigo + transform.position;   // tile = origin + render
+//
+// The markers were placed at raw tile coordinates: material, sorting, rotation, colour, height and
+// transparency all copied from an icon that renders, and they still sat a player's-world-position
+// away from anything the camera could see. EntityMonoBehaviour.ToRenderFromWorld is the game's own
+// conversion and is what PlaceEdge goes through now; PlayerTile reads the world side for the same
+// reason, since the player's transform is a render-space transform too.
 public static class NoBreakZoneRangeOverlay
 {
     // Sprite subasset name of Textures/NoBreakZoneRangeMarker.png. genassets.py writes that file and
@@ -40,20 +55,14 @@ public static class NoBreakZoneRangeOverlay
     private static bool _loggedMarkerSetup;
     private static Color _markerColour = Color.white;
 
-    /// The one thing PlacementIcon sets that a copied material does not carry, and the whole reason
-    /// the lens showed nothing for a month.
-    ///
-    /// PlaceIconAmplify is driven by a shader float the game names "_transparancy". PlacementIcon
+    /// PlaceIconAmplify is driven by a shader float the game names "_transparancy": PlacementIcon
     /// writes it every frame on its own material INSTANCE, ramping 0 -> 0.5 while the player stands
-    /// still and back to 0 when they move:
+    /// still and back to 0 when they move, so 0 is invisible and 0.5 is as shown as the game ever
+    /// shows it.
     ///
-    ///     currentFadeValue = Mathf.Clamp(currentFadeValue + Time.deltaTime * num * 2f, 0f, 0.5f);
-    ///     ((Renderer)SR).material.SetFloat(Transparancy, currentFadeValue);
-    ///
-    /// So 0 is invisible and 0.5 is as shown as the game ever shows it. We copied the SHARED material,
-    /// whose stored value is the invisible default, and never set the float — rotation, colour,
-    /// height, sorting and layer all matched a sprite that renders, and the markers were there the
-    /// whole time at zero.
+    /// This was suspected of being the fault and was not: the shared asset we copy already stores
+    /// 0.5 (the log line below printed it, 2026-09-10). It is pinned anyway, because a marker that
+    /// depends on what the game's asset happens to store is one game update from vanishing again.
     private static readonly int TransparancyProperty = Shader.PropertyToID("_transparancy");
     private const float VisibleTransparancy = 0.5f;
     private static MaterialPropertyBlock _propertyBlock;
@@ -286,7 +295,11 @@ public static class NoBreakZoneRangeOverlay
 
     private static int2 PlayerTile()
     {
-        Vector3 position = Manager.main.player.transform.position;
+        // WorldPosition, not transform.position: the player's transform is a render-space object
+        // like every other visible thing, and the pylon positions this is compared against come
+        // from the simulation. Mixing the two only looked fine while the base sat near spawn, where
+        // the render origin happens to be small.
+        Vector3 position = Manager.main.player.WorldPosition;
         return new int2(Mathf.RoundToInt(position.x), Mathf.RoundToInt(position.z));
     }
 
@@ -308,12 +321,21 @@ public static class NoBreakZoneRangeOverlay
             return;
         }
 
+        // RENDER SPACE. centreX/centreZ are tile coordinates from the simulation; the transform
+        // has to be told where that is relative to the camera's render origin, or the marker lands
+        // a base's-distance-from-spawn away from the screen (see the class comment). The game's
+        // own helper does the subtraction, and it is re-done every frame here because the origin
+        // moves with the camera.
+        //
         // Flat on the ground, like the game's own tile-level sprites: the sprite quad stands upright
-        // by default, so it is rotated a quarter turn about X. The extra turn about Z is what makes
-        // a side run along Z instead of X — UNVERIFIED, and the first thing to adjust if the sides
-        // come out crossed. The small lift avoids z-fighting with the floor.
+        // by default, so it is rotated a quarter turn about X — the same (90, 0, 0) PlacementIcon
+        // reports for itself. The extra turn about Z is what makes a side run along Z instead of X;
+        // adjust it first if the sides come out crossed. The small lift avoids z-fighting with the
+        // floor.
+        Vector3 renderPosition = EntityMonoBehaviour.ToRenderFromWorld(
+            new Vector3(centreX, 0.02f, centreZ));
         marker.transform.SetPositionAndRotation(
-            new Vector3(centreX, 0.02f, centreZ),
+            renderPosition,
             Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f));
 
         marker.transform.localScale = new Vector3(length, 1f, 1f);
@@ -328,7 +350,7 @@ public static class NoBreakZoneRangeOverlay
             // seeing it rules appearance out entirely.
             marker.color = Color.magenta;
             marker.transform.localScale = new Vector3(length, 8f, 1f);
-            marker.transform.position = new Vector3(centreX, 1.5f, centreZ);
+            marker.transform.position = renderPosition + new Vector3(0f, 1.5f, 0f);
         }
         SetActive(marker, true);
     }
@@ -353,12 +375,15 @@ public static class NoBreakZoneRangeOverlay
         return renderer;
     }
 
-    // UNVERIFIED, AND THE MOST LIKELY THING TO BE WRONG HERE. A bare SpriteRenderer has no material
-    // that suits this game's render pipeline, and unlike the reference mod we are not placing an
-    // object, so there is no PlacementIcon handed to us to copy from. Borrowing the one in the scene
-    // keeps the marker on the game's own sorting layer with the game's own material; if it is not
-    // found, Unity's default sprite material is what gets used and the marker may be invisible or
-    // drawn through walls.
+    // A bare SpriteRenderer has no material that suits this game's render pipeline, and unlike the
+    // reference mod we are not placing an object, so there is no PlacementIcon handed to us to copy
+    // from. Borrowing the one in the scene keeps the marker on the game's own sorting layer with
+    // the game's own material; if it is not found, Unity's default sprite material is what gets
+    // used and the marker may be invisible or drawn through walls.
+    //
+    // Everything copied here was logged against the icon on 2026-09-10 and matched. This was the
+    // prime suspect for the invisible lens through three play sessions and was innocent all along;
+    // the fault was the coordinate space (class comment), which no amount of appearance can fix.
     private static void CopyAppearanceFromPlacementIcon(SpriteRenderer renderer)
     {
         var icon = Object.FindObjectOfType<PlacementIcon>(true);

@@ -1196,6 +1196,27 @@ if (num < 0 && !healthChange.bypassMaxDamagePerHit
 
 **보호와는 무관한 값들이다.** 보호는 `IndestructibleCD`·`DontDestroyOnZeroHealthCD`로 걸린다.
 
+### 24-1. 상한을 풀었더니 주먹 한 방이 됐다 — 숫자를 지어내지 말고 베낀다 (2026-09-10)
+
+위 수정(상한 0 = 없음)을 넣자 이번엔 **맨손 한 대에 부서졌다.** 10 체력에 상한이 없으니 후반
+캐릭터의 주먹 한 방이 10을 넘는다. 10도 1도 지어낸 숫자였던 게 문제다.
+
+기획서 §4는 "일반 설치물처럼 회수"라 했고, 읽을 수 있는 바닐라 모양 설치물이 SDK에 하나 있다 —
+`Examples/WorkbenchExample/Workbench/MyNewWorkbenchLogic.prefab`:
+
+| 값 | SDK 작업대 | 우리 1차 | 우리 2차 | **지금** |
+| --- | --- | --- | --- | --- |
+| `maxHealth` | **2** | 10 | 10 | **2** |
+| `maxDamagePerHit` | **1** | 1 | 0 | **1** |
+| `hasHealthRegeneration` | **1** (100%/5초) | 1 | 0 | **1** |
+
+즉 바닐라 설치물은 **"아무 도구로나 두 대, 몇 초 안에"**다. 주먹도 주석 곡괭이도 태양석도 같다.
+재생은 때리는 동안 멈추고 손을 뗀 5초 뒤 만피가 되므로, 지나가다 한 대 스친 것은 회수되지 않는다.
+파일런·켜진 파일런·작업대 세 프리팹 모두 이 값으로 맞췄다.
+
+> 게임 수치를 정할 때 **참조할 바닐라 프리팹이 있으면 그 숫자를 그대로 쓴다.** 10과 1은 둘 다
+> 그럴듯해 보였고 둘 다 틀렸다.
+
 ## 25. `SfxID`와 `SfxTableID`는 다른 것이다 (2026-09-10)
 
 파일런 토글 효과음이 **한 번도 안 났다.** 바로 옆 줄의 `PlayPuff`는 잘 보였으므로 스크립트가 안 도는
@@ -1218,6 +1239,54 @@ API.Audio.PlaySfx((int)SfxID.AF_portal_teleport, …)          // 우리가 하�
 쓸 만한 짝: `coreBossOrbPowerUp` / `coreBossOrbPowerDown`(한 장치의 기동/정지),
 `AFSFXPortalAppear`(짝 없음), `switchClickGenericSfx`(수수한 대안). 이름 전체 목록은
 `Pug.Base.dll`의 `SfxTableID`에 있고 1395개다.
+
+## 26. 보이는 것은 전부 렌더 좌표에 있다 — `RenderOrigo` (2026-09-10)
+
+렌즈 마커가 **한 달 동안 안 보였다.** 로그는 렌즈 인식 → 마커 생성 → 배치까지 다 됐다고 했고,
+재질·정렬 레이어·순서·레이어·회전·색·높이·`_transparancy`까지 게임 아이콘과 하나씩 대조해 전부
+같았다. 그래도 안 보였다.
+
+답은 `PlacementIcon.LateUpdate`의 마지막 줄에 있었다.
+
+```csharp
+Vector3 vec = Manager.camera.RenderOrigo + transform.position;   // 타일 좌표 = 원점 + 렌더 좌표
+```
+
+**게임의 모든 보이는 트랜스폼은 월드 좌표가 아니라 렌더 좌표에 놓인다.**
+
+```csharp
+// CameraManager
+public Vector3Int RenderOrigo { get; private set; }
+Vector3Int val = moveOrigo ? m_cameraCurrentPosition.RoundToInt() : Vector3Int.zero;   // 카메라 위치
+
+// EntityMonoBehaviour
+public Vector3 WorldPosition { get; protected set; }
+public Vector3 RenderPosition => WorldPosition - Manager.camera.RenderOrigo;
+public static Vector3 ToRenderFromWorld(Vector3 p) => p - Manager.camera.RenderOrigo;
+public static Vector3 ToWorldFromRender(Vector3 p) => p + Manager.camera.RenderOrigo;
+```
+
+카메라의 반올림 위치가 원점이고, 화면에 있는 것은 항상 0 근처에 있어서 스폰에서 아무리 멀어도 float
+정밀도가 유지된다. 시뮬레이션이 주는 위치(파일런 타일, `LocalToWorld`)는 전부 월드 좌표다. 우리는
+마커를 **월드 타일 좌표에 그대로** 놨으니, 플레이어의 월드 위치만큼 어긋난 자리 — 화면 밖 — 에 있었다.
+
+### 26-1. 왜 진단이 한 달을 헤맸나
+
+- "그려진다"는 로그는 참이었다. 그려지는 **자리**가 틀렸을 뿐이다
+- 참조 아이콘과의 대조는 **외형** 항목만 했다. 좌표계는 대조 항목에 없었다 — `transform.position`
+  이 당연히 월드라고 생각했기 때문이다
+- 플레이어 타일도 `player.transform.position`(렌더)으로 읽고 파일런(월드)과 거리를 재고 있었다.
+  기지가 스폰 근처라 원점이 작아 **거리 필터는 우연히 통과**했고, 그래서 "4개 그림" 로그가 찍혔다
+
+### 26-2. 규칙
+
+- **트랜스폼에 놓는 위치는 `EntityMonoBehaviour.ToRenderFromWorld`를 거친다.** 매 프레임 —
+  원점이 카메라를 따라 움직인다
+- **플레이어 위치를 시뮬레이션 좌표와 비교할 때는 `WorldPosition`을 읽는다**
+- `EntityMonoBehaviour` 자신의 `transform.position`은 이미 렌더 좌표다. 거기에 오프셋을 더해
+  `PlayPuff`에 넘기는 것은 변환이 필요 없다 (중앙 플래시가 그 증거)
+- **"존재한다"와 "보인다" 사이에는 좌표계가 하나 더 있다.** 그려지는데 안 보이면 외형보다 먼저
+  어느 공간에 놨는지 본다
 
 ## 7. 열린 질문 / 다음 검증
 

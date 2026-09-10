@@ -1,4 +1,5 @@
 using PugMod;
+using UnityEngine;
 using UnityEngine.Scripting;
 
 // Root component of Prefabs/NoBreakZonePylonGraphics.prefab, and the whole of the E-key toggle
@@ -23,6 +24,12 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
     // -1 so the first ManagedLateUpdate after spawning always applies, whatever the saved state.
     private int _appliedVariation = -1;
 
+    // The wave in flight, if any. Negative means idle; otherwise seconds since the toggle.
+    private float _waveElapsed = -1f;
+    private bool _waveExpanding;
+    private int _waveRingsPlayed;
+    private float _waveReach;
+
     /// Wired to InteractableObject.onUseActions in the prefab — this is the E key.
     public void Toggle()
     {
@@ -41,6 +48,7 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
     public override void ManagedLateUpdate()
     {
         base.ManagedLateUpdate();
+        AdvanceWave();
 
         if (_appliedVariation == variation)
         {
@@ -62,14 +70,103 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         }
     }
 
+    // ---------------------------------------------------------------------------------- the wave
+    //
+    // "켤 때 파동이 퍼지는 느낌, 끌 때 파동이 들어오는 느낌" — asked for on 2026-09-10 after the flash
+    // alone read as a pop with no direction to it. PlayPuff bursts at one point and cannot expand, so
+    // the motion is composed: a few rings of small puffs, each ring a step further out (or further
+    // in) than the last, spread over well under a second. The eye joins the steps into a wave.
+    //
+    // 기획서 §7 IS THE CEILING. "파동이 보호 범위 경계까지 퍼지게 하지 않는다" — if the wave reached
+    // the edge, flipping the switch would show the range and the lens would have no reason to
+    // exist. So the outermost ring stops at WaveReachTiles, a fifth of the default 10-tile radius,
+    // and is further clamped to a fraction of whatever radius the config actually sets, so a small
+    // custom range cannot be given away either. The wave says "something changed here"; where
+    // "here" ends is the lens's job.
+
+    // Outermost ring, in tiles. Two is enough to read as motion on a base and nowhere near an edge.
+    private const float WaveReachTiles = 2f;
+
+    // Ceiling on reach as a share of the protected radius, for configs that shrink the range.
+    private const float WaveReachShareOfRadius = 0.3f;
+
+    // 기획서 §7: "지속 시간 1초 이내". The rings are dealt across this many seconds.
+    private const float WaveDuration = 0.4f;
+    private const int WaveRings = 4;
+    private const int WavePointsPerRing = 8;
+
+    // Per point, on a puff already known to be faint. Faint is right: the ring is the picture, and
+    // eight bright bursts would be eight flashes rather than one wave.
+    private const int WavePuffsPerPoint = 2;
+
+    private void StartWave(bool expanding)
+    {
+        int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
+        _waveReach = Mathf.Min(WaveReachTiles, radius * WaveReachShareOfRadius);
+        _waveExpanding = expanding;
+        _waveRingsPlayed = 0;
+        _waveElapsed = 0f;
+    }
+
+    private void AdvanceWave()
+    {
+        if (_waveElapsed < 0f)
+        {
+            return;
+        }
+
+        _waveElapsed += Time.deltaTime;
+
+        // Rings are dealt on a clock rather than one per frame, so the wave takes the same time at
+        // any frame rate; a slow frame just deals more than one ring at once.
+        int ringsDue = Mathf.Min(WaveRings,
+                                 Mathf.FloorToInt(_waveElapsed / (WaveDuration / WaveRings)) + 1);
+        while (_waveRingsPlayed < ringsDue)
+        {
+            PlayRing(_waveRingsPlayed++);
+        }
+
+        if (_waveRingsPlayed >= WaveRings)
+        {
+            _waveElapsed = -1f;
+        }
+    }
+
+    private void PlayRing(int step)
+    {
+        // Expanding counts outward from the first ring; contracting deals the same rings in the
+        // opposite order, which is the whole of the "reverse" 기획서 §7 asks for on switch-off.
+        float share = _waveExpanding
+            ? (step + 1) / (float)WaveRings
+            : (WaveRings - step) / (float)WaveRings;
+        float radius = _waveReach * share;
+
+        // Sparks going out, smoke coming in: the same two puffs the centre flash uses, so the
+        // wave reads as part of that flash rather than a second effect.
+        int puff = (int)(_waveExpanding ? PuffID.AncientSparks : PuffID.SmallAncientSmoke);
+
+        // Rotated half a step every ring so consecutive rings do not line up into eight spokes.
+        float offset = step * (Mathf.PI / WavePointsPerRing);
+        for (int i = 0; i < WavePointsPerRing; i++)
+        {
+            float angle = offset + i * (2f * Mathf.PI / WavePointsPerRing);
+            // transform.position is already render space (this is an EntityMonoBehaviour), and
+            // PlayPuff takes render space — the centre flash proves it — so an offset from it
+            // needs no conversion.
+            Vector3 point = transform.position
+                            + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+            API.Effects.PlayPuff(puff, point, WavePuffsPerPoint);
+        }
+    }
+
     // 기획서 §7's "활성화 순간 이펙트": a short flash, under a second, and a quieter reverse when
     // switching off. Runs on whichever client observes the change, which is every client — the
     // variation is replicated, and this method hangs off the same comparison that repaints.
     //
     // 기획서 §7 also forbids the effect reaching the edge of the protected square: "파동이 보호
     // 범위 경계까지 퍼지게 하지 않는다. 그렇게 하면 껐다 켜는 것만으로 범위를 알 수 있어 렌즈의
-    // 존재 이유가 사라진다." PlayPuff bursts particles at one point and cannot expand to a radius,
-    // so this stays true by construction rather than by tuning.
+    // 존재 이유가 사라진다." The centre flash bursts at one point and cannot reach anything; the
+    // wave that now follows it can, which is why its reach is capped (see StartWave).
     /// Boss cues are mixed for a boss. A pylon is switched whenever somebody rearranges a base.
     private const float ToggleVolume = 0.6f;
 
@@ -112,6 +209,8 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         // AncientEnergyRing, which an earlier pass found overpowering and which 기획서 §7 warns
         // against for a different reason: an effect that reaches the square's edge would give the
         // range away and make the lens pointless.
+        StartWave(expanding: switchedOn);
+
         if (switchedOn)
         {
             API.Effects.PlayPuff((int)PuffID.AncientFlashingSparks, transform.position, 10);
