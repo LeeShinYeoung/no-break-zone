@@ -1196,6 +1196,29 @@ if (num < 0 && !healthChange.bypassMaxDamagePerHit
 
 **보호와는 무관한 값들이다.** 보호는 `IndestructibleCD`·`DontDestroyOnZeroHealthCD`로 걸린다.
 
+## 25. `SfxID`와 `SfxTableID`는 다른 것이다 (2026-09-10)
+
+파일런 토글 효과음이 **한 번도 안 났다.** 바로 옆 줄의 `PlayPuff`는 잘 보였으므로 스크립트가 안 도는
+게 아니라 **인자가 틀린** 것이었다.
+
+```csharp
+void PlaySfx(int sfxTableID, Vector3 position, ...)          // PugMod.SDK.Runtime, IAudio
+API.Audio.PlaySfx(SfxTableID.acidLarvaDeath, FXPosition, …)  // SDK 예제 SpawnStuffFromTiles.cs:79
+API.Audio.PlaySfx((int)SfxID.AF_portal_teleport, …)          // 우리가 하던 것
+```
+
+**`SfxTableID`는 열거형이 아니다.** `static readonly int` 필드들을 `Animator.StringToHash(이름)`으로
+만든 정적 클래스라 값이 **문자열 해시**다. 반면 `SfxID`는 평범한 순차 열거형이다. 순차 번호를
+캐스팅해 넣으면 **어떤 해시와도 맞지 않는다** — 호출은 성공하고 소리만 안 나며 로그에 아무것도
+안 남는다.
+
+> **조용히 틀리는 종류다.** 컴파일도 되고 예외도 없고 경고도 없다. 이름이 비슷한 타입 둘 중 하나를
+> 캐스팅으로 밀어 넣을 때는 **SDK 예제가 무엇을 넘기는지** 먼저 본다.
+
+쓸 만한 짝: `coreBossOrbPowerUp` / `coreBossOrbPowerDown`(한 장치의 기동/정지),
+`AFSFXPortalAppear`(짝 없음), `switchClickGenericSfx`(수수한 대안). 이름 전체 목록은
+`Pug.Base.dll`의 `SfxTableID`에 있고 1395개다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
