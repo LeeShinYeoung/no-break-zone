@@ -7,7 +7,14 @@ from PIL import Image
 OUT = pathlib.Path(__file__).resolve().parent
 
 T = (0, 0, 0, 0)
+# TWO OUTLINE TONES, NOT ONE. A single near-black line around the whole silhouette made the pylon and
+# the bench look pasted onto the floor next to the game's own objects ("혼자 합성같이 튀는 느낌",
+# 2026-09-11). The game's sprites outline in a dark shade of their own material and let the light
+# come from above: top and side edges are the softer tone, only the underside gets the darkest one
+# (the SDK bench: mid red along its top edge, the deepest red only on its feet). OUTLINE is now that
+# underside tone; OUTLINE_LIT goes everywhere else.
 OUTLINE = (36, 31, 46, 255)
+OUTLINE_LIT = (52, 48, 68, 255)
 SHADOW = (24, 21, 32, 120)
 STONE = [
     (45, 41, 62, 255),
@@ -122,10 +129,12 @@ def build_image(c, regions, shifts, glow_on):
         for x in range(c.w):
             if c.r[y][x] is None:
                 continue
-            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            for dx, dy in ((0, 1), (1, 0), (-1, 0), (0, -1)):
                 nx, ny = x + dx, y + dy
                 if not (0 <= nx < c.w and 0 <= ny < c.h) or c.r[ny][nx] is None:
-                    out[y][x] = OUTLINE
+                    # Below is checked first so a corner that is both a side and an underside
+                    # takes the dark tone: the shadow wins where the object meets the floor.
+                    out[y][x] = OUTLINE if dy == 1 else OUTLINE_LIT
                     break
 
     pal = GLOW_ON if glow_on else GLOW_OFF
@@ -173,7 +182,7 @@ def build_image(c, regions, shifts, glow_on):
                     nxt.add((nx, ny))
                     # The silhouette edge stays dark — light spreading onto it would blur the shape
                     # against the background — but the glow still travels past it to cells beyond.
-                    if out[ny][nx] == OUTLINE:
+                    if out[ny][nx] in (OUTLINE, OUTLINE_LIT):
                         continue
                     b = out[ny][nx]
                     out[ny][nx] = (min(255, b[0] + red), min(255, b[1] + green),
@@ -215,14 +224,77 @@ def lens(c):
     disc(c, 7.5, 5.5, 2.4, "glow_lens")
 
 
-def bench(c):
-    rect(c, 1, 12, 4, 17, "legs")
-    rect(c, 11, 12, 14, 17, "legs")
-    rect(c, 1, 3, 14, 9, "back")
-    rect(c, 0, 0, 15, 4, "hood")
-    rect(c, 3, 5, 12, 8, "panel")
-    rect(c, 0, 9, 15, 13, "top")
-    disc(c, 7.5, 6.5, 1.9, "glow_socket")
+# THE WORKBENCH IS NOT STONE, SO IT DOES NOT GO THROUGH THE STONE SHADER.
+#
+# build_image shades every region with the same five-step STONE ramp and puts a dark outline on
+# every cell that touches empty space. That is right for the pylon -- one lump of carved rock -- and
+# it made the bench a flat grey-beige box that a human, seeing it beside the game's own benches,
+# called "혼자 텍스처가 다르고 크기도 1x1에 안 맞아" (2026-09-11). The size was already right; the
+# grammar was wrong. The game draws a bench in three-quarter view: a light TOP plane, a darker FRONT,
+# a base with legs, props standing above the top edge, and the outline only on the silhouette
+# (Examples/WorkbenchExample/Workbench/MyNewWorkbench1_down.png is the reference, and every row of
+# it follows that pattern).
+#
+# So the bench is a pixel map: one character per pixel, one colour per character. It is the same
+# "change a constant or a coordinate and regenerate" promise 기획서 13장 makes, just at the grain a
+# piece of furniture needs. Wood and iron match the benches it will stand next to; the gem in the
+# front plate is the lit pylon's own gold, straight from GLOW_ON, so the two objects read as one set
+# and a change to the pylon's glow carries over here without anyone remembering to copy it.
+WOOD = {
+    "L": (232, 184, 119, 255),   # lit top
+    "l": (201, 138, 74, 255),    # top
+    "M": (154, 90, 48, 255),     # lip
+    "D": (107, 58, 36, 255),     # front
+    "d": (74, 40, 26, 255),      # shadow
+}
+IRON = {
+    "I": (58, 61, 74, 255),      # dark
+    "i": (92, 96, 112, 255),     # mid
+    "j": (138, 143, 158, 255),   # light
+}
+BENCH_PALETTE = {
+    ".": T,
+    "O": OUTLINE,                # underside only
+    "o": (96, 50, 30, 255),      # wood outline: top edge and sides
+    "k": OUTLINE_LIT,            # iron and stone outline: props and leg sides
+    "K": STONE[1],               # legs: the pylon's own body colour
+    "G": GLOW_ON["mid"],
+    "g": GLOW_ON["core"],
+    "r": GLOW_ON["rim"],
+    "h": (255, 242, 205, 255),   # one highlight pixel on the gem
+    **WOOD,
+    **IRON,
+}
+BENCH_ROWS = [
+    "..kjj......kKk..",   # 0   props above the top edge: hammer head (left), a small pylon (right)
+    ".kjjjk....kKgKk.",   # 1
+    "oooooooooooooooo",   # 2   top edge, in wood
+    "oLLLLLLLLLLLLLLo",   # 3   top plane
+    "oLlllllLlllllllo",   # 4
+    "olllllllllllLllo",   # 5
+    "oMMMMMMMMMMMMMMo",   # 6   lip
+    "oDDIIIIIIIIIIDDo",   # 7   front, with an iron plate
+    "oDDIiiiirriiiIDo",   # 8
+    "oDDIiiirGGGriiDo",   # 9   the pylon's gem, set in the plate
+    "oDDIiirGghGGrIDo",   # 10
+    "oDDIiiirGGGriiDo",   # 11
+    "oDDIiiiirriiiIDo",   # 12
+    "oDdIIIIIIIIIIdDo",   # 13
+    "dddddddddddddddd",   # 14  underside of the body: wood shadow, not black
+    "kKKk........kKKk",   # 15  legs, open in the middle like the reference
+    "kKKk........kKKk",   # 16
+    "OOOO........OOOO",   # 17  feet: the one place the darkest tone belongs
+]
+
+
+def bench_image():
+    img = Image.new("RGBA", (16, 18), T)
+    for y, row in enumerate(BENCH_ROWS):
+        if len(row) != 16:
+            raise ValueError(f"bench row {y} is {len(row)} wide, not 16")
+        for x, ch in enumerate(row):
+            img.putpixel((x, y), BENCH_PALETTE[ch])
+    return img
 
 
 HILITE = (255, 242, 205, 255)
@@ -245,12 +317,13 @@ def remote(c):
 # was copied for. Lens and remote never stand in the world -- they are inventory icons only -- so
 # they are a plain 16x16.
 DESIGNS = {
-    "pylon": (16, 18, pylon, ["base", "shaft", "tip"], {"base": -2, "tip": 1}),
+    # base -1 rather than -2: at -2 the base reached STONE[0], darker than OUTLINE_LIT, and the
+    # side outline would have read as a highlight.
+    "pylon": (16, 18, pylon, ["base", "shaft", "tip"], {"base": -1, "tip": 1}),
     "remote": (16, 16, remote, ["tip", "ant", "body", "btn"],
                {"tip": 1, "ant": 0, "body": 0, "btn": 2}),
     "lens": (16, 16, lens, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
-    "workbench": (16, 18, bench, ["legs", "top", "back", "hood", "panel"],
-                  {"legs": -2, "top": 2, "back": 0, "hood": 1, "panel": -2}),
+    # The workbench is a pixel map (BENCH_ROWS above) and is added after this loop.
 }
 
 made = {}
@@ -265,6 +338,9 @@ for name, (w, h, fn, regs, sh) in DESIGNS.items():
         key = f"{name}_{st}" if name == "pylon" else name
         im.save(OUT / f"{key}.png")
         made[key] = im
+
+made["workbench"] = bench_image()
+made["workbench"].save(OUT / "workbench.png")
 
 SC, PAD = 8, 20
 BG = (30, 29, 27, 255)
