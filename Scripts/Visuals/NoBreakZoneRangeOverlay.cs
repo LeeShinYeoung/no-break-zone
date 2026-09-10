@@ -40,6 +40,24 @@ public static class NoBreakZoneRangeOverlay
     private static bool _loggedMarkerSetup;
     private static Color _markerColour = Color.white;
 
+    /// The one thing PlacementIcon sets that a copied material does not carry, and the whole reason
+    /// the lens showed nothing for a month.
+    ///
+    /// PlaceIconAmplify is driven by a shader float the game names "_transparancy". PlacementIcon
+    /// writes it every frame on its own material INSTANCE, ramping 0 -> 0.5 while the player stands
+    /// still and back to 0 when they move:
+    ///
+    ///     currentFadeValue = Mathf.Clamp(currentFadeValue + Time.deltaTime * num * 2f, 0f, 0.5f);
+    ///     ((Renderer)SR).material.SetFloat(Transparancy, currentFadeValue);
+    ///
+    /// So 0 is invisible and 0.5 is as shown as the game ever shows it. We copied the SHARED material,
+    /// whose stored value is the invisible default, and never set the float — rotation, colour,
+    /// height, sorting and layer all matched a sprite that renders, and the markers were there the
+    /// whole time at zero.
+    private static readonly int TransparancyProperty = Shader.PropertyToID("_transparancy");
+    private const float VisibleTransparancy = 0.5f;
+    private static MaterialPropertyBlock _propertyBlock;
+
     // One tile is 16 texture pixels — SpriteObject.PixelsPerUnit is a hardcoded 16f and the marker
     // texture is one tile wide, so the sprite has to be built at the same scale or every edge comes
     // out the wrong length. genassets.py draws the texture at MARKER_TILE_PIXELS for the same reason.
@@ -174,6 +192,14 @@ public static class NoBreakZoneRangeOverlay
             Object.Destroy(_root.gameObject);
             _root = null;
         }
+
+        // The one-shot diagnostics fire once per PROCESS otherwise, and on 2026-09-10 that cost an
+        // hour: a second world in the same session drew its markers silently, and the absent log
+        // line read as "never drawn". Reset them with the markers so each world reports afresh.
+        _loggedFirstDraw = false;
+        _loggedMarkerSetup = false;
+        _warnedNoIcon = false;
+        _lastLoggedHeld = ObjectID.None;
     }
 
     private static bool ShouldDraw()
@@ -367,6 +393,15 @@ public static class NoBreakZoneRangeOverlay
         renderer.maskInteraction = icon.SR.maskInteraction;
         renderer.gameObject.layer = icon.SR.gameObject.layer;
 
+        // A property block rather than renderer.material: the latter clones the material per
+        // marker and the clones outlive the GameObjects Dispose destroys, so a mod reload would
+        // leak four materials a time. A block overrides the float on this renderer only, leaves
+        // the shared asset alone for the game's own icon, and costs nothing to drop.
+        _propertyBlock ??= new MaterialPropertyBlock();
+        renderer.GetPropertyBlock(_propertyBlock);
+        _propertyBlock.SetFloat(TransparancyProperty, VisibleTransparancy);
+        renderer.SetPropertyBlock(_propertyBlock);
+
         if (!_loggedMarkerSetup)
         {
             _loggedMarkerSetup = true;
@@ -382,7 +417,9 @@ public static class NoBreakZoneRangeOverlay
                       + $"layer={renderer.gameObject.layer}");
             Debug.Log($"[NoBreakZone] reference icon: rotation={iconTransform.eulerAngles} "
                       + $"colour={icon.SR.color} y={iconTransform.position.y} "
-                      + $"enabled={icon.SR.enabled} scale={iconTransform.localScale}");
+                      + $"enabled={icon.SR.enabled} scale={iconTransform.localScale} "
+                      + $"_transparancy(shared)={icon.SR.sharedMaterial.GetFloat(TransparancyProperty)} "
+                      + $"ours={VisibleTransparancy}");
         }
     }
 
