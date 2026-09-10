@@ -48,11 +48,7 @@ public static class NoBreakZoneRangeOverlay
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
-    // DIAGNOSTIC, remove once the lens is confirmed visible in game.
-    private static ObjectID _lastLoggedHeld = (ObjectID)(-1);
-    private static bool _loggedFirstDraw;
     private static bool _warnedNoIcon;
-    private static bool _loggedMarkerSetup;
     private static Color _markerColour = Color.white;
 
     /// PlaceIconAmplify is driven by a shader float the game names "_transparancy": PlacementIcon
@@ -60,9 +56,9 @@ public static class NoBreakZoneRangeOverlay
     /// still and back to 0 when they move, so 0 is invisible and 0.5 is as shown as the game ever
     /// shows it.
     ///
-    /// This was suspected of being the fault and was not: the shared asset we copy already stores
-    /// 0.5 (the log line below printed it, 2026-09-10). It is pinned anyway, because a marker that
-    /// depends on what the game's asset happens to store is one game update from vanishing again.
+    /// This was suspected of being the fault and was not: the shared asset we copy already stored
+    /// 0.5 when logged (2026-09-10). It is pinned anyway, because a marker that depends on what the
+    /// game's asset happens to store is one game update from vanishing again.
     private static readonly int TransparancyProperty = Shader.PropertyToID("_transparancy");
     private const float VisibleTransparancy = 0.5f;
     private static MaterialPropertyBlock _propertyBlock;
@@ -164,18 +160,6 @@ public static class NoBreakZoneRangeOverlay
             PlaceEdge(used++, pylon.x + half, pylon.y, length, horizontal: false);
         }
 
-        // DIAGNOSTIC, remove once the lens is understood. If this line appears and the player still
-        // saw nothing, the markers exist and the problem is how they are drawn —
-        // CopyAppearanceFromPlacementIcon is the first suspect. If it never appears, the lens was
-        // never detected in hand and the check above is what to fix.
-        if (!_loggedFirstDraw && used > 0)
-        {
-            _loggedFirstDraw = true;
-            Debug.Log($"[NoBreakZone] lens drew {used} marker(s), radius={radius}, "
-                      + $"sprite={_markerSprite.name} {_markerSprite.rect.width}x"
-                      + $"{_markerSprite.rect.height}px ppu={_markerSprite.pixelsPerUnit}");
-        }
-
         // Everything the pool still holds beyond what this frame needed.
         for (int i = used; i < _markers.Count; i++)
         {
@@ -202,13 +186,10 @@ public static class NoBreakZoneRangeOverlay
             _root = null;
         }
 
-        // The one-shot diagnostics fire once per PROCESS otherwise, and on 2026-09-10 that cost an
-        // hour: a second world in the same session drew its markers silently, and the absent log
-        // line read as "never drawn". Reset them with the markers so each world reports afresh.
-        _loggedFirstDraw = false;
-        _loggedMarkerSetup = false;
+        // Static one-shot flags fire once per PROCESS otherwise, and on 2026-09-10 that cost an
+        // hour of reading an absent log line as "never happened". Reset with the markers so each
+        // world reports afresh.
         _warnedNoIcon = false;
-        _lastLoggedHeld = ObjectID.None;
     }
 
     private static bool ShouldDraw()
@@ -259,22 +240,9 @@ public static class NoBreakZoneRangeOverlay
             }
         }
 
+        // visuallyEquippedContainedObject does report a held KeyItem — confirmed in the client log
+        // on 2026-09-10, where holding the lens printed its ObjectID here.
         ObjectID held = player.visuallyEquippedContainedObject.objectData.objectID;
-
-        // DIAGNOSTIC, remove once the lens is understood. Holding the lens changed nothing in game,
-        // and there are only two ways that happens: this test never became true, or it did and the
-        // markers were drawn invisibly. One line each settles it.
-        //
-        // A KeyItem may never be "visually equipped" at all — the field is paired with an
-        // EquipmentSlotType — so the equipped slot's own contents are printed beside it. If they
-        // disagree, the fix is to read the slot instead.
-        if (held != _lastLoggedHeld)
-        {
-            _lastLoggedHeld = held;
-            Debug.Log($"[NoBreakZone] lens check: visuallyEquipped={held} lens={_lensObjectID} "
-                      + $"equippedSlot={player.equippedSlotIndex}");
-        }
-
         return held == _lensObjectID;
     }
 
@@ -340,18 +308,6 @@ public static class NoBreakZoneRangeOverlay
 
         marker.transform.localScale = new Vector3(length, 1f, 1f);
         marker.color = _markerColour;
-
-        if (NoBreakZoneConfig.LensDebugMarkers)
-        {
-            // Everything a marker could be failing on, pushed past any doubt at once: opaque
-            // magenta so tinting cannot hide it, thick so a sliver cannot be missed, and lifted a
-            // long way clear of the floor so nothing at ground level can cover it. Nobody would
-            // ship this; the point is that seeing it narrows the fault to appearance, and not
-            // seeing it rules appearance out entirely.
-            marker.color = Color.magenta;
-            marker.transform.localScale = new Vector3(length, 8f, 1f);
-            marker.transform.position = renderPosition + new Vector3(0f, 1.5f, 0f);
-        }
         SetActive(marker, true);
     }
 
@@ -426,26 +382,6 @@ public static class NoBreakZoneRangeOverlay
         renderer.GetPropertyBlock(_propertyBlock);
         _propertyBlock.SetFloat(TransparancyProperty, VisibleTransparancy);
         renderer.SetPropertyBlock(_propertyBlock);
-
-        if (!_loggedMarkerSetup)
-        {
-            _loggedMarkerSetup = true;
-
-            // THE REFERENCE HALF IS THE POINT. The lines above copy the icon's material and sorting;
-            // rotation, colour and height we still choose ourselves, and those three are all that is
-            // left to explain markers that exist and cannot be seen. The icon is a ground sprite
-            // that demonstrably renders, so what IT uses is the answer — printed here rather than
-            // guessed at, which is the lesson research.md 20장 cost three play sessions to learn.
-            Transform iconTransform = icon.SR.transform;
-            Debug.Log($"[NoBreakZone] marker material={renderer.sharedMaterial.name} "
-                      + $"sortingLayer={renderer.sortingLayerID} order={renderer.sortingOrder} "
-                      + $"layer={renderer.gameObject.layer}");
-            Debug.Log($"[NoBreakZone] reference icon: rotation={iconTransform.eulerAngles} "
-                      + $"colour={icon.SR.color} y={iconTransform.position.y} "
-                      + $"enabled={icon.SR.enabled} scale={iconTransform.localScale} "
-                      + $"_transparancy(shared)={icon.SR.sharedMaterial.GetFloat(TransparancyProperty)} "
-                      + $"ours={VisibleTransparancy}");
-        }
     }
 
     private static void HideAll()
