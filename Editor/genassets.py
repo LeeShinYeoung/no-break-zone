@@ -501,7 +501,7 @@ SPECS = [
         pixels_to_units=16,
         stackable=True,
         rarity=3,
-        health=10,
+        health=2,
         # 기획서 §4: iron + ancient gemstone + mechanical part. Nothing lists the pylon as craftable
         # until the workbench exists (6단계), so this recipe is inert for now.
         recipe=[("IronBar", 8), ("AncientGemstone", 1), ("MechanicalPart", 2)],
@@ -533,7 +533,7 @@ SPECS = [
         pixels_to_units=16,
         stackable=True,
         rarity=3,
-        health=10,
+        health=2,
         # 기획서 §4: iron + wood + one mechanical part. Made at a vanilla iron-tier bench, which
         # NoBreakZoneWorkbenchRecipeInjectionConverter arranges — nothing in this file can, because
         # the bench belongs to the game rather than to us.
@@ -1163,10 +1163,22 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
     body += _authoring(
         # hasHealthRegeneration BELOW IS OFF, AND WAS ON.
         #
-        # A chest does not heal itself and neither should ours. With it on, a pylon somebody is
-        # trying to collect claws back 100% of its health five seconds after the last swing —
-        # HealthConverter adds StopHealthRegenOnDamageTakenCD when healInCombatAsWell is false,
-        # so it pauses while you are actively hitting and resumes the moment you stop.
+        # THE SDK'S OWN WORKBENCH IS THE REFERENCE, AND THESE ARE ITS NUMBERS. 기획서 §4 says a
+        # switched-off pylon is collected "일반 설치물처럼", and the one vanilla-shaped placeable we
+        # can read is Examples/WorkbenchExample's MyNewWorkbenchLogic.prefab: 2 health, regeneration
+        # on at 100% per five seconds, one point of damage per hit. Together that is "two hits with
+        # anything, within a few seconds of each other" — a fist, a tin pickaxe or a Solarite one
+        # all the same, and one idle swing never collects it by accident.
+        #
+        # This took two wrong turns to reach. The first draft had 10 health with the same 1-per-hit
+        # cap: ten swings minimum, which a human called endless. The second lifted the cap on the
+        # same 10 health, and a bare fist then took it in one hit (2026-09-10). Both were made-up
+        # numbers; these are copied, and the copy is what "like a normal placeable" means.
+        #
+        # Regeneration pauses while you are actively hitting (HealthConverter adds
+        # StopHealthRegenOnDamageTakenCD when healInCombatAsWell is false) and resumes five seconds
+        # after the last swing, which is what lets a single stray hit heal instead of leaving the
+        # pylon one point from gone.
         #
         # maxHealth is what this feeds; ComputeMaxHealth only scales it by area level when the
         # prefab carries AreaLevelAuthoring, which ours do not. So health really is the number
@@ -1178,7 +1190,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         f"  startHealth: {spec.health}\n"
         f"  maxHealth: {spec.health}\n"
         "  maxHealthMultiplier: 1\n"
-        "  hasHealthRegeneration: 0\n"
+        "  hasHealthRegeneration: 1\n"
         "  healInCombatAsWell: 0\n"
         "  healthIncreasePercentPerFiveSeconds: 100\n"
         "  healDelayAfterLeavingCombat: 5\n"
@@ -1228,13 +1240,13 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         "  skipDeathAnimation: 0\n",
     )
     body += _authoring(
-        # maxDamagePerHit BELOW IS ZERO ON PURPOSE, MEANING NO CAP.
+        # maxDamagePerHit 1 IS THE VANILLA PLACEABLE'S VALUE (see the HealthAuthoring note above).
         #
-        # It was 1, and that is the real reason a switched-off pylon shrugged off a Solarite
-        # pickaxe: UpdateHealthFromBufferSystem clamps every hit to maxDamagePerHit unless the
-        # damage sets bypassMaxDamagePerHit, so 1 meant ten swings minimum on a 10 HP object no
-        # matter what tool you held. The game only applies the clamp when the value is above
-        # zero, so zero turns it off.
+        # UpdateHealthFromBufferSystem clamps every hit to maxDamagePerHit unless the damage sets
+        # bypassMaxDamagePerHit, so the cap decides the number of swings outright, and the health
+        # above decides it with it: 2 health at 1 per hit is two swings with any tool. On 10 health
+        # the same cap was ten swings, which is how the first draft went wrong; lifting the cap
+        # instead of lowering the health was the second wrong turn.
         #
         # PROTECTION DOES NOT COME FROM HERE. It comes from IndestructibleCD and
         # DontDestroyOnZeroHealthCD, so a switched-ON pylon is still untouchable. This only
@@ -1244,7 +1256,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         "  calculateReductionFromLevel: 0\n"
         "  reductionMultiplier: 1\n"
         "  reduction: 0\n"
-        "  maxDamagePerHit: 0\n"
+        "  maxDamagePerHit: 1\n"
         "  minDamagePerHit: 0\n"
         "  ignoreReductionWhenDamagedByDrill: 0\n"
         "  level: {fileID: 0}\n",
