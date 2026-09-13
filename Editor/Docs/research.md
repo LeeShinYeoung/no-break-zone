@@ -1288,6 +1288,66 @@ public static Vector3 ToWorldFromRender(Vector3 p) => p + Manager.camera.RenderO
 - **"존재한다"와 "보인다" 사이에는 좌표계가 하나 더 있다.** 그려지는데 안 보이면 외형보다 먼저
   어느 공간에 놨는지 본다
 
+## 27. 인벤토리가 통째로 사라졌을 때 — `lastActiveSession` (2026-09-13)
+
+사람이 "아이템이 전부 사라졌다"고 했다. 인벤토리 **칸 자체가 비어 있었고 재접속해도 그대로**였다.
+
+**아이템은 디스크에 멀쩡히 있었다.** 캐릭터 세이브(`Steam/<id>/saves/0.json`)에 53칸이 그대로 —
+전설 지팡이, 태양석 곡괭이, 최대 체력 535까지. 게임이 그것을 **일부러 안 읽고** 있었다.
+
+```csharp
+// StartGameRPCSystem
+foreach (ConnectedPlayerData item in connectedPlayerDataList) {
+    if (item.playerWasLastConnectedToThisServer) {
+        Debug.Log("Skipping load inventory by PlayerWasLastConnectedToThisServer");
+        continue;                    // 캐릭터 파일의 인벤토리를 안 넣는다
+    }
+    // ↓ 여기서야 characterData.inventory 를 ContainedObjectsBuffer 로 복사한다
+}
+
+bool playerWasLastConnectedToThisServer =
+    sessionId.IsValid && characterDataFromSerialized.lastActiveSession == sessionId;
+```
+
+```csharp
+// SaveManager
+public void SetLastActiveSession(Hash128 id) { characterData[characterId].lastActiveSession = id; }
+public void ClearLastActiveSession()  { characterData[characterId].lastActiveSession = default; }
+```
+
+### 27-1. 무슨 장치인가
+
+- 서버에 들어갈 때 캐릭터의 `lastActiveSession`에 그 서버 세션 id를 쓴다
+- **정상 종료할 때 0으로 지운다**
+- 다시 들어갈 때 그 값이 아직 유효하면 "너는 아직 그 세션 안에 있다"고 보고, **월드 쪽 사본을
+  권위로 삼아** 캐릭터 파일을 읽지 않는다. 들고 나갔다 다시 들어오는 식의 **아이템 복제를 막는
+  장치**다
+
+즉 **비정상 종료 = 값이 안 지워짐 = 고착.** 월드 쪽 사본이 비어 있으면 재접속해도 계속 빈다.
+"다시 들어가 보라"는 조언이 통하지 않는 종류다.
+
+### 27-2. 복구
+
+게임을 **완전히 종료한 뒤** `saves/0.json`의 한 필드만 되돌린다. 게임이 정상 종료 때 쓰는 값과
+똑같은 값이라 편법이 아니라 중단된 종료 절차를 마저 밟는 것이다.
+
+```
+"lastActiveSession":{"Value":{"x":0,"y":0,"z":0,"w":0}}
+```
+
+같은 폴더의 `0.json.pugbackup`은 **건드리지 않는다** — 되돌아갈 자리로 남긴다. 손대기 전에 세이브
+네 개(`saves/0.json`, `worlds/0.world.gzip`과 각 `.pugbackup`)를 먼저 복사해 둔다.
+
+### 27-3. 왜 그렇게 됐나 — 우리 잘못이다
+
+`build.ps1`은 결과를 게임이 **실행 중에 읽고 있는** 폴더에 그대로 덮어쓴다. 사람이 접속해 있는 동안
+빌드를 돌렸고, 그것이 비정상 종료로 이어진 것으로 보인다. workflow.md 4장에 규칙으로 박았다.
+
+> **바뀐 직후에 깨졌으면 타이밍이 가장 강한 증거다.** 이 판에서 눈에 보이는 변경은 스프라이트 색칠
+> 뿐이었고, 나는 "픽셀 수십 개 색이 인벤토리를 비울 수 없다"를 증명하는 데 세션을 썼다. 그 증명은
+> 맞았지만 **질문이 틀렸다.** 용의자는 변경의 *내용*이 아니라 변경을 *적용하는 행위*였다. 사람이
+> "10분 전엔 됐잖아"라고 했을 때 반박할 게 아니라 **되돌려 보고** 나서 따졌어야 했다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
