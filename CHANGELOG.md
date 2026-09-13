@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 — first release
+## 1.0.0 — first release
 
 The mod is feature complete against its design and has been played through by hand: crafted,
 placed, switched, protected, released, collected.
