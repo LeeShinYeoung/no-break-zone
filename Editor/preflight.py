@@ -66,6 +66,12 @@ BANNED_CALLS = [
 # Everything under these needs a sibling .meta. Dot-directories are invisible to Unity (CLAUDE.md
 # §1-3) and so is the meta file itself.
 ASSET_ROOTS = ["Scripts", "Data", "Prefabs", "Textures", "Editor", "Localization", "Conf"]
+
+# Unity ignores any folder whose name ends in "~" and never writes a .meta inside one. That is the
+# whole reason the offline logic runner lives at Editor/LogicTests~. Running it leaves bin/ and obj/
+# behind, and this check used to report every one of those files as a missing .meta -- half a dozen
+# failures that meant nothing and made a clean run impossible to recognise.
+UNITY_IGNORED_SUFFIX = "~"
 META_EXEMPT_SUFFIXES = {".meta"}
 
 SCRIPT_PATTERN = re.compile(r"m_Script:\s*\{fileID:\s*(-?\d+),\s*guid:\s*(\w+)")
@@ -125,7 +131,10 @@ def tracked_asset_files():
         if not base.is_dir():
             continue
         for path in base.rglob("*"):
-            if any(part.startswith(".") for part in path.relative_to(REPO).parts):
+            parts = path.relative_to(REPO).parts
+            if any(part.startswith(".") for part in parts):
+                continue
+            if any(part.endswith(UNITY_IGNORED_SUFFIX) for part in parts):
                 continue
             yield path
 
