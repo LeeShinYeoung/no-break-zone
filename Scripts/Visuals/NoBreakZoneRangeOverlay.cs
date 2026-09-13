@@ -342,7 +342,13 @@ public static class NoBreakZoneRangeOverlay
     // the fault was the coordinate space (class comment), which no amount of appearance can fix.
     private static void CopyAppearanceFromPlacementIcon(SpriteRenderer renderer)
     {
-        var icon = Object.FindObjectOfType<PlacementIcon>(true);
+        // FindAnyObjectByType, not FindObjectOfType: the latter is deprecated and the build warned
+        // about it (CS0618), which a released mod should not do. "Any" rather than "First" because
+        // there is one placement icon in the scene and we do not care which is returned, and the
+        // game's own docs say Any is the faster of the two. FindObjectsInactive.Include keeps the
+        // old `true` argument's meaning — the icon is inactive whenever the player is not placing
+        // something, which is most of the time, so excluding inactive objects would find nothing.
+        var icon = Object.FindAnyObjectByType<PlacementIcon>(FindObjectsInactive.Include);
         if (icon == null || icon.SR == null)
         {
             // Said out loud rather than returned from silently: a marker left on Unity's default
