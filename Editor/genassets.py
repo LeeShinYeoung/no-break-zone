@@ -381,8 +381,13 @@ class ObjectSpec:
         # the game itself uses and ours stood out beside it (2026-09-13). Counting the sentence
         # endings of every Korean string in the game's own bundle settles it rather than taste:
         # -입니다 822, -습니다 787, other -니다 543, plain -한다/-다 26. Vocabulary is borrowed from
-        # the same source -- 장치, 작업대, 파괴, 범위 -- and button names are avoided, since the game
-        # never writes "우클릭" anywhere (it ships with controller support). Text written here only reaches the asset
+        # the same source -- 작업대, 파괴, 범위 -- and button names are avoided, since the game
+        # never writes "우클릭" anywhere (it ships with controller support).
+        #
+        # TRANSLATE, DO NOT WRITE FICTION. A draft of the pylon line called it a 고대의 장치 and the
+        # user cut it (2026-09-13): the English says "Protects nearby objects", with no claim about
+        # what the thing is or where it came from. Matching the game's REGISTER is the job; adding
+        # lore the English never made is not. Each Korean line below says what its English line says. Text written here only reaches the asset
         # once LANGUAGE_SLOTS knows which slot that language is — writing it now means the Windows
         # session that discovers the mapping does not also have to translate.
         self.localized = dict(localized or {})
@@ -518,7 +523,7 @@ SPECS = [
         title="No Break Pylon",
         description="Protects nearby objects. While it is on, nothing inside can be destroyed.",
         localized={"ko": ("파일런",
-                          "주변의 사물을 보호하는 고대의 장치입니다. 켜져 있는 동안에는 범위 안의 어떤 것도 파괴되지 않습니다.")},
+                          "주변의 사물을 보호합니다. 켜져 있는 동안에는 범위 안의 어떤 것도 파괴되지 않습니다.")},
         art="Editor/Docs/art/pylon_off.png",
         # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
         # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
@@ -599,7 +604,7 @@ SPECS = [
         title="Pylon Remote",
         description="Right-click a pylon from a distance to switch it on or off.",
         localized={"ko": ("파일런 리모콘",
-                          "멀리 떨어진 파일런을 켜고 끌 수 있는 장치입니다. 파일런에 커서를 올리고 사용하세요.")},
+                          "멀리 떨어진 파일런을 켜고 끌 수 있습니다. 파일런에 커서를 올리고 사용하세요.")},
         art="Editor/Docs/art/remote.png",
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.
