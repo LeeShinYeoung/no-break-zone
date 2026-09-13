@@ -3,10 +3,11 @@
 A Core Keeper mod that stops your base from being destroyed by your own pickaxe,
 explosions, and stray attacks — while leaving ore, walls, and crops fully mineable.
 
-> **Status: in development, and largely unverified.** Damage blocking was confirmed in game
-> at the point where it applied to every placeable in the world. Everything since — the
-> pylon, its on/off switch, the workbench, the lens, the remote, and the settings — is
-> written but has never been built or played. Not published to mod.io or the Workshop.
+> **Status: 0.1.0. Playable, and confirmed by hand in a running game.** Crafting, placement,
+> the on/off switch, protection and its release, the workbench, the lens, the remote and the
+> settings have each been checked in game. Two gates are still open before a wider release:
+> the mod has never been loaded into a world that predates it, and it has never run with more
+> than one player. Not yet published to mod.io or the Workshop.
 
 ## What it adds
 
@@ -21,9 +22,14 @@ remodel it.
 | **Pylon Lens** | Hold it to see the edge of every switched-on pylon's square. Nothing else ever draws it. |
 | **Pylon Remote** | Right-click a pylon from a distance to switch it. For when you have walled yourself out of reach of one. |
 
-Ore, walls, pots and crops stay fully mineable and harvestable inside a protected area —
-that is the one thing the protection rules will not do, because duplicating resources would
-break a save permanently.
+While a pylon is on, **nothing inside its square can be broken — walls and ore included.** That
+is the point rather than an oversight: a base you cannot blow up by accident is also a base you
+cannot remodel by accident, so switch the pylon off when you want to dig.
+
+**Farming and drill automation are the exception and keep working with it on.** Anything that pays
+out every time it is damaged — the boulders a drill chews through above all — is never protected,
+because holding one of those at full health would duplicate resources and break a save
+permanently. That rule outranks every other property of this mod.
 
 ## Settings
 
@@ -66,9 +72,11 @@ the Mod SDK; this repo is checked out inside it. To reconstruct a working enviro
 > **Unity version.** The SDK README specifies `6000.0.58f2`; `build.ps1` currently defaults
 > to `6000.0.59f2`. Match whichever the SDK asks for if the two disagree.
 
-> **Not in this repository.** The `ModBuilderSettings` asset that drives the build
-> (mod name, dependencies, `modPath`, Linux build flag) currently lives outside the mod
-> folder and is therefore untracked. See `Editor/Docs/status.md`.
+> **Where the build settings live.** [Editor/NoBreakZone.asset](Editor/NoBreakZone.asset) is the
+> `ModBuilderSettings` that drives the build — mod guid, name, dependencies, `modPath`, the Linux
+> flag. The SDK's own examples keep this file as a sibling of the mod folder, which would put it
+> outside this repository; it is under `Editor/` instead so that it is version controlled and still
+> stays out of the shipped bundle.
 
 ## Build
 

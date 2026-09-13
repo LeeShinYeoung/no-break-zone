@@ -24,7 +24,18 @@ namespace NoBreakZone.EditorTools
 	/// </summary>
 	public static class CliBuild
 	{
-		private const string ModSettingsAssetPath = "Assets/NoBreakZone.asset";
+		// Under Editor/, which is inside this repository and outside the shipped bundle.
+		//
+		// It used to sit at Assets/NoBreakZone.asset, one level above the repo, where the mod guid,
+		// name, dependencies, modPath and Linux flag lived on one machine with nothing to restore
+		// them from. That placement is the SDK's own convention -- all nine example mods keep the
+		// asset as a sibling of their mod folder -- but the convention assumes the Unity project is
+		// what you version control, and here the MOD is the repository and the project is not.
+		//
+		// Editor/ rather than the repo root because this configures the build and is not part of
+		// what ships: everything outside Editor/ is swept into the bundle. The mod.io tab writes
+		// its own <ModName>_modio.asset next to this file, so that stays out of the bundle too.
+		private const string ModSettingsAssetPath = "Assets/NoBreakZone/Editor/NoBreakZone.asset";
 
 		// EditorPrefs key the Mod SDK window stores the game install path under.
 		private const string GameInstallPathKey = "PugMod/SDKWindow/GamePath";

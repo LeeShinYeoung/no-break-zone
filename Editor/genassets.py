@@ -113,8 +113,8 @@ OBJECT_TYPE_KEY_ITEM = 1500  # ObjectType.KeyItem — held, no mechanical use of
 TAG_CAN_BE_SALVAGED = "19000000"  # List<ObjectCategoryTag>{CanBeSalvaged}; Unity's packed int form
 
 # The game's 13 language addresses, copied verbatim from the SDK WorkbenchExample TextDataBlock.
-# Which entry is which language is still unknown (research.md 11장); the SDK writes the same English
-# text into all 13 and so do we. 기획서 §4 ships English + Korean, split in 7단계.
+# Which entry is which language was unknown until 2026-09-13 and is now written down in
+# LANGUAGE_SLOTS below (research.md 28장). Order matters: the index into this list IS the slot.
 LANGUAGE_ADDRESSES = [
     (8319415704751845611, -6023042414290333943),
     (-2957573344710624914, 6297677370195620808),
@@ -132,19 +132,37 @@ LANGUAGE_ADDRESSES = [
 ]
 PRIMARY_LANGUAGE_INDEX = 2  # the entry the SDK example mirrors into m_prevImportPrimaryEntry
 
-# Which slot above is which language — UNKNOWN, and it is the only thing standing between this mod
-# and the Korean release 기획서 §4 asks for.
+# WHICH SLOT IS WHICH LANGUAGE. Read out of the game's own data on 2026-09-13, not guessed.
 #
-# The addresses are guids of LanguageDataBlock assets inside the game's own bundles. Reversing all
-# thirteen and searching ck-db, ck-mods, CoreLib and the SDK examples turns up nothing, and no
-# reference mod localises to anything but English, so there is nothing to copy.
+# The addresses are the m_address of the thirteen LanguageDataBlock assets in the game's bundles.
+# Earlier sessions searched ck-db, ck-mods, CoreLib and the SDK examples for them and found nothing,
+# because the mapping only exists inside the shipped bundle. Decompressing
+# StreamingAssets/aa/StandaloneWindows64/defaultlocalgroup_assets_all.bundle and reading those
+# assets gives each language's name, ISO code and its own address, and matching those addresses
+# against the list above lands every one of the thirteen on a different slot, 0..12 with none left
+# over. A bijection is what makes this a reading rather than a guess.
 #
-# HOW TO FILL THIS IN (Windows, one lookup): open a TextDataBlock of ours in Unity's Scriptable Data
-# Editor. It shows each slot's language by name. Note the position of Korean — 0-based, matching the
-# order of LANGUAGE_ADDRESSES — and put it here. Every Korean string in SPECS then lands in the
-# right place on the next run.
+# The order is alphabetical by the LanguageDataBlock's asset name, which is why English is 2 rather
+# than 0 — and 2 is independently corroborated: it is PRIMARY_LANGUAGE_INDEX, and the SDK's own
+# ItemExample/Sword1.asset has exactly one edited slot, index 2, reading "The Greatest Sword".
+#
+# All thirteen are listed even though only Korean has text today (기획서 §4 ships English + Korean
+# first). 기획서 §4 also wants translations that arrive later to need nothing but the text, and with
+# this table that is now true: add a code to a spec's `localized` and it lands.
 LANGUAGE_SLOTS = {
-    # "ko": <index>,
+    "zh-ch": 0,   # Chinese (Simplified)   — the game really does spell it zh-ch, not zh-cn
+    "zh-tw": 1,   # Chinese (Traditional)
+    "en": 2,      # English — the primary language, and the fallback every other slot gets
+    "fr": 3,      # French
+    "de": 4,      # German
+    "it": 5,      # Italian
+    "ja": 6,      # Japanese
+    "ko": 7,      # Korean
+    "pt-br": 8,   # Portuguese (Brazil)
+    "ru": 9,      # Russian
+    "es": 10,     # Spanish
+    "th": 11,     # Thai
+    "uk": 12,     # Ukrainian
 }
 
 
@@ -357,7 +375,19 @@ class ObjectSpec:
         self.title = title  # English, and the fallback for every slot without a translation
         self.description = description
         # {language code: (title, description)}. 기획서 §4 ships English and Korean, and wants the
-        # structure to take all thirteen from the start. Text written here only reaches the asset
+        # structure to take all thirteen from the start.
+        #
+        # MATCH THE GAME'S VOICE. Korean copy here is 존댓말 (-습니다 / -입니다), because that is what
+        # the game itself uses and ours stood out beside it (2026-09-13). Counting the sentence
+        # endings of every Korean string in the game's own bundle settles it rather than taste:
+        # -입니다 822, -습니다 787, other -니다 543, plain -한다/-다 26. Vocabulary is borrowed from
+        # the same source -- 작업대, 파괴, 범위 -- and button names are avoided, since the game
+        # never writes "우클릭" anywhere (it ships with controller support).
+        #
+        # TRANSLATE, DO NOT WRITE FICTION. A draft of the pylon line called it a 고대의 장치 and the
+        # user cut it (2026-09-13): the English says "Protects nearby objects", with no claim about
+        # what the thing is or where it came from. Matching the game's REGISTER is the job; adding
+        # lore the English never made is not. Each Korean line below says what its English line says. Text written here only reaches the asset
         # once LANGUAGE_SLOTS knows which slot that language is — writing it now means the Windows
         # session that discovers the mapping does not also have to translate.
         self.localized = dict(localized or {})
@@ -493,7 +523,7 @@ SPECS = [
         title="No Break Pylon",
         description="Protects nearby objects. While it is on, nothing inside can be destroyed.",
         localized={"ko": ("파일런",
-                          "주변의 물건을 보호한다. 켜져 있는 동안에는 어떤 충격도 그 안의 것들을 부수지 못한다.")},
+                          "주변의 사물을 보호합니다. 켜져 있는 동안에는 범위 안의 어떤 것도 파괴되지 않습니다.")},
         art="Editor/Docs/art/pylon_off.png",
         # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
         # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
@@ -523,7 +553,8 @@ SPECS = [
         object_name="NoBreakZone.Workbench",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Workbench",
         description="Where the pylon and its tools are made.",
-        localized={"ko": ("파일런 작업대", "파일런과 그에 딸린 도구를 만드는 곳.")},
+        localized={"ko": ("파일런 작업대",
+                          "파일런과 그에 딸린 도구를 만들 수 있는 작업대입니다.")},
         art="Editor/Docs/art/workbench.png",
         # ONE TILE, not 기획서 §4's original 2x1 — changed with the user's approval after seeing it
         # placed, and design.md §4 carries the decision record. The 64x32 draft drew four tiles wide
@@ -551,7 +582,7 @@ SPECS = [
         title="Pylon Lens",
         description="Hold it to see the edge of every active pylon's protection.",
         localized={"ko": ("파일런 렌즈",
-                          "파일런의 파편을 깎아 만든 렌즈. 들고 있으면 보호의 경계가 드러난다.")},
+                          "파일런의 파편을 깎아 만든 렌즈입니다. 들고 있으면 보호 범위의 경계가 드러납니다.")},
         art="Editor/Docs/art/lens.png",
         # 기획서 §4 calls it 도구, "손에 드는 물건, 착용 장비가 아님", and it does nothing when
         # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
@@ -572,7 +603,8 @@ SPECS = [
         object_name="NoBreakZone.Remote",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Remote",
         description="Right-click a pylon from a distance to switch it on or off.",
-        localized={"ko": ("파일런 리모콘", "멀리서 파일런을 켜고 끈다. 커서를 올리고 우클릭.")},
+        localized={"ko": ("파일런 리모콘",
+                          "멀리 떨어진 파일런을 켜고 끌 수 있습니다. 파일런에 커서를 올리고 사용하세요.")},
         art="Editor/Docs/art/remote.png",
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.

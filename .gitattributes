@@ -1,0 +1,14 @@
+# Everything under Prefabs/, Textures/, Data/ and the root .asset files is written by
+# Editor/genassets.py, and that script emits LF. `genassets.py --check` compares bytes, so with
+# core.autocrlf turning LF into CRLF on checkout every generated file looked stale forever: 25 of
+# them, permanently, on a clean tree. A check that is always red is a check nobody reads.
+#
+# Pinning these to LF makes the comparison mean what it says. Nothing changes in git itself - the
+# object database already holds LF - only what lands on disk.
+*.asset   text eol=lf
+*.prefab  text eol=lf
+*.meta    text eol=lf
+*.asmdef  text eol=lf
+
+# Art is generated too, and a byte comparison on a PNG must never see a newline touched.
+*.png     binary

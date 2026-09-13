@@ -6,9 +6,11 @@ using UnityEngine;
 // assembly actually loaded during in-game verification.
 public class NoBreakZoneMod : IMod
 {
-    // The suffix tracks 기획서 13장 stage numbering, which is not the repo's old numbering — the
-    // previous value said "stage4" under that older scheme (status.md explains the renumbering).
-    public const string Version = "0.0.1-stage7";
+    // First public release. Earlier values carried a 기획서 13장 stage suffix ("0.0.1-stage7"),
+    // which said where the work was rather than what a player has; a published mod should answer
+    // the second question. 0.1.0 rather than 1.0.0 because two of the release gates are still
+    // open — an existing world has never been loaded, and the mod has never run in multiplayer.
+    public const string Version = "0.1.0";
 
     public void EarlyInit()
     {

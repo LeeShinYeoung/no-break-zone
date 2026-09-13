@@ -96,8 +96,8 @@ MonoBehaviour:
         m_address:
           m_low: -2052239290651699458
           m_high: -8389256263833660117
-      title: Pylon Lens
-      description: Hold it to see the edge of every active pylon's protection.
+      title: 파일런 렌즈
+      description: 파일런의 파편을 깎아 만든 렌즈입니다. 들고 있으면 보호 범위의 경계가 드러납니다.
     - m_language:
         m_address:
           m_low: 7851011593462244222
