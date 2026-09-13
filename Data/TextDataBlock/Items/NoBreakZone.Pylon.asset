@@ -96,8 +96,8 @@ MonoBehaviour:
         m_address:
           m_low: -2052239290651699458
           m_high: -8389256263833660117
-      title: No Break Pylon
-      description: Protects nearby objects. While it is on, nothing inside can be destroyed.
+      title: 파일런
+      description: 주변의 물건을 보호한다. 켜져 있는 동안에는 어떤 충격도 그 안의 것들을 부수지 못한다.
     - m_language:
         m_address:
           m_low: 7851011593462244222

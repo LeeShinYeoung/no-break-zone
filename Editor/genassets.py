@@ -113,8 +113,8 @@ OBJECT_TYPE_KEY_ITEM = 1500  # ObjectType.KeyItem — held, no mechanical use of
 TAG_CAN_BE_SALVAGED = "19000000"  # List<ObjectCategoryTag>{CanBeSalvaged}; Unity's packed int form
 
 # The game's 13 language addresses, copied verbatim from the SDK WorkbenchExample TextDataBlock.
-# Which entry is which language is still unknown (research.md 11장); the SDK writes the same English
-# text into all 13 and so do we. 기획서 §4 ships English + Korean, split in 7단계.
+# Which entry is which language was unknown until 2026-09-13 and is now written down in
+# LANGUAGE_SLOTS below (research.md 28장). Order matters: the index into this list IS the slot.
 LANGUAGE_ADDRESSES = [
     (8319415704751845611, -6023042414290333943),
     (-2957573344710624914, 6297677370195620808),
@@ -132,19 +132,37 @@ LANGUAGE_ADDRESSES = [
 ]
 PRIMARY_LANGUAGE_INDEX = 2  # the entry the SDK example mirrors into m_prevImportPrimaryEntry
 
-# Which slot above is which language — UNKNOWN, and it is the only thing standing between this mod
-# and the Korean release 기획서 §4 asks for.
+# WHICH SLOT IS WHICH LANGUAGE. Read out of the game's own data on 2026-09-13, not guessed.
 #
-# The addresses are guids of LanguageDataBlock assets inside the game's own bundles. Reversing all
-# thirteen and searching ck-db, ck-mods, CoreLib and the SDK examples turns up nothing, and no
-# reference mod localises to anything but English, so there is nothing to copy.
+# The addresses are the m_address of the thirteen LanguageDataBlock assets in the game's bundles.
+# Earlier sessions searched ck-db, ck-mods, CoreLib and the SDK examples for them and found nothing,
+# because the mapping only exists inside the shipped bundle. Decompressing
+# StreamingAssets/aa/StandaloneWindows64/defaultlocalgroup_assets_all.bundle and reading those
+# assets gives each language's name, ISO code and its own address, and matching those addresses
+# against the list above lands every one of the thirteen on a different slot, 0..12 with none left
+# over. A bijection is what makes this a reading rather than a guess.
 #
-# HOW TO FILL THIS IN (Windows, one lookup): open a TextDataBlock of ours in Unity's Scriptable Data
-# Editor. It shows each slot's language by name. Note the position of Korean — 0-based, matching the
-# order of LANGUAGE_ADDRESSES — and put it here. Every Korean string in SPECS then lands in the
-# right place on the next run.
+# The order is alphabetical by the LanguageDataBlock's asset name, which is why English is 2 rather
+# than 0 — and 2 is independently corroborated: it is PRIMARY_LANGUAGE_INDEX, and the SDK's own
+# ItemExample/Sword1.asset has exactly one edited slot, index 2, reading "The Greatest Sword".
+#
+# All thirteen are listed even though only Korean has text today (기획서 §4 ships English + Korean
+# first). 기획서 §4 also wants translations that arrive later to need nothing but the text, and with
+# this table that is now true: add a code to a spec's `localized` and it lands.
 LANGUAGE_SLOTS = {
-    # "ko": <index>,
+    "zh-ch": 0,   # Chinese (Simplified)   — the game really does spell it zh-ch, not zh-cn
+    "zh-tw": 1,   # Chinese (Traditional)
+    "en": 2,      # English — the primary language, and the fallback every other slot gets
+    "fr": 3,      # French
+    "de": 4,      # German
+    "it": 5,      # Italian
+    "ja": 6,      # Japanese
+    "ko": 7,      # Korean
+    "pt-br": 8,   # Portuguese (Brazil)
+    "ru": 9,      # Russian
+    "es": 10,     # Spanish
+    "th": 11,     # Thai
+    "uk": 12,     # Ukrainian
 }
 
 
