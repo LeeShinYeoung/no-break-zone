@@ -77,16 +77,19 @@ SDK의 `ModPaths.asset`에 경로를 등록하지 않는다. 지금 그 목록�
 
 ## 붙여넣을 글
 
-### mod.io 한 줄 요약 (영어)
+### mod.io 요약 — 영어
+
+업로드 폼의 `Description` 칸에 들어가는 것이 이것이다. 긴 설명이 아니라 **한 문단짜리 요약**이고,
+mod.io가 목록에서 모드 이름 밑에 보여준다.
 
 ```
-Place a pylon, press E, and everything in the square around it stops being destructible.
+Place a pylon, press E, and everything in the square around it stops being destructible — chests, walls, floors, machines. Press E again and your base is ordinary, so you can remodel it.
 ```
 
-### mod.io 한 줄 요약 (한국어)
+### mod.io 요약 — 한국어
 
 ```
-파일런을 놓고 E를 누르면, 그 주변 사각형 안의 모든 것이 부서지지 않습니다.
+파일런을 설치하고 E를 누르면 그 주변 사각형 안의 모든 것이 부서지지 않습니다. 상자도, 벽도, 바닥도, 기계도 마찬가지입니다. 다시 E를 누르면 평소대로 돌아가 기지를 고칠 수 있습니다.
 ```
 
 ### 긴 설명 (영어)
