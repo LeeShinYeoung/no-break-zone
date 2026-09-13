@@ -55,9 +55,15 @@ release(태그 + 깃허브 릴리스)와 deploy(mod.io·창작마당 업로드)�
 - [x] 스토어 문안 (`description.txt`, `Editor/Docs/store.md`) 과 썸네일
 - [x] **`ModBuilderSettings`를 저장소 안으로** — `Editor/NoBreakZone.asset`. 추적되면서 번들에는
       안 들어간다. `displayName`도 `No Break Zone`으로 채웠다
-- [ ] **`requiredOn` 결정** — 지금 `None(0)`이다. 이 모드는 오브젝트를 추가하므로 모드 없는
-      클라이언트는 파일런을 그릴 수 없다. `ClientAndServer(3)`가 맞아 보이는데 그러면 모드를
-      가진 사람만 접속할 수 있다. **사람이 정할 일이다**
+- [x] **`requiredOn` = `ClientAndServer(3)`** (2026-09-13, 사람이 결정)
+
+      게임은 이 값을 비트 둘로 나눠 읽는다. `& 1`이면 서버가 접속자에게 이 모드를 요구하고
+      (`ModInfoRpcSystem`), `& 2`면 클라이언트가 "이 서버에 그 모드가 없다"고 경고한다
+      (`NetworkClientStartSystem`). `0`은 **둘 다 꺼진 상태**였다.
+
+      우리는 오브젝트를 추가하고 파괴 판정을 서버가 내린다. 모드 없는 클라이언트는 파일런을
+      그리지 못하면서 보호 예측도 못 해 고무줄 현상을 겪는다. 3은 그 조합을 접속 전에
+      안내창으로 거른다. 대가는 모드 없는 사람이 못 들어오는 것이다.
 
 ---
 

@@ -20,7 +20,7 @@ MonoBehaviour:
     disableScripts: 0
     accessesExtraAssemblies: 1
     disableHarmonyPatching: 0
-    requiredOn: 0
+    requiredOn: 3
     files: []
     dependencies: []
   modPath: Assets\NoBreakZone
