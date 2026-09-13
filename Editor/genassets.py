@@ -375,7 +375,14 @@ class ObjectSpec:
         self.title = title  # English, and the fallback for every slot without a translation
         self.description = description
         # {language code: (title, description)}. 기획서 §4 ships English and Korean, and wants the
-        # structure to take all thirteen from the start. Text written here only reaches the asset
+        # structure to take all thirteen from the start.
+        #
+        # MATCH THE GAME'S VOICE. Korean copy here is 존댓말 (-습니다 / -입니다), because that is what
+        # the game itself uses and ours stood out beside it (2026-09-13). Counting the sentence
+        # endings of every Korean string in the game's own bundle settles it rather than taste:
+        # -입니다 822, -습니다 787, other -니다 543, plain -한다/-다 26. Vocabulary is borrowed from
+        # the same source -- 장치, 작업대, 파괴, 범위 -- and button names are avoided, since the game
+        # never writes "우클릭" anywhere (it ships with controller support). Text written here only reaches the asset
         # once LANGUAGE_SLOTS knows which slot that language is — writing it now means the Windows
         # session that discovers the mapping does not also have to translate.
         self.localized = dict(localized or {})
@@ -511,7 +518,7 @@ SPECS = [
         title="No Break Pylon",
         description="Protects nearby objects. While it is on, nothing inside can be destroyed.",
         localized={"ko": ("파일런",
-                          "주변의 물건을 보호한다. 켜져 있는 동안에는 어떤 충격도 그 안의 것들을 부수지 못한다.")},
+                          "주변의 사물을 보호하는 고대의 장치입니다. 켜져 있는 동안에는 범위 안의 어떤 것도 파괴되지 않습니다.")},
         art="Editor/Docs/art/pylon_off.png",
         # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
         # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
@@ -541,7 +548,8 @@ SPECS = [
         object_name="NoBreakZone.Workbench",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Workbench",
         description="Where the pylon and its tools are made.",
-        localized={"ko": ("파일런 작업대", "파일런과 그에 딸린 도구를 만드는 곳.")},
+        localized={"ko": ("파일런 작업대",
+                          "파일런과 그에 딸린 도구를 만들 수 있는 작업대입니다.")},
         art="Editor/Docs/art/workbench.png",
         # ONE TILE, not 기획서 §4's original 2x1 — changed with the user's approval after seeing it
         # placed, and design.md §4 carries the decision record. The 64x32 draft drew four tiles wide
@@ -569,7 +577,7 @@ SPECS = [
         title="Pylon Lens",
         description="Hold it to see the edge of every active pylon's protection.",
         localized={"ko": ("파일런 렌즈",
-                          "파일런의 파편을 깎아 만든 렌즈. 들고 있으면 보호의 경계가 드러난다.")},
+                          "파일런의 파편을 깎아 만든 렌즈입니다. 들고 있으면 보호 범위의 경계가 드러납니다.")},
         art="Editor/Docs/art/lens.png",
         # 기획서 §4 calls it 도구, "손에 드는 물건, 착용 장비가 아님", and it does nothing when
         # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
@@ -590,7 +598,8 @@ SPECS = [
         object_name="NoBreakZone.Remote",  # 기획서 §4. Written into saves — do not change.
         title="Pylon Remote",
         description="Right-click a pylon from a distance to switch it on or off.",
-        localized={"ko": ("파일런 리모콘", "멀리서 파일런을 켜고 끈다. 커서를 올리고 우클릭.")},
+        localized={"ko": ("파일런 리모콘",
+                          "멀리 떨어진 파일런을 켜고 끌 수 있는 장치입니다. 파일런에 커서를 올리고 사용하세요.")},
         art="Editor/Docs/art/remote.png",
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.
