@@ -1,0 +1,40 @@
+Stop your own pickaxe, your own explosives and a stray attack from taking your base apart.
+
+Place a No Break Pylon, press E, and everything inside the square around it becomes
+indestructible — chests, walls, floors, machines, the pylon itself. Press E again and your base is
+ordinary again, so you can remodel it. Protection is never global and never permanent: it is a
+thing you switch on, in a place you chose.
+
+WHAT YOU GET
+
+  No Break Pylon     Place it, press E. The on/off state survives saving and loading.
+  Pylon Workbench    Where the three below are made. Crafted at an iron workbench.
+  Pylon Lens         Hold it to see the edge of every switched-on pylon's square.
+                     Nothing else ever draws the outline.
+  Pylon Remote       Switch a pylon from across the room, for when you have walled
+                     yourself out of reach of one.
+
+WHILE A PYLON IS ON
+
+Nothing inside its square can be broken, walls and ore included. That is the point rather than an
+oversight: a base you cannot blow up by accident is also a base you cannot remodel by accident, so
+switch the pylon off when you want to dig.
+
+Farming and drill automation are the exception and keep working with it on. Anything that pays out
+every time it is damaged, a drill's ore boulder above all, is never protected — protecting one
+would duplicate resources and break a save permanently. That rule outranks everything else here.
+
+MULTIPLAYER
+
+The server decides what is protected and what a switch does, so every player sees the same thing.
+There is no ownership: a pylon protects whatever is inside it, whoever placed it.
+
+SETTINGS
+
+  protectionDiameter  21     width and height, in tiles, of the square one pylon covers
+  blockMobDamage      true   off leaves mobs and explosions able to destroy protected things
+  showRangeWithLens   true   draw the outline while the lens is held
+  remoteReachTiles    30     how far the remote reaches
+
+Source and issues: https://github.com/LeeShinYeoung/no-break-zone
+MIT licensed.

@@ -355,4 +355,56 @@ for n in order:
     sheet.alpha_composite(im.resize((im.width * SC, im.height * SC), Image.NEAREST), (ox, PAD))
     ox += im.width * SC + PAD
 sheet.save(OUT / "preview.png")
-print("ok", sheet.size)
+
+
+# ------------------------------------------------------------------------------------ store image
+#
+# Both stores take .png or .jpg and check nothing else client-side; mod.io re-renders the logo at
+# 1280x720, 640x360 and 320x180, so 16:9 at 1280x720 is the size that survives every crop
+# (Editor/Docs/store.md records where those numbers come from).
+#
+# NO TEXT. Drawing the mod's name would need a font file, and either we depend on whatever TTF a
+# machine happens to have -- which makes this script non-reproducible, the one property the whole
+# generator is built around -- or we hand-draw glyphs, which is a lot of pixels for something both
+# stores already print beside the image. So the picture says it instead: the lit pylon, and the
+# square it protects drawn in the lens's own marker colour, with the other three below it.
+SW, SH = 1280, 720
+TILE = 40                      # one game tile, in store-image pixels
+store = Image.new("RGBA", (SW, SH), STONE[0])
+
+# A tile grid, so the square below reads as a measured area rather than a decoration.
+grid = (56, 51, 74, 255)
+for gx in range(0, SW, TILE):
+    for gy in range(SH):
+        store.putpixel((gx, gy), grid)
+for gy in range(0, SH, TILE):
+    for gx in range(SW):
+        store.putpixel((gx, gy), grid)
+
+# The protected square. 기획서 §7's outline is the lens's whole reason to exist, so the store image
+# shows what the lens shows rather than inventing a look for it.
+MARKER = (150, 214, 240, 255)
+# Six tiles either side of the centre, which fills the height without touching it and leaves the
+# tool row below clear of the border. At the 320x180 crop both stores also render, the square and
+# the pylon inside it are still the only two things the eye has to resolve.
+half = 6 * TILE
+cx, cy = SW // 2, 310
+for t in range(3):
+    x0, y0, x1, y1 = cx - half + t, cy - half + t, cx + half - t, cy + half - t
+    for x in range(x0, x1):
+        store.putpixel((x, y0), MARKER)
+        store.putpixel((x, y1), MARKER)
+    for y in range(y0, y1):
+        store.putpixel((x0, y), MARKER)
+        store.putpixel((x1, y), MARKER)
+
+def paste(img, scale, centre_x, bottom_y):
+    big = img.resize((img.width * scale, img.height * scale), Image.NEAREST)
+    store.alpha_composite(big, (centre_x - big.width // 2, bottom_y - big.height))
+
+paste(made["pylon_on"], 17, cx, cy + half - TILE)
+for i, name in enumerate(["workbench", "lens", "remote"]):
+    paste(made[name], 5, cx + (i - 1) * 200, SH - 30)
+
+store.convert("RGB").save(OUT / "store_thumbnail.png")
+print("ok", sheet.size, store.size)
