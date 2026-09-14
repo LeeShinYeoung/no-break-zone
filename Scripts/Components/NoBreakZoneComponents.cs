@@ -1,8 +1,8 @@
 using Unity.Entities;
 
 // Bookkeeping tags. Neither is a ghost component: runtime-added components are never replicated
-// (NetCode freezes a ghost's component set at bake time — research.md chapter 9), so each world
-// adds its own copy and both worlds run NoBreakZoneProtectionSystem to keep them in step.
+// (NetCode freezes a ghost's component set at bake time), so each world adds its own copy and
+// both worlds run NoBreakZoneProtectionSystem to keep them in step.
 
 // "This entity has already been through the discriminator." design.md §9 requires that we do not
 // re-walk the world every frame; with this tag the query only ever sees entities we have not judged

@@ -23,7 +23,7 @@ public partial class NoBreakZoneDatabaseDumpSystem : PugSimulationSystemBase
     //
     // Back OFF. It earned its keep once: the workbench's flags came out identical to
     // IronWorkBench's, which is what ruled the object definition out and sent the search to the
-    // converters, where the real cause was (ObjectTypeCD, research.md chapter 20).
+    // converters, where the real cause was (ObjectTypeCD).
     private const bool RunAudit = false;
 
     private bool _done;

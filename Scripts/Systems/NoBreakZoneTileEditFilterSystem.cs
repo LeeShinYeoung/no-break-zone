@@ -25,7 +25,7 @@ using UnityEngine;
 //
 // BOTH WORLDS, SAME ANSWER. Tile updates are predicted on the client, so a server-only filter would
 // leave the client showing a hole the server never dug — the same class of mismatch that made
-// chests into ghosts in research.md chapter 9.
+// chests into ghosts.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
 [UpdateInGroup(typeof(EndPredictedSimulationSystemGroup), OrderFirst = true)]
 public partial class NoBreakZoneTileEditFilterSystem : PugSimulationSystemBase

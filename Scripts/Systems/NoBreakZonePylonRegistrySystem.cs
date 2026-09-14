@@ -237,9 +237,9 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     // time only one of them was here. IndestructibleCD alone delivers "by pickaxes" and nothing else:
     // the player's own mining consults it, and everything that reaches an object some other way —
     // an explosion, a mob, environmental damage — goes through the shared HealthChangeBuffer, which
-    // reads DontDestroyOnZeroHealthCD instead (research.md chapters 8 and 9, and the same split is
-    // spelled out in NoBreakZoneProtectionSystem.Protect). So a switched-on pylon used to shrug off
-    // a pickaxe and die to the first bomb thrown at it.
+    // reads DontDestroyOnZeroHealthCD instead (the same split is spelled out in
+    // NoBreakZoneProtectionSystem.Protect). So a switched-on pylon used to shrug off a pickaxe and
+    // die to the first bomb thrown at it.
     private static void ApplySelfProtection(EntityManager em, Entity pylon, bool on)
     {
         ApplyIndestructible(em, pylon, on);
@@ -278,9 +278,9 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     /// offering.
     ///
     /// Flag rather than component removal, for the reason Release() gives: NetCode fixes a ghost's
-    /// component set at bake time, and the flag is the part the damage path actually reads
-    /// (research.md chapter 9). Switching the pylon off clears it in the same frame, so recovering one
-    /// still only takes turning it off first — design.md §6's other half.
+    /// component set at bake time, and the flag is the part the damage path actually reads.
+    /// Switching the pylon off clears it in the same frame, so recovering one still only takes
+    /// turning it off first — design.md §6's other half.
     private static void ApplyDestroyGate(EntityManager em, Entity pylon, bool on)
     {
         if (!em.HasComponent<DontDestroyOnZeroHealthCD>(pylon))

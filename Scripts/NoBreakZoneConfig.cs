@@ -30,10 +30,9 @@ public static class NoBreakZoneConfig
     /// design.md §10: off means only player-dealt damage is stopped.
     ///
     /// It maps onto the two components the protection already uses, because they guard different
-    /// paths (research.md chapters 8 and 9): IndestructibleCD is what the player's own mining and
-    /// attacks consult, while DontDestroyOnZeroHealthCD guards the single gate every damage source
-    /// passes through. Dropping the second one leaves mobs and explosions able to finish something
-    /// off.
+    /// paths: IndestructibleCD is what the player's own mining and attacks consult, while
+    /// DontDestroyOnZeroHealthCD guards the single gate every damage source passes through.
+    /// Dropping the second one leaves mobs and explosions able to finish something off.
     public static bool BlockMobDamage => Read(_blockMobDamage, true);
 
     /// design.md §7 ties the range display to the lens and nothing else; this turns even that off.

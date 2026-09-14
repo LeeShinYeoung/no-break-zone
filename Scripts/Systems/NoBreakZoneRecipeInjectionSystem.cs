@@ -23,11 +23,10 @@ using UnityEngine;
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
 {
-    // Must match the converter's target. research.md chapter 18 records why this is the Automation
-    // Table and not the iron workbench design.md §4 first named: the iron bench authors all 18 of
-    // the slots the UI can show, and it absorbs three lower benches, which splits its recipe list
-    // into ranges that are drawn one at a time. The Automation Table holds 6 of 18 and absorbs
-    // nobody.
+    // Must match the converter's target. Why this is the Automation Table and not the iron
+    // workbench design.md §4 first named: the iron bench authors all 18 of the slots the UI can
+    // show, and it absorbs three lower benches, which splits its recipe list into ranges that are
+    // drawn one at a time. The Automation Table holds 6 of 18 and absorbs nobody.
     /// Public so NoBreakZoneSelfTestSystem checks the bench this system actually targets rather
     /// than a second copy of the decision that could drift away from it.
     public const ObjectID TargetWorkbench = ObjectID.AutomationTable;
@@ -41,7 +40,7 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     /// ordering between them, so a test reading the recipe buffers on its own schedule could judge
     /// them before this system had written anything and report a failure that says nothing about
     /// the mod. Waiting on a flag beats waiting a guessed number of frames — guessing frame order
-    /// is the mistake that hid the explosion bug (Editor/Docs/research.md chapter 21).
+    /// is the mistake that hid the explosion bug.
     public bool Done => _done;
 
     protected override void OnCreate()
@@ -148,7 +147,7 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     }
 
     /// Writes down everything that decides whether the recipe is drawn, so a failure is read off
-    /// Player.log rather than guessed at. Three things settle it (research.md chapter 18):
+    /// Player.log rather than guessed at. Three things settle it:
     ///
     ///   slots       — the UI shows three windows of six, so 18 is the ceiling for one bench.
     ///   ours        — where our recipe sits. Past the end of a range means it is never drawn.

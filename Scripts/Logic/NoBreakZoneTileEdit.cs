@@ -62,8 +62,8 @@ public static class NoBreakZoneTileEdit
             // prevented.
             //
             // Blocking the shovel needs to happen where the decision is made, not where its output
-            // lands. research.md records TileType.immune as the game's own mechanism for that; it
-            // writes into the save, so it is an open question rather than a fix.
+            // lands. TileType.immune is the game's own mechanism for that; it writes into the save,
+            // so it is an open question rather than a fix.
             //
             // Command.Clear falls here too, and must: chunk streaming clears tiles as the world
             // loads and unloads around the player. Refusing that corrupts the map.

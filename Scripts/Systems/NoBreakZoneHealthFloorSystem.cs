@@ -6,9 +6,9 @@ using UnityEngine;
 // Makes protection mean protection, rather than destruction deferred until a switch is flipped.
 //
 // THE BUG THIS EXISTS FOR. NoBreakZoneProtectionSystem protects by blocking destruction, not by
-// preventing damage — that was the right call and research.md chapter 8 explains why: every damage
-// source in the game converges on one destroy gate, so one component covers all of them. What it
-// does not cover is the damage itself. The game clamps health rather than refusing the hit:
+// preventing damage — that was the right call: every damage source in the game converges on one
+// destroy gate, so one component covers all of them. What it does not cover is the damage itself.
+// The game clamps health rather than refusing the hit:
 //
 //     healthCD.health = math.clamp(healthCD.health + num, 0, healthCD.maxHealth);   // Update...
 //     if ((hasDontDestroy && !disabled) || health > 0) return;                      // SetEntities...

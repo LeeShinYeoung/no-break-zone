@@ -12,7 +12,7 @@ using UnityEngine;
 // question the whole tile fix turns on: does the mod actually win the frame-order race against the
 // game's damage pipeline?
 //
-// WHY IT EXISTS. Everything else in the verification ladder (Editor/Docs/workflow.md) proves the mod
+// WHY IT EXISTS. Everything else in the verification ladder (CLAUDE.md §4) proves the mod
 // behaves correctly given a world state we constructed ourselves. None of it can prove the game
 // hands it that state at the right moment, because the game's damage systems are Burst jobs that
 // need a database, a tilemap and a NetCode world. Answering that used to cost a play session per
@@ -140,7 +140,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private int _tileset;
 
     /// Ceiling on a bench whose recipes are all drawn at once: the crafting window shows three
-    /// pages of six (research.md chapter 18). Past it a recipe is in the list and never on screen.
+    /// pages of six. Past it a recipe is in the list and never on screen.
     private const int MaxDrawableRecipeSlots = 18;
 
     /// One of the ten ore boulders in object_flags.csv, all of which carry the same flags. Copper is
@@ -331,7 +331,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             return;
         }
 
-        // design.md §4 / coverage.md #38. The one recipe the mod cannot author itself, because only the
+        // design.md §4. The one recipe the mod cannot author itself, because only the
         // game owns this bench — and the target is read off the system that injects it, so the two
         // cannot drift apart.
         ObjectID host = NoBreakZoneRecipeInjectionSystem.TargetWorkbench;
@@ -352,18 +352,17 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             return;
         }
 
-        // coverage.md #1 · #31 · #33 — one verdict each, so a single name that failed to resolve is
-        // named in the log rather than hidden inside a combined result.
+        // One verdict each, so a single name that failed to resolve is named in the log rather than
+        // hidden inside a combined result.
         int found = 0;
         found += JudgeOneRecipe("recipe-pylon-at-our-bench", NoBreakZoneObjectNames.Pylon, ourOffers);
         found += JudgeOneRecipe("recipe-lens-at-our-bench", NoBreakZoneObjectNames.Lens, ourOffers);
         found += JudgeOneRecipe("recipe-remote-at-our-bench", NoBreakZoneObjectNames.Remote, ourOffers);
 
-        // coverage.md #40, and a different question from the three above: being in the list is not
-        // being on screen. research.md chapter 18 is the record of that difference costing play
-        // sessions — the recipe was in the iron workbench's list the whole time and never drawn,
-        // because the list ran past 18 slots and was split into ranges the UI pages through one at a
-        // time.
+        // A different question from the three above: being in the list is not being on screen. That
+        // difference cost play sessions — the recipe was in the iron workbench's list the whole time
+        // and never drawn, because the list ran past 18 slots and was split into ranges the UI pages
+        // through one at a time.
         bool drawable = slots <= MaxDrawableRecipeSlots && categories == 0;
         Verdict("recipe-bench-shows-three",
             found == 3 && drawable,
@@ -400,7 +399,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     /// The recipe list of whichever prefab of `owner` offers the most, with the two numbers that
-    /// decide whether the crafting window ever draws it (research.md chapter 18).
+    /// decide whether the crafting window ever draws it.
     ///
     /// The most-offering prefab rather than the first one: an object can have several prefabs and
     /// genassets.py deliberately authors the recipes onto one of them, so "the first" would be a
@@ -618,9 +617,9 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         }
 
         // Asking for variation 1 selects the switched-on PREFAB, but PugDatabase falls back to
-        // variation 0 when it has no entry for the one asked for (research.md chapter 20), and the
-        // registry decides on/off from this field rather than from which prefab was used. Setting it
-        // outright is the difference between a pylon that projects a square and one that does not.
+        // variation 0 when it has no entry for the one asked for, and the registry decides on/off
+        // from this field rather than from which prefab was used. Setting it outright is the
+        // difference between a pylon that projects a square and one that does not.
         ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
         int spawnedVariation = data.variation;
         data.variation = NoBreakZonePylonGraphics.VariationOn;
@@ -874,7 +873,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // half — NoBreakZoneProtectionRule excludes ore outright and 2278 objects are checked
             // against it offline. What is worth knowing is what the mod is looking at when it
             // decides, so say it rather than leaving the next session to guess. Guessing is what
-            // cost this project three play sessions on one sprite (research.md chapter 20).
+            // cost this project three play sessions on one sprite.
             // Diagnosis on the failing side, which is now the side that BREAKS. If ore inside a
             // protected square comes out, the wall holding it went with it, and that is the
             // interesting failure.
@@ -1059,7 +1058,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     /// Damage written straight into HealthChangeBuffer, which is what a mob, a boss or an
-    /// environmental hazard ends up doing (research.md chapter 8). It bypasses IndestructibleCD —
+    /// environmental hazard ends up doing. It bypasses IndestructibleCD —
     /// that one only guards the player's own predicted mining — so this exercises the OTHER
     /// component the mod relies on, the destroy gate.
     private void DamagePlaceables()
@@ -1169,7 +1168,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     /// Damage written straight into HealthChangeBuffer — a mob, a boss, an explosion or the
-    /// environment all end up here (research.md chapter 8). It is also the only shape of damage this test
+    /// environment all end up here. It is also the only shape of damage this test
     /// can aim at a pylon at all, since the pickaxe path is client-predicted, and it is exactly the
     /// path IndestructibleCD does NOT guard. Before the fix that came with this case, the switched-on
     /// pylon died right here.
@@ -1623,8 +1622,8 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
                    + $"judged={em.HasComponent<NoBreakZoneEvaluatedCD>(e)}";
         }
 
-        // Also an answer, and a useful one: a tile only becomes an entity while it is being damaged
-        // (research.md chapter 21), so nothing here means the damage never reached it.
+        // Also an answer, and a useful one: a tile only becomes an entity while it is being damaged,
+        // so nothing here means the damage never reached it.
         return $"({tile.x},{tile.y}) no entity with health stands here";
     }
 
@@ -1897,7 +1896,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// Explosion-shaped damage aimed at an ENTITY rather than at a tilemap square, in the shape the
     /// game actually accepts. The three flags are not decoration — with any of them missing this
     /// call silently does nothing at all, which is exactly what it did on 2026-09-08 and why both
-    /// of its controls came back red (Editor/Docs/research.md chapter 22):
+    /// of its controls came back red:
     ///
     ///   applyToNonPredicted  UpdateHealthFromBufferSystem computes
     ///                          flag = !applyToNonPredicted && has Simulate && !Simulate enabled

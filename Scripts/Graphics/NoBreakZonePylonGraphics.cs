@@ -12,9 +12,8 @@ using UnityEngine.Scripting;
 // is rejected, an update count that is not newer is ignored) and writes ObjectDataCD, which NetCode
 // replicates back to everyone. So the mod needs no RPC, no command, and no server code for this.
 //
-// The state survives save/load for free: ObjectDataCD is part of what the world save keeps
-// (research.md chapter 10). That is why design.md chose the game's native variation over a file of
-// our own.
+// The state survives save/load for free: ObjectDataCD is part of what the world save keeps. That
+// is why design.md chose the game's native variation over a file of our own.
 [Preserve]
 public class NoBreakZonePylonGraphics : EntityMonoBehaviour
 {

@@ -16,7 +16,7 @@ using UnityEngine;
 // coordinate; stage 3 replaced that constant with the real placed pylons, which
 // NoBreakZonePylonRegistrySystem publishes just before this system runs.
 //
-// HOW PROTECTION WORKS (carried over from stage 1, verified in game — research.md chapter 9):
+// HOW PROTECTION WORKS (carried over from stage 1, verified in game):
 // Mining/attack/explosion damage runs PREDICTED on BOTH the client and the server world, and that
 // path (PlayerController.DealDamageToObject) consults ONLY IndestructibleCD. A component added at
 // runtime on the server is never replicated to clients, so a server-only fix left the client
@@ -97,7 +97,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // gives them ObjectTypeCD; a mod authors with ObjectAuthoring, and ObjectConverter — the only
         // other path — adds IsObjectCD, ObjectDataCD and ObjectCategoryTagsCD but no ObjectTypeCD.
         // Those two converters are the only places in the game that add it (verified by decompiling
-        // Pug.ECS.Conversion.dll; research.md chapter 20).
+        // Pug.ECS.Conversion.dll).
         //
         // So requiring it here quietly excluded every object this mod adds — which is why the mod's
         // own workbench broke inside its own protected square, with no PROTECT and no skip line to
@@ -345,7 +345,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     private static void Release(EntityManager em, Entity entity)
     {
         // Disable rather than remove: NetCode fixes a ghost's component set at bake time, and the
-        // enable flag is the part the damage path actually reads (research.md chapter 9).
+        // enable flag is the part the damage path actually reads.
         if (em.HasComponent<IndestructibleCD>(entity))
         {
             em.SetComponentEnabled<IndestructibleCD>(entity, false);
@@ -446,8 +446,8 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // component would be dead weight on a great many entities.
         //
         // TileDamageSystem runs in PredictedSimulationSystemGroup, so the client predicts the break
-        // too — the same trap that made chests into ghosts in research.md chapter 9. This system
-        // already runs in both worlds, so both refuse alike.
+        // too — the same trap that made chests into ghosts. This system already runs in both worlds,
+        // so both refuse alike.
         if (!isTile)
         {
             // Leave objects that were already indestructible alone, and do not claim them as ours —
@@ -474,9 +474,9 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         // design.md §10's "block mob damage". The two components guard different paths:
         // IndestructibleCD above is what the player's own mining and attacks consult, while this one
-        // guards the single gate every damage source passes through (research.md chapters 8 and 9).
-        // Leaving it off is therefore exactly "off blocks only player-caused damage" — mobs and
-        // explosions can still finish something off.
+        // guards the single gate every damage source passes through. Leaving it off is therefore
+        // exactly "off blocks only player-caused damage" — mobs and explosions can still finish
+        // something off.
         //
         // A tile has no other guard, so its protection is not optional in the same way: the setting
         // decides what may finish off an installation, not whether a wall stands.
