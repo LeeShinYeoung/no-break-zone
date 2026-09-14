@@ -20,11 +20,12 @@ namespace NoBreakZone.EditorTools
     internal static class VerifyProtectionBehaviour
     {
         // Ids outside anything the game defines. Nothing looks them up except the fake database
-        // installed below, so they only have to be distinct.
-        private const int PylonId = 9001;
-        private const int ChestId = 9002;
-        private const int FloorId = 9003;
-        private const int OreId = 9004;
+        // installed below, so they only have to be distinct. VerifyTogglePerformance builds its
+        // worlds from the same ids and helpers.
+        internal const int PylonId = 9001;
+        internal const int ChestId = 9002;
+        internal const int FloorId = 9003;
+        internal const int OreId = 9004;
         private const int WallId = 9005;
         private const int PayerId = 9006;
 
@@ -349,7 +350,7 @@ namespace NoBreakZone.EditorTools
 
         /// PugDatabase.GetObjectInfo reads a plain static dictionary, so the harness can answer for
         /// its own objects. Without this the protection system's size lookup dereferences null.
-        private static void InstallFakeDatabase()
+        internal static void InstallFakeDatabase()
         {
             var database = new Dictionary<ObjectDataCD, ObjectInfo>();
 
@@ -375,7 +376,7 @@ namespace NoBreakZone.EditorTools
             PugDatabase.objectsByType = database;
         }
 
-        private static bool TrySetPylonId(NoBreakZonePylonRegistrySystem registry, ObjectID id)
+        internal static bool TrySetPylonId(NoBreakZonePylonRegistrySystem registry, ObjectID id)
         {
             FieldInfo field = typeof(NoBreakZonePylonRegistrySystem)
                 .GetField("_pylonObjectID", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -389,7 +390,7 @@ namespace NoBreakZone.EditorTools
             return true;
         }
 
-        private static Entity MakeObject(EntityManager em, int id, int x, int z, int variation = 0)
+        internal static Entity MakeObject(EntityManager em, int id, int x, int z, int variation = 0)
         {
             Entity entity = em.CreateEntity();
             em.AddComponentData(entity, new ObjectDataCD
