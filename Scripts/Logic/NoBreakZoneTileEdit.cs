@@ -58,7 +58,8 @@ public static class NoBreakZoneTileEdit
             //
             // Only the first is ours to drop. Refuse it and the floor stays, the item still drops,
             // and the player can repeat that forever — which is precisely the resource duplication
-            // 기획서 §6 forbids outright, and a far worse bug than the hole it would have prevented.
+            // design.md §6 forbids outright, and a far worse bug than the hole it would have
+            // prevented.
             //
             // Blocking the shovel needs to happen where the decision is made, not where its output
             // lands. research.md records TileType.immune as the game's own mechanism for that; it

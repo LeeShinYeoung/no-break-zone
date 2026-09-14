@@ -5,10 +5,10 @@
 // Deliberately free of any game type: callers pass component-presence booleans. That is also exactly
 // the shape of the CSV, so the test can replay every object in the game through this function.
 //
-// The rule was derived from the CSV, not guessed per object. 기획서 §6 phrases it as "부수면 그
-// 물건이 그대로 돌아오는가": a chest gives back a chest, an ore boulder gives back ore. The three
-// loot flags are what separates the two, and getting this wrong duplicates resources — the one
-// failure the design forbids outright (기획서 §6 "절대 발생해서는 안 되는 것").
+// The rule was derived from the CSV, not guessed per object. design.md §6 phrases it as "does
+// breaking it give that same object back": a chest gives back a chest, an ore boulder gives back
+// ore. The three loot flags are what separates the two, and getting this wrong duplicates resources
+// — the one failure the design forbids outright (design.md §6 "what must never happen").
 public static class NoBreakZoneProtectionRule
 {
     // ObjectType.PlaceablePrefab. Hardcoded rather than referenced so this file stays game-type free;
@@ -54,8 +54,8 @@ public static class NoBreakZoneProtectionRule
             // targets by their own component, and anything that drops while damaged by the flag that
             // says so — the same flag that has always guarded this rule.
             //
-            // 기획서 §6: "자원 복제는 절대 발생해서는 안 된다." This branch is the only place in the
-            // mod where that could go wrong, so it refuses on any one of the four.
+            // design.md §6: "Resource duplication must never happen." This branch is the only place
+            // in the mod where that could go wrong, so it refuses on any one of the four.
             return !isOreTile && !requiresDrill && !isPlant && !dropsLootWhenDamaged;
         }
 

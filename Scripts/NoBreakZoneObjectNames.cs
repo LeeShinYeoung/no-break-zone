@@ -1,4 +1,4 @@
-// The object names 기획서 §4 fixed, in one place.
+// The object names design.md §4 fixed, in one place.
 //
 // These strings are written into save files, so changing one silently breaks every world that has
 // the object placed (CLAUDE.md §5). They also have to match ObjectAuthoring.objectName in the

@@ -7,9 +7,9 @@ using Unity.NetCode;  // GhostSimulationSystemGroup / PredictedSimulationSystemG
 using Unity.Transforms;
 using UnityEngine;
 
-// STAGE 3 — where the protected squares actually come from (기획서 13장 3단계).
+// STAGE 3 — where the protected squares actually come from (design.md §13, stage 3).
 //
-// 2단계 shipped with the pylon position hardcoded to the world origin, because the pylon object did
+// Stage 2 shipped with the pylon position hardcoded to the world origin, because the pylon object did
 // not exist yet. It does now (Prefabs/NoBreakZonePylon.prefab), so this system finds the real ones
 // and publishes their tile coordinates for NoBreakZoneProtectionSystem to read.
 //
@@ -19,7 +19,7 @@ using UnityEngine;
 // ObjectID.None for a name it does not know, which is also what it returns before the object
 // database has finished loading — so nothing is classified until the lookup succeeds.
 //
-// WHY A TAG INSTEAD OF A PER-FRAME SWEEP (기획서 §9, same reasoning as the protection system):
+// WHY A TAG INSTEAD OF A PER-FRAME SWEEP (design.md §9, same reasoning as the protection system):
 // deciding "is this a pylon" is a one-time answer per entity, so entities leave the discovery query
 // permanently once asked. The recurring per-frame work is then proportional to the number of
 // pylons, not to the number of objects in the world.
@@ -175,7 +175,7 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
 
         for (int i = 0; i < entities.Length; i++)
         {
-            // 기획서 §5: only a switched-on pylon exists as far as protection is concerned. A
+            // design.md §5: only a switched-on pylon exists as far as protection is concerned. A
             // switched-off one keeps its tag and its entity — it simply projects no square.
             bool on = objectDatas[i].variation == NoBreakZonePylonGraphics.VariationOn;
 
@@ -223,7 +223,7 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
         }
     }
 
-    // 기획서 §6: "켜져 있는 동안 파일런은 무적이다 … 회수하려면 먼저 꺼야 한다."
+    // design.md §6: "While switched on, the pylon is invulnerable … to recover it, switch it off first."
     //
     // This is deliberately NOT routed through NoBreakZoneProtectionSystem's discriminator, which
     // still excludes pylons. A pylon's own invulnerability has to follow its switch, not whether it
@@ -234,12 +234,12 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     // protection system must: this is our object and it ships without either component.
     //
     // IT TAKES BOTH COMPONENTS, because they guard different halves of that sentence and for a long
-    // time only one of them was here. IndestructibleCD alone delivers "곡괭이로도" and nothing else:
+    // time only one of them was here. IndestructibleCD alone delivers "by pickaxes" and nothing else:
     // the player's own mining consults it, and everything that reaches an object some other way —
     // an explosion, a mob, environmental damage — goes through the shared HealthChangeBuffer, which
-    // reads DontDestroyOnZeroHealthCD instead (research.md 8·9장, and the same split is spelled out
-    // in NoBreakZoneProtectionSystem.Protect). So a switched-on pylon used to shrug off a pickaxe
-    // and die to the first bomb thrown at it.
+    // reads DontDestroyOnZeroHealthCD instead (research.md chapters 8 and 9, and the same split is
+    // spelled out in NoBreakZoneProtectionSystem.Protect). So a switched-on pylon used to shrug off
+    // a pickaxe and die to the first bomb thrown at it.
     private static void ApplySelfProtection(EntityManager em, Entity pylon, bool on)
     {
         ApplyIndestructible(em, pylon, on);
@@ -267,19 +267,20 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     }
 
     /// The single gate every damage source passes through on its way to destroying something, and
-    /// therefore the half that answers "폭발로도 … 몹 공격으로도".
+    /// therefore the half that answers "by explosions … or by mob attacks".
     ///
-    /// NOT TIED TO THE 몹 피해 차단 SETTING, unlike an ordinary protected object. The protection
+    /// NOT TIED TO THE blockMobDamage SETTING, unlike an ordinary protected object. The protection
     /// system already carves out the same exception for tiles, and its comment says why: the
     /// setting decides what may finish off an installation, not whether the base still stands.
-    /// design.md:322 puts the pylon on the second side of that line in as many words — "파일런이
-    /// 먼저 부서지면 그 순간 기지 전체가 무방비가 된다". A setting that can drop every square in the
-    /// world by letting one mob through is not the choice that row is offering.
+    /// design.md:322 puts the pylon on the second side of that line in as many words — "if the
+    /// pylon breaks first, the whole base is left defenceless that very moment". A setting that can
+    /// drop every square in the world by letting one mob through is not the choice that row is
+    /// offering.
     ///
     /// Flag rather than component removal, for the reason Release() gives: NetCode fixes a ghost's
     /// component set at bake time, and the flag is the part the damage path actually reads
-    /// (research.md 9장). Switching the pylon off clears it in the same frame, so recovering one
-    /// still only takes turning it off first — 기획서 §6's other half.
+    /// (research.md chapter 9). Switching the pylon off clears it in the same frame, so recovering one
+    /// still only takes turning it off first — design.md §6's other half.
     private static void ApplyDestroyGate(EntityManager em, Entity pylon, bool on)
     {
         if (!em.HasComponent<DontDestroyOnZeroHealthCD>(pylon))

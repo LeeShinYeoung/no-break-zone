@@ -17,8 +17,8 @@ using UnityEngine.Scripting;
 // the question moot: this file is ours, so it is the first shape by construction and its guid is one
 // Editor/genassets.py computes. The SDK's own workbench example subclasses CraftingBuilding too.
 //
-// When 5단계 adds effects, this is where they go — CraftingBuilding.Use() is virtual and OnDeath()
-// is the SDK example's hook for a dust puff.
+// When stage 5 adds effects, this is where they go — CraftingBuilding.Use() is virtual and
+// OnDeath() is the SDK example's hook for a dust puff.
 //
 // [Preserve] keeps the linker from stripping a class nothing references from C#; the prefab is the
 // only thing that names it.

@@ -140,7 +140,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private int _tileset;
 
     /// Ceiling on a bench whose recipes are all drawn at once: the crafting window shows three
-    /// pages of six (research.md 18장). Past it a recipe is in the list and never on screen.
+    /// pages of six (research.md chapter 18). Past it a recipe is in the list and never on screen.
     private const int MaxDrawableRecipeSlots = 18;
 
     /// One of the ten ore boulders in object_flags.csv, all of which carry the same flags. Copper is
@@ -276,7 +276,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
 
     // ----------------------------------------------------------------------------------- recipes
 
-    /// 기획서 §4's door into the whole mod, judged once per run.
+    /// design.md §4's door into the whole mod, judged once per run.
     ///
     /// WHY IT IS WORTH CHECKING AT ALL. Our bench's three recipes are authored by NAME
     /// (Editor/genassets.py's crafts=[...]) and the game's own bake resolves those names to ids.
@@ -331,7 +331,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             return;
         }
 
-        // 기획서 §4 / coverage.md #38. The one recipe the mod cannot author itself, because only the
+        // design.md §4 / coverage.md #38. The one recipe the mod cannot author itself, because only the
         // game owns this bench — and the target is read off the system that injects it, so the two
         // cannot drift apart.
         ObjectID host = NoBreakZoneRecipeInjectionSystem.TargetWorkbench;
@@ -360,9 +360,10 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         found += JudgeOneRecipe("recipe-remote-at-our-bench", NoBreakZoneObjectNames.Remote, ourOffers);
 
         // coverage.md #40, and a different question from the three above: being in the list is not
-        // being on screen. research.md 18장 is the record of that difference costing play sessions —
-        // the recipe was in the iron workbench's list the whole time and never drawn, because the
-        // list ran past 18 slots and was split into ranges the UI pages through one at a time.
+        // being on screen. research.md chapter 18 is the record of that difference costing play
+        // sessions — the recipe was in the iron workbench's list the whole time and never drawn,
+        // because the list ran past 18 slots and was split into ranges the UI pages through one at a
+        // time.
         bool drawable = slots <= MaxDrawableRecipeSlots && categories == 0;
         Verdict("recipe-bench-shows-three",
             found == 3 && drawable,
@@ -399,7 +400,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     /// The recipe list of whichever prefab of `owner` offers the most, with the two numbers that
-    /// decide whether the crafting window ever draws it (research.md 18장).
+    /// decide whether the crafting window ever draws it (research.md chapter 18).
     ///
     /// The most-offering prefab rather than the first one: an object can have several prefabs and
     /// genassets.py deliberately authors the recipes onto one of them, so "the first" would be a
@@ -617,7 +618,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         }
 
         // Asking for variation 1 selects the switched-on PREFAB, but PugDatabase falls back to
-        // variation 0 when it has no entry for the one asked for (research.md 20장), and the
+        // variation 0 when it has no entry for the one asked for (research.md chapter 20), and the
         // registry decides on/off from this field rather than from which prefab was used. Setting it
         // outright is the difference between a pylon that projects a square and one that does not.
         ObjectDataCD data = EntityManager.GetComponentData<ObjectDataCD>(pylon);
@@ -950,7 +951,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
-    /// 기획서 §6's other half: "기지를 수정하려면 파일런을 끄면 된다". Protection that cannot be
+    /// design.md §6's other half: "to change the base, switch the pylon off". Protection that cannot be
     /// switched off is a trap, so the release path is worth as much as the protection itself.
     private void SwitchPylonOff()
     {
@@ -1058,9 +1059,9 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     /// Damage written straight into HealthChangeBuffer, which is what a mob, a boss or an
-    /// environmental hazard ends up doing (research.md 8장). It bypasses IndestructibleCD — that one
-    /// only guards the player's own predicted mining — so this exercises the OTHER component the
-    /// mod relies on, the destroy gate.
+    /// environmental hazard ends up doing (research.md chapter 8). It bypasses IndestructibleCD —
+    /// that one only guards the player's own predicted mining — so this exercises the OTHER
+    /// component the mod relies on, the destroy gate.
     private void DamagePlaceables()
     {
         if (!EntityManager.Exists(_insidePlaceable) || !EntityManager.Exists(_outsidePlaceable))
@@ -1107,14 +1108,15 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
-    /// design.md:320 — "켜져 있는 동안 파일런은 무적이다. 폭발로도, 곡괭이로도, 몹 공격으로도
-    /// 파괴되지 않는다" — and the line after it says why: if the pylon falls, every square it was
-    /// projecting falls with it, so this is the case that stands under all the others.
+    /// design.md:320 — "While switched on, the pylon is invulnerable. It is not destroyed by
+    /// explosions, by pickaxes or by mob attacks" — and the line after it says why: if the pylon
+    /// falls, every square it was projecting falls with it, so this is the case that stands under
+    /// all the others.
     ///
     /// THE CONTROL IS A SECOND PYLON, SWITCHED OFF. "A workbench outside the square dies" would
     /// prove nothing here: it says nothing about whether a pylon left unguarded would have died.
     /// Only the same object with the switch in the other position answers that. It also means this
-    /// case brushes 기획서 §5 on the way past — a switched-off pylon is an ordinary object.
+    /// case brushes design.md §5 on the way past — a switched-off pylon is an ordinary object.
     ///
     /// Standing a second pylon in the world is safe precisely because it is off: the registry
     /// collects positions only from pylons at VariationOn, so this one is not in Positions and
@@ -1167,7 +1169,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     }
 
     /// Damage written straight into HealthChangeBuffer — a mob, a boss, an explosion or the
-    /// environment all end up here (research.md 8장). It is also the only shape of damage this test
+    /// environment all end up here (research.md chapter 8). It is also the only shape of damage this test
     /// can aim at a pylon at all, since the pickaxe path is client-predicted, and it is exactly the
     /// path IndestructibleCD does NOT guard. Before the fix that came with this case, the switched-on
     /// pylon died right here.
@@ -1217,10 +1219,11 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Advance();
     }
 
-    /// 기획서 §6 names this exact scenario as the worst thing this mod could do:
+    /// design.md §6 names this exact scenario as the worst thing this mod could do:
     ///
-    ///   "드릴은 보호 대상이지만 광석 덩어리는 아니다. 만약 구현이 이 둘을 구분하지 못해 덩어리까지
-    ///    보호해버리면, 덩어리가 고갈되지 않아 광석이 무한정 나온다."
+    ///   "The drill is a protection target, but the ore boulder is not. If the implementation cannot
+    ///    tell the two apart and ends up protecting the boulder as well, the boulder never depletes
+    ///    and ore comes out endlessly."
     ///
     /// A protected boulder is an infinite resource: the drill keeps mining, the boulder never
     /// depletes, and the save's economy is broken in a way no later fix can undo. Nothing checked it
@@ -1236,9 +1239,9 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// requiresDrill=1, so it is DEPLETED BY A DRILL rather than destroyed by damage, and hitting it
     /// drops loot instead of killing it. "Big damage kills it" was never a valid stand-in.
     ///
-    /// The claim 기획서 §6 actually makes is that the mod must not PROTECT it — "덩어리가 고갈되지
-    /// 않아 광석이 무한정 나온다" — so that is what gets measured, straight off the component the
-    /// mod would have added.
+    /// The claim design.md §6 actually makes is that the mod must not PROTECT it — "the boulder
+    /// never depletes and ore comes out endlessly" — so that is what gets measured, straight off the
+    /// component the mod would have added.
     private void SpawnBoulders()
     {
         ObjectID boulderId = API.Authoring.GetObjectID(BoulderObjectName);
@@ -1287,7 +1290,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     private void CheckBoulderResult()
     {
         // Straight off the component the mod would have added. NoBreakZoneProtectedCD means "we made
-        // this indestructible"; on a drill's boulder that is the one failure 기획서 §6 puts above
+        // this indestructible"; on a drill's boulder that is the one failure design.md §6 puts above
         // every other property of this mod, because the drill would then mine it forever.
         bool claimed = EntityManager.Exists(_insideBoulder)
                        && EntityManager.HasComponent<NoBreakZoneProtectedCD>(_insideBoulder);
@@ -1305,7 +1308,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         Verdict("boulder-inside-is-not-protected",
             !claimed && !guarded,
             "a drill's boulder inside the square is left unprotected — protecting it is the "
-            + "resource duplication 기획서 §6 forbids outright");
+            + "resource duplication design.md §6 forbids outright");
 
         foreach (Entity e in new[] { _insideBoulder, _outsideBoulder })
         {
@@ -1514,7 +1517,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// THE CONTROL FOR EVERY SCENARIO ABOVE, and without it they are worth nothing: making
     /// everything permanently indestructible would score five greens. With the pylon off this wall
     /// has to break like any other. A red here means the health floor went too far and protection
-    /// no longer lets go — which would be a worse bug than the one it fixed, because 기획서 §6's
+    /// no longer lets go — which would be a worse bug than the one it fixed, because design.md §6's
     /// answer to "how do I change my base" is "switch the pylon off".
     private void ScenarioCheckRelease()
     {
@@ -1621,7 +1624,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
         }
 
         // Also an answer, and a useful one: a tile only becomes an entity while it is being damaged
-        // (research.md 21장), so nothing here means the damage never reached it.
+        // (research.md chapter 21), so nothing here means the damage never reached it.
         return $"({tile.x},{tile.y}) no entity with health stands here";
     }
 
@@ -1894,7 +1897,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
     /// Explosion-shaped damage aimed at an ENTITY rather than at a tilemap square, in the shape the
     /// game actually accepts. The three flags are not decoration — with any of them missing this
     /// call silently does nothing at all, which is exactly what it did on 2026-09-08 and why both
-    /// of its controls came back red (Editor/Docs/research.md 22장):
+    /// of its controls came back red (Editor/Docs/research.md chapter 22):
     ///
     ///   applyToNonPredicted  UpdateHealthFromBufferSystem computes
     ///                          flag = !applyToNonPredicted && has Simulate && !Simulate enabled

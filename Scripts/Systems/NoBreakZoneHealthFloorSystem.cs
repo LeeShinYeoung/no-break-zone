@@ -6,9 +6,9 @@ using UnityEngine;
 // Makes protection mean protection, rather than destruction deferred until a switch is flipped.
 //
 // THE BUG THIS EXISTS FOR. NoBreakZoneProtectionSystem protects by blocking destruction, not by
-// preventing damage — that was the right call and research.md 8장 explains why: every damage source
-// in the game converges on one destroy gate, so one component covers all of them. What it does not
-// cover is the damage itself. The game clamps health rather than refusing the hit:
+// preventing damage — that was the right call and research.md chapter 8 explains why: every damage
+// source in the game converges on one destroy gate, so one component covers all of them. What it
+// does not cover is the damage itself. The game clamps health rather than refusing the hit:
 //
 //     healthCD.health = math.clamp(healthCD.health + num, 0, healthCD.maxHealth);   // Update...
 //     if ((hasDontDestroy && !disabled) || health > 0) return;                      // SetEntities...
@@ -26,7 +26,7 @@ using UnityEngine;
 //
 // RESTORED TO FULL, NOT TO ONE. Leaving a protected thing at 1 HP is the same bug in miniature — a
 // base sitting at one health is a base that a single explosion levels the moment the pylon goes off.
-// 기획서 §6's promise to the player is "내 기지는 보호된다", not "내 기지는 간신히 버틴다".
+// design.md §6's promise to the player is "my base is protected", not "my base barely holds on".
 //
 // ONLY WHAT WE PROTECTED. NoBreakZoneProtectedCD is the same boundary Release() respects: things the
 // game itself made indestructible, and things we decided against, are none of our business.
@@ -71,7 +71,7 @@ public partial class NoBreakZoneHealthFloorSystem : SystemBase
             // game has on it: the health pipeline skips entities already at zero
             // (`if (healthCD.health <= 0) continue;`), so a depleted boulder simply stops paying.
             // With a floor under it the loop becomes hit, pay, restore, hit — the resource
-            // duplication 기획서 §6 puts above every other property of this mod.
+            // duplication design.md §6 puts above every other property of this mod.
             //
             // NoBreakZoneProtectionRule already refuses to protect these, so this should be
             // unreachable. It is here because "unreachable" is a claim about code that keeps

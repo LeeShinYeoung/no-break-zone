@@ -10,15 +10,15 @@ using UnityEngine.Scripting;
 // buffer of the one we want. The pattern is ConveyorTunnelMod's
 // (ck-mods/.../ConveyorTunnelRecipeInjectionConverter.cs), which appends to this very bench.
 //
-// WITHOUT THIS THE MOD IS UNREACHABLE. 기획서 §4 has the pylon crafted at our own workbench, and the
-// workbench itself at a vanilla bench that only the game owns. Nothing else in the mod can put a
-// recipe there, so this is the single door into everything the mod adds.
+// WITHOUT THIS THE MOD IS UNREACHABLE. design.md §4 has the pylon crafted at our own workbench, and
+// the workbench itself at a vanilla bench that only the game owns. Nothing else in the mod can put
+// a recipe there, so this is the single door into everything the mod adds.
 //
-// WHY NOT THE IRON WORKBENCH, WHICH 기획서 §4 ORIGINALLY NAMED: it is full. A bench shows three
+// WHY NOT THE IRON WORKBENCH, WHICH design.md §4 ORIGINALLY NAMED: it is full. A bench shows three
 // windows of six, so 18 recipes is the ceiling, and the iron workbench authors exactly 18. Worse,
 // it absorbs the basic, copper and tin benches, and an absorbed bench splits the recipe list into
-// ranges that the UI draws one at a time (research.md 18장) — so a recipe appended past the end
-// falls outside every range and is never drawn. That is what the player was seeing.
+// ranges that the UI draws one at a time (research.md chapter 18) — so a recipe appended past the
+// end falls outside every range and is never drawn. That is what the player was seeing.
 //
 // The Automation Table holds 6 of its 18 and absorbs nobody, so appending is enough. Two shipped
 // mods do exactly this (ConveyorTunnelMod, limoka's DummyMod). Its subject matter fits too: the
@@ -42,9 +42,9 @@ public class NoBreakZoneWorkbenchRecipeInjectionConverter
 
         // The mod's own objects have no numeric id yet: conversion runs before the database is
         // built, so API.Authoring.GetObjectID answers None here and the recipe used to be dropped
-        // in silence. research.md 12장 already recorded the answer -- a mod object is named, not
-        // numbered, and the game resolves the name during its own bake. This is the same form our
-        // own workbench prefab uses to point at the pylon.
+        // in silence. research.md chapter 12 already recorded the answer -- a mod object is named,
+        // not numbered, and the game resolves the name during its own bake. This is the same form
+        // our own workbench prefab uses to point at the pylon.
         foreach (CraftingAuthoring.CraftableObject existing in authoring.canCraftObjects)
         {
             // Conversion can visit the same authoring object more than once; a second copy would
