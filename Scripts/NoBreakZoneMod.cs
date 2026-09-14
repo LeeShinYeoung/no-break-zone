@@ -6,10 +6,11 @@ using UnityEngine;
 // assembly actually loaded during in-game verification.
 public class NoBreakZoneMod : IMod
 {
-    // First public release. Earlier values carried a design.md §13 stage suffix ("0.0.1-stage7"),
-    // which said where the work was rather than what a player has; a published mod should answer
-    // the second question.
-    public const string Version = "1.0.0";
+    // The published version, matching the release tag and CHANGELOG.md; 1.0.0 was the first public
+    // release. Earlier values carried a design.md §13 stage suffix ("0.0.1-stage7"), which said
+    // where the work was rather than what a player has; a published mod should answer the second
+    // question.
+    public const string Version = "1.1.0";
 
     public void EarlyInit()
     {

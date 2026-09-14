@@ -1,10 +1,26 @@
 # Changelog
 
-## Unreleased
+## 1.1.0
+
+### New
 
 - All four items now appear in the creative mode item window, each beside its vanilla neighbours:
   the pylon with the electronics, the workbench with the crafting stations, and the lens and the
   remote with the other tools. The game lists no mod's items there on its own.
+- Every item has its own 10×10 icon for when it lies on the floor, sits in a hand or shows up in a
+  crafting list. Before this, the full-size icon was used and looked oversized.
+
+### Fixed
+
+- Raising the Pylon Lens with several pylons out no longer stalls for a moment.
+- The lens outline no longer jumps by a tile while you walk.
+- Switching a pylon is cheaper. Each change now re-checks the loaded world once and in bulk; it
+  used to do it twice, one object at a time.
+
+### Known gaps
+
+- Never played by two people at once.
+- Switching a pylon still causes a short hitch, about 20–30 ms per world in a test world.
 
 ## 1.0.0 — first release
 
