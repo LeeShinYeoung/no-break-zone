@@ -124,8 +124,10 @@ fileID = int32_le( MD4(b"s\0\0\0" + 네임스페이스 + 클래스명)[:4] )
 ## 재생성 방법
 
 ```
-Unity.exe -batchmode -quit -projectPath C:\Unity\CoreKeeper ^
+Unity.exe -batchmode -quit -projectPath <유니티 프로젝트> ^
   -executeMethod NoBreakZone.EditorTools.DumpScriptGuids.Dump
 ```
+
+`<유니티 프로젝트>`의 실제 값은 `Editor/build.ps1`의 `-ProjectPath` 기본값이다.
 
 게임·SDK 업데이트로 어셈블리가 바뀌면 다시 뜨고, `genassets.py`를 재실행한다.

@@ -10,10 +10,10 @@
 
 | 항목 | 상태 | 근거 |
 | --- | --- | --- |
-| Unity Editor | ✅ `6000.0.59f2` 설치됨 (`.58f2`도 있음) | `ProjectSettings/ProjectVersion.txt`, `C:/Program Files/Unity/Hub/Editor/6000.0.59f2/Editor/Unity.exe` |
+| Unity Editor | ✅ `6000.0.59f2` 설치됨 (`.58f2`도 있음) | `ProjectSettings/ProjectVersion.txt`, Unity Hub 기본 설치 경로의 `Editor/6000.0.59f2/Editor/Unity.exe` |
 | 게임 어셈블리 임포트 | ✅ DLL 205개 | `Assets/Plugins/CoreKeeper/*.dll` |
 | SDK 어셈블리 | ✅ DLL 8개 + Harmony | `Assets/Plugins/CoreKeeperModSDK/` |
-| 게임 설치 경로 | ✅ `D:\SteamLibrary\steamapps\common\Core Keeper` | Steam `libraryfolders.vdf`, 디렉터리에 `CoreKeeper.exe` 존재 |
+| 게임 설치 경로 | ✅ `<게임 설치 폴더>` — 스팀 라이브러리 아래 `steamapps\common\Core Keeper` | Steam `libraryfolders.vdf`, 디렉터리에 `CoreKeeper.exe` 존재 |
 | 게임 경로 EditorPrefs 등록 | ✅ 등록됨 | 레지스트리 `HKCU\...\Unity Editor 5.x\PugMod/SDKWindow/GamePath` → 디코딩 시 위 경로 |
 | 모드 스캐폴드 | ✅ 표준 생성됨 | `Assets/NoBreakZone.asset`(ModBuilderSettings) + `Assets/NoBreakZone/`(asmdef, Data) |
 | 실제 모드 코드(.cs) | ❌ 아직 0개 | — |
@@ -53,7 +53,7 @@
 
 ```
 Unity.exe -batchmode -quit \
-  -projectPath "C:\Unity\CoreKeeper" \
+  -projectPath "<유니티 프로젝트>" \
   -executeMethod <래퍼클래스>.<메서드> \
   -logFile <빌드로그경로>
 ```
@@ -69,13 +69,15 @@ Unity.exe -batchmode -quit \
 로컬(비-mod.io) 모드는 게임의 StreamingAssets 아래에 놓으면 로드된다. (`CreateMod.cs`)
 
 ```
-D:\SteamLibrary\steamapps\common\Core Keeper\CoreKeeper_Data\StreamingAssets\Mods\<modName>\
+<게임 설치 폴더>\CoreKeeper_Data\StreamingAssets\Mods\<modName>\
 ```
 - 데디케이티드 서버면 `CoreKeeperServer_Data\StreamingAssets\Mods\`.
 - 현재 이 `Mods\` 폴더는 **비어 있다** (로컬 모드 아직 없음).
 
 NoBreakZone의 최종 설치 위치:
-`D:\SteamLibrary\steamapps\common\Core Keeper\CoreKeeper_Data\StreamingAssets\Mods\NoBreakZone\`
+`<게임 설치 폴더>\CoreKeeper_Data\StreamingAssets\Mods\NoBreakZone\`
+
+`<게임 설치 폴더>`의 실제 값은 `Editor/build.ps1`의 `-ExportPath` 기본값에 있다.
 
 ---
 
@@ -83,8 +85,8 @@ NoBreakZone의 최종 설치 위치:
 
 게임(클라이언트) 로그:
 ```
-C:\Users\LeeShinYeoung\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
-                                                              Player-prev.log  (직전 실행)
+%USERPROFILE%\AppData\LocalLow\Pugstorm\Core Keeper\Player.log
+                                                  Player-prev.log  (직전 실행)
 ```
 `Player.log`에서 모드 로딩·에러를 확인한다. 조사 시점 로그에 mod.io 모드 `Placement Plus` 로드, `got all mod infos from server`, 종료 시 `Exit blocked by ModManager` 등이 보였다 — 로그가 모드 활동을 담는다는 것 확인.
 
