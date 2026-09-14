@@ -102,7 +102,7 @@ live under `Editor/` for that reason.
 | `Editor/genassets.py` | writes every prefab, sprite asset, text block and texture import from one spec list |
 | `Editor/preflight.py` | static checks that run without Unity |
 | `Editor/` | build tooling and docs — excluded from the mod bundle |
-| `Editor/Docs/` | design, status, research, test coverage, the dev loop, store listing |
+| `Editor/Docs/` | the design document and draft art |
 | `Editor/GameData/` | full object-database dump used to derive the protection rules |
 | `.claude/` | agent harness (see [CLAUDE.md](CLAUDE.md)) |
 
@@ -121,7 +121,7 @@ python3 Editor/preflight.py            # prefab references, banned namespaces, .
 
 Neither is a compiler. Type errors only surface in the Windows build.
 
-Project documentation in `Editor/Docs/` is written in Korean.
+The design document in `Editor/Docs/` is written in Korean.
 
 ## License
 

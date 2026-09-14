@@ -147,8 +147,6 @@ git log -1 --format='%an <%ae>' origin/main   # 방금 만든 머지 커밋의 �
 - `main`에 들어간 머지 커밋과 **그 작성자.** `git config user.email`과 다르면 경고한다 —
   기록을 고치려 하지는 않는다
 - 브랜치 정리 결과
-- **`Editor/Docs/status.md` 갱신이 필요한지 판단**해서 필요하면 알린다.
-  기능 단계가 진행된 PR이면 대개 필요하다
 
 ---
 
