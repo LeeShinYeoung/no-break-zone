@@ -40,7 +40,7 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     /// ordering between them, so a test reading the recipe buffers on its own schedule could judge
     /// them before this system had written anything and report a failure that says nothing about
     /// the mod. Waiting on a flag beats waiting a guessed number of frames — guessing frame order
-    /// is the mistake that hid the explosion bug (Editor/Docs/status.md).
+    /// is the mistake that hid the explosion bug (Editor/Docs/research.md chapter 21).
     public bool Done => _done;
 
     protected override void OnCreate()

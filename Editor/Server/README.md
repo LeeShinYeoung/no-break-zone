@@ -51,3 +51,14 @@ powershell -File D:\NoBreakZoneServer\start-server.ps1
 
 플레이어가 0명이면 데디서버는 월드를 메모리에 안 올린다. 그러면 테스트가 딛고 설 땅이 없다 — 모든 타일이
 기본값(`{tileset=2, tileType=wall}`)으로 읽힌다. **한 명이 접속해 있기만 하면 된다.** 뭘 할 필요는 없다.
+로그가 "온통 벽"이면 지형이 아니라 **아직 안 실렸다**는 뜻이다.
+
+## 처음 세울 때 알아낸 것 (2026-09)
+
+- 서버는 **SteamCMD 익명 로그인**으로 받는다 (앱 `1963720`). 계정 정보가 필요 없다
+- 모드가 올라오면 로그에 `loaded mod NoBreakZone`, 모드 시스템이 서버 월드에서 돌면
+  `pylon object id = … (world=ServerWorld)`가 찍힌다
+- **접속자가 0명이면 서버가 스스로 일시정지한다.** 모드가 `IMod.Update`에서 `Manager.ecs.Resume()`을
+  불러 풀어 둔다 (`Scripts/NoBreakZoneMod.cs`의 `KeepDedicatedServerAwake`)
+- `KeepAreaLoadedCD`로는 월드를 억지로 올릴 수 없다. 그걸 읽는 시스템이 `UnloadToSerializeWorldSystem`
+  하나뿐이라, 올리는 게 아니라 내리지 않게 막는 장치다

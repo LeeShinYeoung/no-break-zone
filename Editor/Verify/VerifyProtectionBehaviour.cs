@@ -297,9 +297,10 @@ namespace NoBreakZone.EditorTools
             return !BlocksEveryDamageSource(em, entity);
         }
 
-        /// Chases one of the two live hypotheses behind the resource-duplication failure on main
-        /// (`ore-inside-still-breaks`, status.md): does a tile keep the answer it was first given
-        /// after the tile itself changes?
+        /// Chases one of the two hypotheses once raised for the resource-duplication failure
+        /// (`ore-inside-still-breaks`): does a tile keep the answer it was first given after the
+        /// tile itself changes? The failure in game turned out to be the other one (research.md
+        /// chapter 23); this hole is real regardless (research.md 31-1).
         ///
         /// NoBreakZoneProtectionSystem tags every entity it has judged with NoBreakZoneEvaluatedCD
         /// and excludes tagged entities from its query, so an answer is computed once. The tag is

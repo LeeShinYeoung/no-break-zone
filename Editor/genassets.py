@@ -850,7 +850,7 @@ def sprite_asset(spec: ObjectSpec, texture_path: str, asset_path: str) -> str:
         + "  m_dynamicCollections:\n"
         "    m_list: []\n"
         # Colour comes straight from the PNG. Grayscale + GradientMap is the skin system, which is
-        # optional — the reference mod paints its art directly and so do we (status.md).
+        # optional — the reference mod paints its art directly and so do we (research.md 31-3).
         + "  m_defaultPrimaryGradientMap:\n" + _null_address("    ")
         + "  m_defaultSecondaryGradientMap:\n" + _null_address("    ")
         + "  m_defaultTertiaryGradientMap:\n" + _null_address("    ")

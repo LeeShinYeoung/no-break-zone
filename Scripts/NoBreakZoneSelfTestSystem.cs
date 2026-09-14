@@ -873,7 +873,7 @@ public partial class NoBreakZoneSelfTestSystem : PugSimulationSystemBase
             // half — NoBreakZoneProtectionRule excludes ore outright and 2278 objects are checked
             // against it offline. What is worth knowing is what the mod is looking at when it
             // decides, so say it rather than leaving the next session to guess. Guessing is what
-            // cost this project three play sessions on one sprite (status.md 체크포인트 1).
+            // cost this project three play sessions on one sprite (research.md chapter 20).
             // Diagnosis on the failing side, which is now the side that BREAKS. If ore inside a
             // protected square comes out, the wall holding it went with it, and that is the
             // interesting failure.
