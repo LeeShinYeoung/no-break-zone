@@ -40,7 +40,7 @@ FILEID_TABLE = REPO / "Editor" / "GameData" / "script_fileids.csv"
 SCRIPT_GUIDS = REPO / "Editor" / "GameData" / "script_guids.csv"
 
 # Rejected by the mod safety check when the game recompiles Scripts/ at load
-# (official modding docs; research.md 6장). A hit here means the mod silently fails to load with
+# (official modding docs; research.md chapter 6). A hit here means the mod silently fails to load with
 # "CompileFailed" in Player.log rather than anything pointing at the real cause.
 BANNED_NAMESPACES = [
     "System.IO",

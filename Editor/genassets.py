@@ -7,12 +7,12 @@
 A placeable object in Core Keeper is not one file. It is a logic prefab, a graphics prefab, a
 SpriteAsset, a TextDataBlock, a texture plus its import settings, an entry in the mod's
 SpriteAssetManifest, and a .meta beside every one of them — roughly 1,500 lines of YAML for a
-single item. 기획서 6단계 adds three more objects (lens, remote, workbench) built the exact same
-way, so the YAML is written once here as templates and the differences live in SPECS below.
+single item. design.md stage 6 adds three more objects (lens, remote, workbench) built the exact
+same way, so the YAML is written once here as templates and the differences live in SPECS below.
 
-WHY THIS CAN WORK WITHOUT UNITY (research.md 11장): prefabs are plain YAML whose only opaque part
-is `m_Script: {fileID, guid}`. The guid names an assembly and is copied from reference prefabs; the
-fileID is derived from the class name via MD4 and is therefore computable. Editor/preflight.py
+WHY THIS CAN WORK WITHOUT UNITY (research.md chapter 11): prefabs are plain YAML whose only opaque
+part is `m_Script: {fileID, guid}`. The guid names an assembly and is copied from reference prefabs;
+the fileID is derived from the class name via MD4 and is therefore computable. Editor/preflight.py
 reverses every reference we emit back to a real game class, so a typo in a component name fails on
 the Mac rather than in the Windows build.
 
@@ -114,7 +114,7 @@ TAG_CAN_BE_SALVAGED = "19000000"  # List<ObjectCategoryTag>{CanBeSalvaged}; Unit
 
 # The game's 13 language addresses, copied verbatim from the SDK WorkbenchExample TextDataBlock.
 # Which entry is which language was unknown until 2026-09-13 and is now written down in
-# LANGUAGE_SLOTS below (research.md 28장). Order matters: the index into this list IS the slot.
+# LANGUAGE_SLOTS below (research.md chapter 17). Order matters: the index into this list IS the slot.
 LANGUAGE_ADDRESSES = [
     (8319415704751845611, -6023042414290333943),
     (-2957573344710624914, 6297677370195620808),
@@ -146,9 +146,9 @@ PRIMARY_LANGUAGE_INDEX = 2  # the entry the SDK example mirrors into m_prevImpor
 # than 0 — and 2 is independently corroborated: it is PRIMARY_LANGUAGE_INDEX, and the SDK's own
 # ItemExample/Sword1.asset has exactly one edited slot, index 2, reading "The Greatest Sword".
 #
-# All thirteen are listed even though only Korean has text today (기획서 §4 ships English + Korean
-# first). 기획서 §4 also wants translations that arrive later to need nothing but the text, and with
-# this table that is now true: add a code to a spec's `localized` and it lands.
+# All thirteen are listed even though only Korean has text today (design.md §4 ships English +
+# Korean first). design.md §4 also wants translations that arrive later to need nothing but the
+# text, and with this table that is now true: add a code to a spec's `localized` and it lands.
 LANGUAGE_SLOTS = {
     "zh-ch": 0,   # Chinese (Simplified)   — the game really does spell it zh-ch, not zh-cn
     "zh-tw": 1,   # Chinese (Traditional)
@@ -186,7 +186,8 @@ def local_file_id(rel_path: str, node: str) -> int:
 
 
 def data_block_address(rel_path: str) -> tuple:
-    """(m_low, m_high) for a DataBlockAddress — how sprites and text are linked (research.md 11장).
+    """(m_low, m_high) for a DataBlockAddress — how sprites and text are linked
+    (research.md chapter 11).
 
     It is the asset's own Unity guid: a 128-bit GUID laid out the Microsoft way (first three fields
     little-endian), split into two signed 64-bit halves. DataBlockAddress is built from GUID strings
@@ -201,12 +202,12 @@ def data_block_address(rel_path: str) -> tuple:
 
 
 # ---------------------------------------------------------------------------------------------
-# Guarding 기획서 §7's promise about the lit state.
+# Guarding design.md §7's promise about the lit state.
 #
-# §7 wants the two states to share a silhouette: "이렇게 하면 두 상태의 실루엣이 완전히 동일해
-# 전환 시 튀지 않는다." The drafts satisfy it — pylon_off and pylon_on come out of one shape
-# function and differ only in colour — and the check below refuses to generate anything that stops
-# satisfying it.
+# §7 wants the two states to share a silhouette: "This way the two states' silhouettes are exactly
+# identical, so switching does not jump." The drafts satisfy it — pylon_off and pylon_on come out
+# of one shape function and differ only in colour — and the check below refuses to generate
+# anything that stops satisfying it.
 # ---------------------------------------------------------------------------------------------
 
 def _read_png_rgba(path: pathlib.Path):
@@ -274,9 +275,10 @@ def _write_png_rgba(width: int, height: int, rows) -> bytes:
 def check_same_silhouette(base_art: pathlib.Path, lit_art: pathlib.Path) -> None:
     """Fail unless a variation's art has the same outline as variation 0's, and differs somewhere.
 
-    기획서 §7 asks for one sprite whose lit state cannot shift the shape: "이렇게 하면 두 상태의
-    실루엣이 완전히 동일해 전환 시 튀지 않는다." Since a variation now carries its own texture
-    rather than an emissive overlay, nothing structural enforces that any more — so it is checked.
+    design.md §7 asks for one sprite whose lit state cannot shift the shape: "This way the two
+    states' silhouettes are exactly identical, so switching does not jump." Since a variation now
+    carries its own texture rather than an emissive overlay, nothing structural enforces that any
+    more — so it is checked.
     Alpha equal everywhere is exactly "same silhouette", and it is free to verify.
 
     Both textures come out of the same shape function in Editor/Docs/art/sprites.py, which only ever
@@ -299,7 +301,7 @@ def check_same_silhouette(base_art: pathlib.Path, lit_art: pathlib.Path) -> None
                 raise ValueError(
                     f"{lit_art.name} differs from {base_art.name} in alpha at ({x},{y}) — the two "
                     "states would have different silhouettes and the object would jump when it "
-                    "switched (기획서 §7)")
+                    "switched (design.md §7)")
 
     if changed == 0:
         raise ValueError(f"{lit_art.name} is identical to {base_art.name} — switching the object on "
@@ -307,15 +309,15 @@ def check_same_silhouette(base_art: pathlib.Path, lit_art: pathlib.Path) -> None
 
 
 # ---------------------------------------------------------------------------------------------
-# The lens's range marker (기획서 §7).
+# The lens's range marker (design.md §7).
 #
-# ONE STRAIGHT SEGMENT, not a tile stamp. 기획서 §9 forbids drawing the range by making an object
-# per tile — "21×21이면 경계만 해도 80칸이다" — so the overlay stretches four of these into the four
-# sides of the square instead.
+# ONE STRAIGHT SEGMENT, not a tile stamp. design.md §9 forbids drawing the range by making an object
+# per tile — "at 21×21 the border alone is 80 tiles" — so the overlay stretches four of these into
+# the four sides of the square instead.
 #
 # Drawn here rather than by hand because it is a straight line, and because these numbers are the
-# ones worth turning after seeing it in game: 기획서 §7 warns that a marker which spoils a decorated
-# base gets the whole mod uninstalled, so "아주 옅은 윤곽" is the target.
+# ones worth turning after seeing it in game: design.md §7 warns that a marker which spoils a
+# decorated base gets the whole mod uninstalled, so "a very faint outline" is the target.
 # ---------------------------------------------------------------------------------------------
 
 # Must stay in step with NoBreakZoneRangeOverlay.MarkerSpriteName, which finds the sprite by name.
@@ -325,7 +327,8 @@ MARKER_TILE_PIXELS = 16  # one tile; SpriteObject.PixelsPerUnit is a hardcoded 1
 # LOUD ON PURPOSE, FOR NOW. The first version was 2px at alpha 90 and nothing appeared in game — and
 # with nothing on screen there is no way to tell "drawn too faint" from "not drawn". The log proves
 # the markers are placed (four of them, with the right sprite), so this makes them unmissable and
-# 기획서 §7's "아주 옅은 윤곽" is reached by turning these two numbers down once they are seen.
+# design.md §7's "a very faint outline" is reached by turning these two numbers down once they
+# are seen.
 MARKER_THICKNESS_PIXELS = 3
 MARKER_COLOUR = (150, 220, 255)  # pale cyan, to read as "information" rather than as decoration
 MARKER_ALPHA = 200  # out of 255
@@ -344,7 +347,7 @@ def range_marker_png() -> bytes:
 
 
 # ---------------------------------------------------------------------------------------------
-# The spec. 6단계 adds lens/remote/workbench by appending here, not by writing YAML.
+# The spec. Stage 6 adds lens/remote/workbench by appending here, not by writing YAML.
 # ---------------------------------------------------------------------------------------------
 
 class ObjectSpec:
@@ -369,27 +372,29 @@ class ObjectSpec:
                  variation_is_dynamic=False, variation_to_toggle_to=0,
                  localized=None, small_art=None):
         self.key = key  # asset base name, for everything the game finds by guid or by address
-        # ObjectID string — 기획서 §4, never change (CLAUDE.md §5). Also the localization term: the
-        # game looks item text up by this, so the TextDataBlock and termKey are named from it too.
+        # ObjectID string — design.md §4, never change (CLAUDE.md §5). Also the localization term:
+        # the game looks item text up by this, so the TextDataBlock and termKey are named from it too.
         self.object_name = object_name
         self.title = title  # English, and the fallback for every slot without a translation
         self.description = description
-        # {language code: (title, description)}. 기획서 §4 ships English and Korean, and wants the
+        # {language code: (title, description)}. design.md §4 ships English and Korean, and wants the
         # structure to take all thirteen from the start.
         #
-        # MATCH THE GAME'S VOICE. Korean copy here is 존댓말 (-습니다 / -입니다), because that is what
-        # the game itself uses and ours stood out beside it (2026-09-13). Counting the sentence
-        # endings of every Korean string in the game's own bundle settles it rather than taste:
-        # -입니다 822, -습니다 787, other -니다 543, plain -한다/-다 26. Vocabulary is borrowed from
-        # the same source -- 작업대, 파괴, 범위 -- and button names are avoided, since the game
-        # never writes "우클릭" anywhere (it ships with controller support).
+        # MATCH THE GAME'S VOICE. Korean copy here is in the polite register (jondaetmal: -seumnida /
+        # -imnida), because that is what the game itself uses and ours stood out beside it
+        # (2026-09-13). Counting the sentence endings of every Korean string in the game's own bundle
+        # settles it rather than taste: -imnida 822, -seumnida 787, other -nida 543, plain -handa/-da
+        # 26. Vocabulary is borrowed from the same source -- jageopdae (workbench), pagoe (destroy),
+        # beomwi (range) -- and button names are avoided, since the game never writes "ukeullik"
+        # (right-click) anywhere (it ships with controller support).
         #
-        # TRANSLATE, DO NOT WRITE FICTION. A draft of the pylon line called it a 고대의 장치 and the
-        # user cut it (2026-09-13): the English says "Protects nearby objects", with no claim about
-        # what the thing is or where it came from. Matching the game's REGISTER is the job; adding
-        # lore the English never made is not. Each Korean line below says what its English line says. Text written here only reaches the asset
-        # once LANGUAGE_SLOTS knows which slot that language is — writing it now means the Windows
-        # session that discovers the mapping does not also have to translate.
+        # TRANSLATE, DO NOT WRITE FICTION. A draft of the pylon line called it an "ancient device"
+        # and the user cut it (2026-09-13): the English says "Protects nearby objects", with no claim
+        # about what the thing is or where it came from. Matching the game's REGISTER is the job;
+        # adding lore the English never made is not. Each Korean line below says what its English
+        # line says. Text written here only reaches the asset once LANGUAGE_SLOTS knows which slot
+        # that language is — writing it now means the Windows session that discovers the mapping
+        # does not also have to translate.
         self.localized = dict(localized or {})
         self.art = art  # source PNG under Editor/Docs/art
         # The 10x10 picture the game shows wherever it wants a SMALL icon: an item lying on the
@@ -406,7 +411,7 @@ class ObjectSpec:
         self.stackable = stackable
         self.rarity = rarity
         self.health = health
-        self.recipe = list(recipe)  # [(objectName, amount)] — where it is craftable is 6단계
+        self.recipe = list(recipe)  # [(objectName, amount)] — where it is craftable is stage 6
         self.crafting_time = crafting_time
         # Where the sprite quad sits relative to the object. The quad is centred on its pivot
         # (0.5, 0.5) and is texture_height/16 units tall, so for the 16x18 art it reaches 0.5625
@@ -416,8 +421,8 @@ class ObjectSpec:
         # The SDK workbench's 0.0625 was copied verbatim and put the bottom half a unit UNDER the
         # floor: in game the pylon and the workbench were both sliced off across the middle, showing
         # roughly their top ten rows of eighteen, which is exactly 0.5 units of sinking. That example
-        # has never been built by anyone (research.md 11장 records the same lesson about its guids),
-        # so its numbers are not evidence.
+        # has never been built by anyone (research.md chapter 11 records the same lesson about its
+        # guids), so its numbers are not evidence.
         self.sprite_offset = sprite_offset
 
         # A crafting station. Non-empty means the logic prefab gets CraftingAuthoring and the
@@ -437,7 +442,7 @@ class ObjectSpec:
         # Method on graphics_script's class that InteractableObject calls on E. None means the
         # object cannot be interacted with at all.
         self.interact_method = interact_method
-        # 기획서 §5's on/off switch, handled entirely by the game once these are set.
+        # design.md §5's on/off switch, handled entirely by the game once these are set.
         self.variation_is_dynamic = variation_is_dynamic
         self.variation_to_toggle_to = variation_to_toggle_to
 
@@ -531,46 +536,46 @@ class ObjectSpec:
 SPECS = [
     ObjectSpec(
         key="NoBreakZonePylon",
-        object_name="NoBreakZone.Pylon",  # 기획서 §4. Written into saves — changing it breaks them.
+        object_name="NoBreakZone.Pylon",  # design.md §4. Written into saves — changing it breaks them.
         title="No Break Pylon",
         description="Protects nearby objects. While it is on, nothing inside can be destroyed.",
         localized={"ko": ("파일런",
                           "주변의 사물을 보호합니다. 켜져 있는 동안에는 범위 안의 어떤 것도 파괴되지 않습니다.")},
         art="Editor/Docs/art/pylon_off.png",
         small_art="Editor/Docs/art/pylon_small.png",
-        # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
+        # design.md §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
         # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
         tile_size=(1, 1),
         pixels_to_units=16,
         stackable=True,
         rarity=3,
         health=2,
-        # 기획서 §4: iron + ancient gemstone + mechanical part. Nothing lists the pylon as craftable
-        # until the workbench exists (6단계), so this recipe is inert for now.
+        # design.md §4: iron + ancient gemstone + mechanical part. Nothing lists the pylon as
+        # craftable until the workbench exists (stage 6), so this recipe is inert for now.
         recipe=[("IronBar", 8), ("AncientGemstone", 1), ("MechanicalPart", 2)],
         crafting_time=3.0,
-        # 기획서 §5: E toggles it, a freshly placed one starts off (variation stays 0 above), and
+        # design.md §5: E toggles it, a freshly placed one starts off (variation stays 0 above), and
         # the state survives save/load because ObjectDataCD is part of the world save. The game does
         # all of it — see Scripts/Graphics/NoBreakZonePylonGraphics.cs.
         variation_is_dynamic=True,
         variation_to_toggle_to=1,
         # Variation 1 is the lit pylon: the gem burns and the light spreads into the body, which is
         # what makes the switch readable across a base. Same silhouette as variation 0 — same shape
-        # function, only recoloured — and check_same_silhouette proves it every run (기획서 §7).
+        # function, only recoloured — and check_same_silhouette proves it every run (design.md §7).
         variants=[("On", "Editor/Docs/art/pylon_on.png")],
         graphics_script="Scripts/Graphics/NoBreakZonePylonGraphics.cs",
         interact_method="Toggle",
     ),
     ObjectSpec(
         key="NoBreakZoneWorkbench",
-        object_name="NoBreakZone.Workbench",  # 기획서 §4. Written into saves — do not change.
+        object_name="NoBreakZone.Workbench",  # design.md §4. Written into saves — do not change.
         title="Pylon Workbench",
         description="Where the pylon and its tools are made.",
         localized={"ko": ("파일런 작업대",
                           "파일런과 그에 딸린 도구를 만들 수 있는 작업대입니다.")},
         art="Editor/Docs/art/workbench.png",
         small_art="Editor/Docs/art/workbench_small.png",
-        # ONE TILE, not 기획서 §4's original 2x1 — changed with the user's approval after seeing it
+        # ONE TILE, not design.md §4's original 2x1 — changed with the user's approval after seeing it
         # placed, and design.md §4 carries the decision record. The 64x32 draft drew four tiles wide
         # and two tall over a two-tile footprint; a bench that reaches past its own footprint is
         # worse in a cramped base than a smaller one, and 1x1 is what the SDK's own workbench is.
@@ -579,12 +584,12 @@ SPECS = [
         stackable=True,
         rarity=3,
         health=2,
-        # 기획서 §4: iron + wood + one mechanical part. Made at a vanilla iron-tier bench, which
+        # design.md §4: iron + wood + one mechanical part. Made at a vanilla iron-tier bench, which
         # NoBreakZoneWorkbenchRecipeInjectionConverter arranges — nothing in this file can, because
         # the bench belongs to the game rather than to us.
         recipe=[("IronBar", 12), ("Wood", 20), ("MechanicalPart", 1)],
         crafting_time=3.0,
-        # 기획서 §4 lists exactly these three, and this completes them.
+        # design.md §4 lists exactly these three, and this completes them.
         crafts=["NoBreakZone.Pylon", "NoBreakZone.Lens", "NoBreakZone.Remote"],
         graphics_script="Scripts/Graphics/NoBreakZoneWorkbenchGraphics.cs",
         interact_method="Use",  # CraftingBuilding.Use — opens the crafting window
@@ -592,30 +597,30 @@ SPECS = [
     ),
     ObjectSpec(
         key="NoBreakZoneLens",
-        object_name="NoBreakZone.Lens",  # 기획서 §4. Written into saves — do not change.
+        object_name="NoBreakZone.Lens",  # design.md §4. Written into saves — do not change.
         title="Pylon Lens",
         description="Hold it to see the edge of every active pylon's protection.",
         localized={"ko": ("파일런 렌즈",
                           "파일런의 파편을 깎아 만든 렌즈입니다. 들고 있으면 보호 범위의 경계가 드러납니다.")},
         art="Editor/Docs/art/lens.png",
         small_art="Editor/Docs/art/lens_small.png",
-        # 기획서 §4 calls it 도구, "손에 드는 물건, 착용 장비가 아님", and it does nothing when
-        # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
-        # type for exactly that: carried, no mechanical use of its own.
+        # design.md §4 calls it a tool, "something held in the hand, not worn equipment", and it
+        # does nothing when used — its whole effect is the overlay that runs while it is held.
+        # KeyItem is the game's type for exactly that: carried, no mechanical use of its own.
         object_type=OBJECT_TYPE_KEY_ITEM,
         # 16, matching the 16x16 art. This one really is only the inventory icon — a KeyItem never
         # stands in the world — but the whole set is drawn to one scale so the icons match.
         pixels_to_units=16,
-        # 기획서 §4: "렌즈와 리모콘은 스택되지 않는다. 여러 개를 가질 이유가 없는 물건이고,
-        # 겹쳐지면 인벤토리에서 개수만 헷갈린다."
+        # design.md §4: "The lens and the remote do not stack. There is no reason to own more than
+        # one, and stacked they only make the count in the inventory confusing."
         stackable=False,
         rarity=3,
-        recipe=[("IronBar", 6), ("AncientGemstone", 1)],  # 기획서 §4: 철 + 고대 보석 1
+        recipe=[("IronBar", 6), ("AncientGemstone", 1)],  # design.md §4: iron + 1 ancient gemstone
         crafting_time=3.0,
     ),
     ObjectSpec(
         key="NoBreakZoneRemote",
-        object_name="NoBreakZone.Remote",  # 기획서 §4. Written into saves — do not change.
+        object_name="NoBreakZone.Remote",  # design.md §4. Written into saves — do not change.
         title="Pylon Remote",
         description="Right-click a pylon from a distance to switch it on or off.",
         localized={"ko": ("파일런 리모콘",
@@ -626,9 +631,9 @@ SPECS = [
         # input rather than through any slot behaviour the game would attach to a usable type.
         object_type=OBJECT_TYPE_KEY_ITEM,
         pixels_to_units=16,  # same as the lens
-        stackable=False,  # 기획서 §4, same reasoning as the lens
+        stackable=False,  # design.md §4, same reasoning as the lens
         rarity=3,
-        recipe=[("IronBar", 6), ("MechanicalPart", 2)],  # 기획서 §4: 철 + 기계부품
+        recipe=[("IronBar", 6), ("MechanicalPart", 2)],  # design.md §4: iron + mechanical part
         crafting_time=3.0,
     ),
 ]
@@ -781,7 +786,7 @@ def texture_meta(rel_path: str, pixels_to_units: int) -> str:
         "    customData: \n"
         "    physicsShape: []\n"
         "    bones: []\n"
-        # Fixed in all 14 reference textures — not a per-asset id (research.md 11장).
+        # Fixed in all 14 reference textures — not a per-asset id (research.md chapter 11).
         "    spriteID: 5e97eb03825dee720800000000000000\n"
         "    internalID: 0\n"
         "    vertices: []\n"
@@ -834,7 +839,7 @@ def sprite_asset(spec: ObjectSpec, texture_path: str, asset_path: str) -> str:
     m_staticVariants is not reachable from an object's variation at all: the game builds
     m_staticVariantLookup from a hash of each variant's *name*, and SetVariant is driven by sprite
     orientation and animations. EntityMonoBehaviour.UpdateGraphicsFromObjectInfo — the one place a
-    variation reaches the graphics — never touches it (research.md 20장).
+    variation reaches the graphics — never touches it (research.md chapter 20).
 
     What a variation does reach is objectVariants: a list of GameObjects to switch on. So each look
     is a SpriteAsset of its own, worn by a SpriteObject of its own, and the variation decides which
@@ -1169,7 +1174,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         ids["object"], root, "ObjectAuthoring",
         f"  objectName: {spec.object_name}\n"
         "  initialAmount: 1\n"
-        # 기획서 §5: a freshly placed pylon starts off, which is variation 0. The two fields below
+        # design.md §5: a freshly placed pylon starts off, which is variation 0. The two fields below
         # declare that this object's variation changes at runtime and what it toggles between.
         f"  variation: {variation}\n"
         f"  variationIsDynamic: {1 if spec.variation_is_dynamic else 0}\n"
@@ -1214,12 +1219,12 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
     body += _authoring(
         # hasHealthRegeneration BELOW IS OFF, AND WAS ON.
         #
-        # THE SDK'S OWN WORKBENCH IS THE REFERENCE, AND THESE ARE ITS NUMBERS. 기획서 §4 says a
-        # switched-off pylon is collected "일반 설치물처럼", and the one vanilla-shaped placeable we
-        # can read is Examples/WorkbenchExample's MyNewWorkbenchLogic.prefab: 2 health, regeneration
-        # on at 100% per five seconds, one point of damage per hit. Together that is "two hits with
-        # anything, within a few seconds of each other" — a fist, a tin pickaxe or a Solarite one
-        # all the same, and one idle swing never collects it by accident.
+        # THE SDK'S OWN WORKBENCH IS THE REFERENCE, AND THESE ARE ITS NUMBERS. design.md §4 says a
+        # switched-off pylon is collected "like a normal placeable", and the one vanilla-shaped
+        # placeable we can read is Examples/WorkbenchExample's MyNewWorkbenchLogic.prefab: 2 health,
+        # regeneration on at 100% per five seconds, one point of damage per hit. Together that is
+        # "two hits with anything, within a few seconds of each other" — a fist, a tin pickaxe or a
+        # Solarite one all the same, and one idle swing never collects it by accident.
         #
         # This took two wrong turns to reach. The first draft had 10 health with the same 1-per-hit
         # cap: ten swings minimum, which a human called endless. The second lifted the cap on the
@@ -1301,8 +1306,8 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         #
         # PROTECTION DOES NOT COME FROM HERE. It comes from IndestructibleCD and
         # DontDestroyOnZeroHealthCD, so a switched-ON pylon is still untouchable. This only
-        # decides how long collecting a switched-off one takes, and 기획서 §6 wants that to be
-        # the easy half of "회수하려면 먼저 꺼야 한다".
+        # decides how long collecting a switched-off one takes, and design.md §6 wants that to be
+        # the easy half of "to collect it, switch it off first".
         ids["damageReduction"], root, "DamageReductionAuthoring",
         "  calculateReductionFromLevel: 0\n"
         "  reductionMultiplier: 1\n"
@@ -1320,7 +1325,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         # we drop on purpose, nothing of ours turns) were the only two it had and we did not.
         #
         # useSecondInteraction stays 0: that is right-click, and the remote reaches a pylon through
-        # ClientInput rather than through the pylon's own interactable (research.md 15장).
+        # ClientInput rather than through the pylon's own interactable (research.md chapter 15).
         body += _authoring(ids["interactable"], root, "Interaction.LocalInteractableAuthoring",
                            "  useSecondInteraction: 0\n  interactSubIndex: 0\n")
     body += _authoring(ids["localization"], root, "LocalizationAuthoring",
@@ -1435,7 +1440,7 @@ def graphics_prefab(spec: ObjectSpec) -> str:
     )
     crafting_fields = (
         "  hideRecipes: 0\n"
-        "  electricitySprite: {fileID: 0}\n"  # 기획서 §5: no power needed
+        "  electricitySprite: {fileID: 0}\n"  # design.md §5: no power needed
         "  defaultUISettings:\n"
         + ("    titles: []\n" if not titles else "    titles:\n" + titles)
         + "    craftingUIBackgroundVariation: 0\n"
@@ -1443,7 +1448,8 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         "  craftingCategoryWindowInfos: []\n"
     ) if is_station else ""
 
-    # 기획서 §5's on/off look, in the shape EntityMonoBehaviour.UpdateGraphicsFromObjectInfo reads:
+    # design.md §5's on/off look, in the shape EntityMonoBehaviour.UpdateGraphicsFromObjectInfo
+    # reads:
     # the entry whose variation matches has its objects switched on, every other entry's are switched
     # off. worksForAnyObjectID because a mod's numeric id does not exist when this is written, and
     # the prefab belongs to one object anyway. An object with a single look emits nothing here.
@@ -1509,14 +1515,15 @@ def graphics_prefab(spec: ObjectSpec) -> str:
     for index, look in enumerate(looks):
         low, high = data_block_address(look["asset"])
         # Only variation 0 starts on. The others are switched in by UpdateGraphicsFromObjectInfo when
-        # the object's variation says so — and a pylon is placed switched off (기획서 §5), so a
+        # the object's variation says so — and a pylon is placed switched off (design.md §5), so a
         # freshly placed one must not flash its lit look for the frame before that runs.
         body += _game_object(look["go"], f"SpriteObject{index}", [look["tf"], look["obj"]],
                              active=(index == 0))
         body += _transform(look["tf"], look["go"], scaler_tf, position=spec.sprite_offset)
         body += _behaviour(
             look["obj"], look["go"], *game_script("Pug.Sprite.SpriteObject"),
-        # This address, not a guid, is how the SpriteObject finds its SpriteAsset (research.md 11장).
+        # This address, not a guid, is how the SpriteObject finds its SpriteAsset
+        # (research.md chapter 11).
         "  m_assetRef:\n" + _address("    ", low, high)
         + "  skinRef:\n" + _null_address("    ")
         + "  color: {r: 1, g: 1, b: 1, a: 1}\n"
