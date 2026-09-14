@@ -2,8 +2,8 @@
   Runs Scripts/Logic through its paces WITHOUT Unity.
 
   Why this exists: `Unity.exe -batchmode -runTests` is refused on this machine
-  ("No valid Unity Editor license found", exit 198), so the NUnit suite in Editor/Tests can only be
-  run by a human clicking Run in the editor's Test Runner. Everything under Scripts/Logic is
+  ("No valid Unity Editor license found", exit 198), so Unity's own test runner cannot gate
+  anything. Everything under Scripts/Logic is
   deliberately free of any using directive, so it compiles here and the same assertions can run in
   seconds with no editor, no licence and no human.
 
@@ -28,8 +28,7 @@
   <ItemGroup>
     <Compile Include="Program.cs" />
     <!-- Relative: this repository is checked out as Assets/NoBreakZone inside the SDK project, but
-         nothing guarantees that folder name (same reason the NUnit suite resolves the CSV through
-         AssetDatabase instead of a path). -->
+         nothing guarantees that folder name. -->
     <Compile Include="..\..\Scripts\Logic\*.cs" />
   </ItemGroup>
 

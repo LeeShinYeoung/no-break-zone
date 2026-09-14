@@ -8,11 +8,11 @@ OUT = pathlib.Path(__file__).resolve().parent
 
 T = (0, 0, 0, 0)
 # TWO OUTLINE TONES, NOT ONE. A single near-black line around the whole silhouette made the pylon and
-# the bench look pasted onto the floor next to the game's own objects ("혼자 합성같이 튀는 느낌",
-# 2026-09-11). The game's sprites outline in a dark shade of their own material and let the light
-# come from above: top and side edges are the softer tone, only the underside gets the darkest one
-# (the SDK bench: mid red along its top edge, the deepest red only on its feet). OUTLINE is now that
-# underside tone; OUTLINE_LIT goes everywhere else.
+# the bench look pasted onto the floor next to the game's own objects ("it alone sticks out, like it
+# was composited in", 2026-09-11). The game's sprites outline in a dark shade of their own material
+# and let the light come from above: top and side edges are the softer tone, only the underside gets
+# the darkest one (the SDK bench: mid red along its top edge, the deepest red only on its feet).
+# OUTLINE is now that underside tone; OUTLINE_LIT goes everywhere else.
 OUTLINE = (36, 31, 46, 255)
 OUTLINE_LIT = (52, 48, 68, 255)
 SHADOW = (24, 21, 32, 120)
@@ -164,8 +164,9 @@ def build_image(c, regions, shifts, glow_on, shadow=True):
         # in game the pylon looked identical switched on and off. The light now travels out from the
         # gem in rings that fade, so the body itself warms up.
         #
-        # ONLY RGB CHANGES, NEVER ALPHA — that is what keeps 기획서 §7's promise that the two states
-        # have the same silhouette. It holds by construction here rather than by anyone remembering.
+        # ONLY RGB CHANGES, NEVER ALPHA — that is what keeps design.md §7's promise that the two
+        # states have the same silhouette. It holds by construction here rather than by anyone
+        # remembering.
         frontier = {p for g in groups.values() for p in g}
         reached = set(frontier)
         for red, green, blue in ((96, 62, -26), (64, 41, -18), (38, 24, -11), (18, 11, -5)):
@@ -232,15 +233,15 @@ def lens(c):
 # build_image shades every region with the same five-step STONE ramp and puts a dark outline on
 # every cell that touches empty space. That is right for the pylon -- one lump of carved rock -- and
 # it made the bench a flat grey-beige box that a human, seeing it beside the game's own benches,
-# called "혼자 텍스처가 다르고 크기도 1x1에 안 맞아" (2026-09-11). The size was already right; the
-# grammar was wrong. The game draws a bench in three-quarter view: a light TOP plane, a darker FRONT,
-# a base with legs, props standing above the top edge, and the outline only on the silhouette
-# (Examples/WorkbenchExample/Workbench/MyNewWorkbench1_down.png is the reference, and every row of
-# it follows that pattern).
+# called "it alone has a different texture, and the size doesn't fit 1x1 either" (2026-09-11). The
+# size was already right; the grammar was wrong. The game draws a bench in three-quarter view: a
+# light TOP plane, a darker FRONT, a base with legs, props standing above the top edge, and the
+# outline only on the silhouette (Examples/WorkbenchExample/Workbench/MyNewWorkbench1_down.png is
+# the reference, and every row of it follows that pattern).
 #
 # So the bench is a pixel map: one character per pixel, one colour per character. It is the same
-# "change a constant or a coordinate and regenerate" promise 기획서 13장 makes, just at the grain a
-# piece of furniture needs. Wood and iron match the benches it will stand next to; the gem in the
+# "change a constant or a coordinate and regenerate" promise design.md §13 makes, just at the grain
+# a piece of furniture needs. Wood and iron match the benches it will stand next to; the gem in the
 # front plate is the lit pylon's own gold, straight from GLOW_ON, so the two objects read as one set
 # and a change to the pylon's glow carries over here without anyone remembering to copy it.
 WOOD = {
@@ -456,8 +457,7 @@ sheet.save(OUT / "preview.png")
 # ------------------------------------------------------------------------------------ store image
 #
 # Both stores take .png or .jpg and check nothing else client-side; mod.io re-renders the logo at
-# 1280x720, 640x360 and 320x180, so 16:9 at 1280x720 is the size that survives every crop
-# (Editor/Docs/store.md records where those numbers come from).
+# 1280x720, 640x360 and 320x180, so 16:9 at 1280x720 is the size that survives every crop.
 #
 # NO TEXT. Drawing the mod's name would need a font file, and either we depend on whatever TTF a
 # machine happens to have -- which makes this script non-reproducible, the one property the whole
@@ -477,8 +477,8 @@ for gy in range(0, SH, TILE):
     for gx in range(SW):
         store.putpixel((gx, gy), grid)
 
-# The protected square. 기획서 §7's outline is the lens's whole reason to exist, so the store image
-# shows what the lens shows rather than inventing a look for it.
+# The protected square. design.md §7's outline is the lens's whole reason to exist, so the store
+# image shows what the lens shows rather than inventing a look for it.
 MARKER = (150, 214, 240, 255)
 # Six tiles either side of the centre, which fills the height without touching it and leaves the
 # tool row below clear of the border. At the 320x180 crop both stores also render, the square and

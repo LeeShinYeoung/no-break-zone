@@ -4,9 +4,10 @@ using Unity.Collections;
 using Unity.Mathematics;
 using UnityEngine;
 
-// 기획서 §7's range display, and the only thing that ever draws one.
+// design.md §7's range display, and the only thing that ever draws one.
 //
-// "커서를 올려도, 파일런을 손에 들어도, 파일런을 켜고 꺼도 범위는 보이지 않는다. 오직 렌즈뿐이다."
+// "Hovering the cursor over it, holding a pylon, switching a pylon on and off — none of these shows
+// the range. Only the lens does."
 // That exclusivity is deliberate — §7 argues that if the range showed up anywhere else the lens
 // would be a decoration nobody needs to craft. So there is one entry point, gated on one item.
 //
@@ -34,11 +35,12 @@ public static class NoBreakZoneRangeOverlay
     // names the constant beside it; the two have to agree or no marker is ever found.
     public const string MarkerSpriteName = "NoBreakZoneRangeMarker";
 
-    // How far from the player we bother drawing. 기획서 §7 says "화면 안 모든 파일런", but screen
-    // size is not a fixed number of tiles: design.md §12 already rejected defining the remote's
-    // reach that way because "모니터가 큰 사람이 유리해지고, 멀티플레이에서는 플레이어마다 사거리가
-    // 달라진다". Same argument, same answer — a fixed tile radius, generous enough to cover any
-    // sane window, which also caps how many markers can exist.
+    // How far from the player we bother drawing. design.md §7 says "every pylon on screen", but
+    // screen size is not a fixed number of tiles: design.md §12 already rejected defining the
+    // remote's reach that way because "players with bigger monitors gain an advantage, and in
+    // multiplayer the reach differs from player to player". Same argument, same answer — a fixed
+    // tile radius, generous enough to cover any sane window, which also caps how many markers can
+    // exist.
     private const int DrawRadiusTiles = 48;
 
     private static Sprite _markerSprite;
@@ -179,9 +181,9 @@ public static class NoBreakZoneRangeOverlay
                 continue;
             }
 
-            // 기획서 §9: "범위 표시를 타일마다 오브젝트를 생성해 구현하지 않는다. 21×21이면 경계만
-            // 해도 80칸이다." Four stretched segments draw the same outline the player sees, at a
-            // twentieth of the objects.
+            // design.md §9: "Do not implement the range display by creating an object per tile. At
+            // 21×21 the border alone is 80 tiles." Four stretched segments draw the same outline
+            // the player sees, at a twentieth of the objects.
             //
             // Top and bottom run the full width so they cover the corners; the sides span the same
             // length and overlap them, which is what keeps the corners closed.
@@ -233,8 +235,8 @@ public static class NoBreakZoneRangeOverlay
 
     private static bool ShouldDraw()
     {
-        // design.md §10. 기획서 §7 already limits the display to the lens; this switches off even
-        // that, for players who would rather never see markers on their floor.
+        // design.md §10. design.md §7 already limits the display to the lens; this switches off
+        // even that, for players who would rather never see markers on their floor.
         if (!NoBreakZoneConfig.ShowRangeWithLens)
         {
             return false;
@@ -285,9 +287,9 @@ public static class NoBreakZoneRangeOverlay
         return held == _lensObjectID;
     }
 
-    // 기획서 §7 shows the range of pylons that are ON. The registry already filters to those, so a
-    // switched-off pylon showing no outline falls out of 4단계's work rather than needing its own
-    // check here.
+    // design.md §7 shows the range of pylons that are ON. The registry already filters to those, so
+    // a switched-off pylon showing no outline falls out of stage 4's work rather than needing its
+    // own check here.
     private static NativeArray<int2> GetActivePylons()
     {
         var world = API.Client?.World;

@@ -1,8 +1,9 @@
 // Which tiles an object actually stands on.
 //
-// 기획서 §6 judges a multi-tile object by all of them, so knowing the footprint is a prerequisite
-// for judging anything larger than one tile. Up to now the protection system used the object's
-// origin tile alone, which is the same answer for a 1×1 and the wrong one for everything else.
+// design.md §6 judges a multi-tile object by all of them, so knowing the footprint is a
+// prerequisite for judging anything larger than one tile. Up to now the protection system used the
+// object's origin tile alone, which is the same answer for a 1×1 and the wrong one for everything
+// else.
 //
 // The arithmetic is the game's own, from ck-db Pug.Other/DetectRoomSystem.cs:167-192, where it
 // counts the tiles an object blocks:

@@ -8,7 +8,7 @@ thing you switch on, in a place you chose.
 WHAT YOU GET
 
   No Break Pylon     Place it, press E. The on/off state survives saving and loading.
-  Pylon Workbench    Where the three below are made. Crafted at an iron workbench.
+  Pylon Workbench    Where the three below are made. Crafted at an Automation Table.
   Pylon Lens         Hold it to see the edge of every switched-on pylon's square.
                      Nothing else ever draws the outline.
   Pylon Remote       Switch a pylon from across the room, for when you have walled

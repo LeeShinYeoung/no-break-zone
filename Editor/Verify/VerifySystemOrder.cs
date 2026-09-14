@@ -110,7 +110,7 @@ namespace NoBreakZone.EditorTools
         ///
         /// Pinned as tightly as the registry and protection systems are, and for the same reason:
         /// this project has already lost play sessions to a frame-order assumption that read
-        /// correctly and was wrong (research.md 21장).
+        /// correctly and was wrong.
         private static void HealthFloorOrder(VerifyReport report)
         {
             Type ours = typeof(NoBreakZoneHealthFloorSystem);

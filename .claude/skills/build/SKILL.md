@@ -7,8 +7,8 @@ description: NoBreakZone 모드를 빌드해 게임 Mods 폴더에 설치한다.
 
 ## 먼저 확인: 지금 이 머신에서 빌드가 되는가
 
-**빌드는 윈도우에서만 된다.** 유니티 프로젝트는 `C:\Unity\CoreKeeper`에 있고,
-맥 체크아웃은 문서·계획·코드 편집용 미러다.
+**빌드는 윈도우에서만 된다.** 유니티 프로젝트는 윈도우 머신에 있고(경로는 `Editor/build.ps1`의
+`-ProjectPath` 기본값), 맥 체크아웃은 문서·계획·코드 편집용 미러다.
 
 `uname`이 `Darwin`이면 빌드를 시도하지 말고 **여기서 멈추고** 사람에게 이렇게 알린다.
 
@@ -26,8 +26,8 @@ description: NoBreakZone 모드를 빌드해 게임 Mods 폴더에 설치한다.
    ```powershell
    powershell -File Editor/build.ps1
    ```
-   기본값 — Unity `6000.0.59f2`, 프로젝트 `C:\Unity\CoreKeeper`,
-   설치처 `D:\SteamLibrary\...\CoreKeeper_Data\StreamingAssets\Mods`.
+   기본값은 `build.ps1` 맨 위 `param` 블록에 있다 — Unity `6000.0.59f2`, 유니티 프로젝트 경로,
+   게임의 `CoreKeeper_Data\StreamingAssets\Mods` 경로.
    다르면 `-Unity` / `-ProjectPath` / `-ExportPath` 로 넘긴다.
 3. 스크립트가 로그 마지막 40줄을 찍는다. 전체 로그는 `%TEMP%\nbz_build.log`.
 
@@ -66,4 +66,4 @@ description: NoBreakZone 모드를 빌드해 게임 Mods 폴더에 설치한다.
   실린다. 빌드 후 새 `couldn't load` 경고가 보이면 루트에 파일을 늘린 게 원인이다.
 - 피처 브랜치 안이라면 미검증 상태로 커밋해도 된다. 메시지에 `미검증`을 명시한다.
   게이트는 커밋이 아니라 머지다 — `main`에 넣는 건 `/land` 뿐이고 그 스킬이 검증을 묻는다.
-- 검증이 끝나면 `Editor/Docs/status.md` 를 갱신하고 `/land` 로 넘어간다.
+- 검증이 끝나면 `/land` 로 넘어간다.

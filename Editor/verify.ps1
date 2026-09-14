@@ -4,7 +4,7 @@
 #
 # Exit codes: 0 = all checks passed, 1 = a check failed, 2 = the editor is open (close it first).
 #
-# Second gate of the verification ladder (Editor/Docs/workflow.md):
+# Second gate of the verification ladder (CLAUDE.md section 4):
 #   logictest.ps1  ->  build.ps1  ->  verify.ps1  ->  a human loads a test world once
 #
 # Same shape as build.ps1 on purpose, including the lockfile check and Start-Process: Unity.exe is

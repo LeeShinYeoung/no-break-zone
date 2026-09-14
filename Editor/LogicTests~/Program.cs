@@ -10,18 +10,18 @@ namespace NoBreakZone.LogicTests
     /// Exit code 0 = every check passed, 1 = at least one failed, 2 = could not run (missing input).
     /// Failures print as `[FAIL] &lt;what&gt;` so a build log can be grepped.
     ///
-    /// This mirrors the NUnit suite in Editor/Tests rather than replacing it: the NUnit tests still
-    /// work for a human in the editor, but they cannot be run from a script (see the csproj header),
-    /// and a check nobody can run automatically is a check that rots. The row and protected counts
-    /// are duplicated deliberately — if they ever disagree, one of the two is looking at a file the
-    /// other is not.
+    /// This is the only place these checks live. An NUnit copy used to sit in Editor/Tests, but Unity's
+    /// test runner cannot be driven from a script on the build machine (see the csproj header), and a
+    /// check nobody can run automatically is a check that rots. Its last few assertions were folded in
+    /// here before it was removed.
     /// </summary>
     internal static class Program
     {
         private const int PlaceablePrefab = NoBreakZoneProtectionRule.PlaceablePrefabObjectType;
         private const int SomeOtherObjectType = 500; // ObjectType.Sword — anything not placeable
 
-        // Editor/Tests/NoBreakZoneProtectionRuleTests.cs asserts the same two numbers.
+        // Pinned to Editor/GameData/object_flags.csv as last regenerated. A new dump has to be agreed
+        // to here on purpose.
         private const int ExpectedRowCount = 2278;
         private const int ExpectedProtectedCount = 692;
 
@@ -54,7 +54,8 @@ namespace NoBreakZone.LogicTests
 
         private static void RangeChecks()
         {
-            // 기획서 §6: the pylon owns the centre tile, so a diameter of 21 reaches ten tiles out.
+            // design.md §6: the pylon owns the centre tile, so a diameter of 21 reaches ten tiles
+            // out.
             IsTrue(NoBreakZoneRange.RadiusFromDiameter(21) == 10, "diameter 21 -> radius 10");
             IsTrue(NoBreakZoneRange.RadiusFromDiameter(22) == 10, "an even diameter rounds down");
             IsTrue(NoBreakZoneRange.RadiusFromDiameter(0) == 0, "a degenerate diameter is not negative");
@@ -66,7 +67,7 @@ namespace NoBreakZone.LogicTests
             IsTrue(!Covered(px, pz, 1, 11, 0, 10), "one tile past the edge is outside");
             IsTrue(Covered(px, pz, 1, -10, -10, 10), "the square is symmetric");
 
-            // Two pylons may each cover part of one object; 기획서 §6 wants the union to count.
+            // Two pylons may each cover part of one object; design.md §6 wants the union to count.
             // 21 apart with radius 10 makes the squares [-10,10] and [11,31] — touching, no gap.
             int[] touchingX = { 0, 21 };
             int[] touchingZ = { 0, 0 };
@@ -80,6 +81,27 @@ namespace NoBreakZone.LogicTests
                 "a footprint spanning the gap between two squares is not covered");
             IsTrue(NoBreakZoneRange.AllTilesCovered(gappedX, gappedZ, 2, 12, 0, 12, 0, 10),
                 "the far side of the gap is still covered by the second pylon");
+
+            // Edges of the input. Each of these answers "no" where a sloppier version would answer
+            // "yes", and a wrong "yes" protects something nobody measured.
+            IsTrue(NoBreakZoneRange.RadiusFromDiameter(1) == 0, "a one-tile diameter covers only the pylon");
+            IsTrue(NoBreakZoneRange.RadiusFromDiameter(-5) == 0, "a negative diameter clamps to zero");
+            IsTrue(!NoBreakZoneRange.Covers(0, 0, 0, 0, -1),
+                "a negative radius covers nothing, not even the pylon's own tile");
+
+            IsTrue(!NoBreakZoneRange.AllTilesCovered(px, pz, 1, 5, 0, 4, 0, 10),
+                "a rect inverted along x is rejected rather than silently accepted");
+            IsTrue(!NoBreakZoneRange.AllTilesCovered(px, pz, 1, 0, 5, 0, 4, 10),
+                "a rect inverted along z is rejected rather than silently accepted");
+
+            IsTrue(!NoBreakZoneRange.AllTilesCovered(px, pz, 0, 0, 0, 0, 0, 10), "no pylons protect nothing");
+            IsTrue(!NoBreakZoneRange.AllTilesCovered(null, null, 1, 0, 0, 0, 0, 10),
+                "a missing pylon list protects nothing");
+
+            // The overlay and the protection system both hand in a reused buffer with a live count;
+            // a stale count must not walk off the end.
+            IsTrue(NoBreakZoneRange.AllTilesCovered(px, pz, 99, 0, 0, 0, 0, 10),
+                "a count beyond the buffer is clamped rather than read past the end");
         }
 
         private static bool Covered(int[] px, int[] pz, int count, int x, int z, int radius)
@@ -89,9 +111,9 @@ namespace NoBreakZone.LogicTests
 
         // ---------------------------------------------- Scripts/Logic/NoBreakZoneRange.IsWithinReach
 
-        /// 기획서 §4's remote: right-click a pylon from up to 30 tiles away and it switches.
+        /// design.md §4's remote: right-click a pylon from up to 30 tiles away and it switches.
         ///
-        /// coverage.md counted #35 and #36 as work for the in-game suite, on the grounds that the
+        /// These checks were once counted as work for the in-game suite, on the grounds that the
         /// remote runs on the server. That was the wrong reason: the REACH DECISION is a pure
         /// function of two coordinates and a number, so it needs no game, no server and no human.
         /// Only the input path — reading a real player's cursor — needs those.
@@ -123,10 +145,10 @@ namespace NoBreakZone.LogicTests
             IsTrue(!NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, -1),
                 "a negative reach touches nothing, not even its own tile");
 
-            // 기획서 §4 #36, "벽 너머로도 통한다", and it does not look like the others because the
-            // claim is structural rather than numeric. There is no line-of-sight input to this
-            // decision — the arguments are two positions and a distance, and nothing else can be
-            // consulted. Walls cannot matter because there is nowhere for them to enter.
+            // design.md §4, "it works through walls too", and it does not look like the others
+            // because the claim is structural rather than numeric. There is no line-of-sight input
+            // to this decision — the arguments are two positions and a distance, and nothing else
+            // can be consulted. Walls cannot matter because there is nowhere for them to enter.
             //
             // What this pins down is that it stays that way. If somebody later adds an obstruction
             // test, the call below stops compiling or stops answering true, and the design decision
@@ -150,6 +172,22 @@ namespace NoBreakZone.LogicTests
 
             NoBreakZoneFootprint.Rect(5, 5, 0, 0, 0, 0, out minX, out minZ, out maxX, out maxZ);
             IsTrue(minX == 5 && maxX == 5 && minZ == 5 && maxZ == 5, "a zero size falls back to one tile");
+
+            NoBreakZoneFootprint.Rect(4, 4, -5, -5, 0, 0, out minX, out minZ, out maxX, out maxZ);
+            IsTrue(minX == 4 && maxX == 4 && minZ == 4 && maxZ == 4, "a negative size falls back to one tile");
+
+            // The 2x1 Pylon Workbench is the first thing this mod ships that an origin-only check would
+            // judge wrongly. Placed so its right tile falls outside a pylon at the origin, it must not be
+            // protected even though its origin tile is inside.
+            int[] px = { 0 };
+            int[] pz = { 0 };
+            NoBreakZoneFootprint.Rect(10, 0, 2, 1, 0, 0, out minX, out minZ, out maxX, out maxZ);
+            IsTrue(!NoBreakZoneRange.AllTilesCovered(px, pz, 1, minX, minZ, maxX, maxZ, 10),
+                "the 2x1 workbench with one tile outside the square is not protected");
+
+            NoBreakZoneFootprint.Rect(9, 0, 2, 1, 0, 0, out minX, out minZ, out maxX, out maxZ);
+            IsTrue(NoBreakZoneRange.AllTilesCovered(px, pz, 1, minX, minZ, maxX, maxZ, 10),
+                "one tile further in and the whole workbench fits");
         }
 
         // ----------------------------------------------------------- Scripts/Logic/NoBreakZoneProtectionRule
@@ -166,6 +204,20 @@ namespace NoBreakZone.LogicTests
                     isDestructibleObject: true, dropsLootFromTable: false, dropsLootWhenDamaged: true),
                 "an ore boulder is not");
 
+            // Any one of the three loot flags is enough on its own to make a placeable a resource.
+            IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
+                    PlaceablePrefab, true, false,
+                    isDestructibleObject: true, dropsLootFromTable: false, dropsLootWhenDamaged: false),
+                "a world destructible is not protected");
+            IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
+                    PlaceablePrefab, true, false,
+                    isDestructibleObject: false, dropsLootFromTable: true, dropsLootWhenDamaged: false),
+                "a placeable that drops from a loot table is not protected");
+            IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
+                    PlaceablePrefab, true, false,
+                    isDestructibleObject: false, dropsLootFromTable: false, dropsLootWhenDamaged: true),
+                "a placeable that pays out while being hit is not protected");
+
             IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
                     SomeOtherObjectType, true, false, false, false, false),
                 "a sword is not a placeable");
@@ -178,9 +230,19 @@ namespace NoBreakZone.LogicTests
                     PlaceablePrefab, true, isTile: true, false, dropsLootFromTable: true, false),
                 "a wall is part of a base");
 
+            // The tile branch refuses on any one of the four signs of a resource.
             IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
                     PlaceablePrefab, true, isTile: true, false, false, false, isOreTile: true),
                 "ore is mined for its material");
+            IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
+                    PlaceablePrefab, true, isTile: true, false, false, false, requiresDrill: true),
+                "a drill target is a resource");
+            IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
+                    PlaceablePrefab, true, isTile: true, false, false, false, isPlant: true),
+                "crops are harvested, not destroyed");
+            IsTrue(!NoBreakZoneProtectionRule.ShouldProtect(
+                    PlaceablePrefab, true, isTile: true, false, false, dropsLootWhenDamaged: true),
+                "a tile that pays out while being hit would duplicate");
         }
 
         // ------------------------------------------------------------------ Scripts/Logic/NoBreakZoneTileEdit
@@ -206,7 +268,7 @@ namespace NoBreakZone.LogicTests
                 "a Clear+Add pair is left alone so the tile is not emptied");
 
             // Removing is never refused — PlayerController.DigUpTile drops the item through a
-            // separate command buffer, so refusing the removal duplicates the floor (기획서 §6).
+            // separate command buffer, so refusing the removal duplicates the floor (design.md §6).
             IsTrue(!NoBreakZoneTileEdit.RefuseEdit(remove, floor, covered: true, clearedAtSamePosition: false),
                 "lifting a floor is allowed: refusing it would duplicate the item");
             IsTrue(!NoBreakZoneTileEdit.RefuseEdit(remove, ground, covered: true, clearedAtSamePosition: false),
@@ -284,8 +346,8 @@ namespace NoBreakZone.LogicTests
 
                 protectedIds.Add(row["id"]);
 
-                // The invariant that outranks the count: one leak here duplicates a resource forever
-                // in a live save, which 기획서 §6 forbids outright.
+                // The invariant that outranks the count: one leak here duplicates a resource
+                // forever in a live save, which design.md §6 forbids outright.
                 if (row["lootOnDmg"] == "1" || row["tileType"] == "ore"
                     || row["requiresDrill"] == "1" || row["plant"] == "1" || row["growing"] == "1")
                 {
@@ -347,8 +409,7 @@ namespace NoBreakZone.LogicTests
             return null;
         }
 
-        /// Same parsing rule as Editor/Tests/NoBreakZoneProtectionRuleTests.LoadObjectFlags: split on
-        /// commas, skip blank lines, no quoting (the dump never emits a comma inside a field).
+        /// Split on commas, skip blank lines, no quoting (the dump never emits a comma inside a field).
         private static List<Dictionary<string, string>> LoadObjectFlags(string path)
         {
             string[] lines = File.ReadAllLines(path);

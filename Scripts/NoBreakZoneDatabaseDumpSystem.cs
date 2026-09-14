@@ -21,9 +21,9 @@ public partial class NoBreakZoneDatabaseDumpSystem : PugSimulationSystemBase
     // Set true and rebuild to regenerate Editor/GameData/object_flags.csv (e.g. after a
     // game update). Left OFF so normal test builds don't spam ~2300 lines into Player.log.
     //
-    // Back OFF. It earned its keep once: the workbench's flags came out identical to IronWorkBench's,
-    // which is what ruled the object definition out and sent the search to the converters, where the
-    // real cause was (ObjectTypeCD, research.md 20장).
+    // Back OFF. It earned its keep once: the workbench's flags came out identical to
+    // IronWorkBench's, which is what ruled the object definition out and sent the search to the
+    // converters, where the real cause was (ObjectTypeCD).
     private const bool RunAudit = false;
 
     private bool _done;

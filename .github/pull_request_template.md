@@ -5,7 +5,7 @@
 ## Why
 
 <!-- The reasoning, not a restatement of the diff. If it came from decompiling or an
-     experiment, point at the research.md chapter that holds the evidence. -->
+     experiment, say what the evidence was. -->
 
 ## Verified in game
 

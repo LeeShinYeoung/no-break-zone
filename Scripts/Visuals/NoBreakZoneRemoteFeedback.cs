@@ -1,8 +1,8 @@
 using PugMod;
 using UnityEngine;
 
-// 기획서 §4 wants the remote itself to react, not just the pylon: "벽에 갇힌 파일런은 파일런 쪽
-// 이펙트가 잘 보이지 않으므로, 작동 여부를 손에 든 물건이 알려줘야 한다."
+// design.md §4 wants the remote itself to react, not just the pylon: "The pylon's own effect is
+// hard to see when it is walled in, so the item in hand has to tell whether it worked."
 //
 // A sound only. §4 also describes the remote's screen flashing, which needs the held item's
 // renderer and is not done.
@@ -10,7 +10,7 @@ using UnityEngine;
 // This deliberately does NOT know whether the toggle succeeded. It fires on pressing the button
 // with the remote in hand, so it answers "the remote went off" rather than "a pylon switched" —
 // which is the question a player standing outside their own walls is actually asking. The pylon's
-// own effect and sound, already there from 5단계, answer the other one whenever it is visible.
+// own effect and sound, already there from stage 5, answer the other one whenever it is visible.
 //
 // CLIENT ONLY, driven from NoBreakZoneMod.Update. The toggle itself is server-side in
 // NoBreakZoneRemoteSystem; this is just the click.

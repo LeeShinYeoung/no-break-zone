@@ -23,19 +23,19 @@ public static class NoBreakZoneConfig
     private static IConfigEntry<int> _remoteReachTiles;
     private static IConfigEntry<bool> _selfTest;
 
-    /// 기획서 §6. Odd by nature — the pylon owns the centre tile.
+    /// design.md §6. Odd by nature — the pylon owns the centre tile.
     public static int ProtectionDiameter =>
         Read(_protectionDiameter, NoBreakZoneRange.DefaultDiameter);
 
     /// design.md §10: off means only player-dealt damage is stopped.
     ///
     /// It maps onto the two components the protection already uses, because they guard different
-    /// paths (research.md 8·9장): IndestructibleCD is what the player's own mining and attacks
-    /// consult, while DontDestroyOnZeroHealthCD guards the single gate every damage source passes
-    /// through. Dropping the second one leaves mobs and explosions able to finish something off.
+    /// paths: IndestructibleCD is what the player's own mining and attacks consult, while
+    /// DontDestroyOnZeroHealthCD guards the single gate every damage source passes through.
+    /// Dropping the second one leaves mobs and explosions able to finish something off.
     public static bool BlockMobDamage => Read(_blockMobDamage, true);
 
-    /// 기획서 §7 ties the range display to the lens and nothing else; this turns even that off.
+    /// design.md §7 ties the range display to the lens and nothing else; this turns even that off.
     public static bool ShowRangeWithLens => Read(_showRangeWithLens, true);
 
     /// design.md §4: 30 tiles, measured as a radius from the player.

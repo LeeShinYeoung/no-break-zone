@@ -8,15 +8,15 @@ using Unity.NetCode;  // GhostSimulationSystemGroup / PredictedSimulationSystemG
 using Unity.Transforms;
 using UnityEngine;
 
-// STAGE 2/3 — protection scoped to a square around a pylon (기획서 13장 2·3단계).
+// STAGE 2/3 — protection scoped to a square around a pylon (design.md §13, stages 2 and 3).
 //
-// 1단계 shipped an unconditional version of this: every placeable in the world became
+// Stage 1 shipped an unconditional version of this: every placeable in the world became
 // indestructible. That was the point — it proved the mechanism. What it could not do is let anyone
-// ever remodel their base. 2단계 narrowed it to "inside a pylon's square" against a hardcoded
-// coordinate; 3단계 replaced that constant with the real placed pylons, which
+// ever remodel their base. Stage 2 narrowed it to "inside a pylon's square" against a hardcoded
+// coordinate; stage 3 replaced that constant with the real placed pylons, which
 // NoBreakZonePylonRegistrySystem publishes just before this system runs.
 //
-// HOW PROTECTION WORKS (carried over from 1단계, verified in game — research.md 9장):
+// HOW PROTECTION WORKS (carried over from stage 1, verified in game):
 // Mining/attack/explosion damage runs PREDICTED on BOTH the client and the server world, and that
 // path (PlayerController.DealDamageToObject) consults ONLY IndestructibleCD. A component added at
 // runtime on the server is never replicated to clients, so a server-only fix left the client
@@ -24,7 +24,7 @@ using UnityEngine;
 // the game's own IndestructibleCD in BOTH worlds, so neither predicts any damage at all.
 // DontDestroyOnZeroHealthCD is kept as a backstop for damage that bypasses DealDamageToObject.
 //
-// WHY A TAG INSTEAD OF A PER-FRAME SWEEP: 기획서 §9 forbids walking the world every frame. Entities
+// WHY A TAG INSTEAD OF A PER-FRAME SWEEP: design.md §9 forbids walking the world every frame. Entities
 // leave the query permanently once judged (NoBreakZoneEvaluatedCD), so steady-state cost is
 // proportional to newly streamed-in entities, not to base size.
 //
@@ -97,7 +97,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // gives them ObjectTypeCD; a mod authors with ObjectAuthoring, and ObjectConverter — the only
         // other path — adds IsObjectCD, ObjectDataCD and ObjectCategoryTagsCD but no ObjectTypeCD.
         // Those two converters are the only places in the game that add it (verified by decompiling
-        // Pug.ECS.Conversion.dll; research.md 20장).
+        // Pug.ECS.Conversion.dll).
         //
         // So requiring it here quietly excluded every object this mod adds — which is why the mod's
         // own workbench broke inside its own protected square, with no PROTECT and no skip line to
@@ -120,9 +120,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 ComponentType.ReadOnly<NoBreakZoneEvaluatedCD>(),
 
                 // A pylon stands inside its own square, so without this it would protect itself.
-                // 기획서 §6 does want that eventually ("켜져 있는 동안 파일런은 무적"), but the same
-                // sentence continues "회수하려면 먼저 꺼야 한다" — and nothing can switch a pylon off
-                // until 4단계. Self-protecting it now would mean a pylon placed during 체크포인트 1
+                // design.md §6 does want that eventually ("while switched on, the pylon is
+                // invulnerable"), but the same sentence continues "to recover it, switch it off
+                // first" — and nothing can switch a pylon off until stage 4. Self-protecting it now
+                // would mean a pylon placed during checkpoint 1
                 // could never be picked up again. NoBreakZonePylonRegistrySystem.ApplySelfProtection
                 // grants the pylon both guards directly, tied to its variation, rather than through
                 // this discriminator.
@@ -139,11 +140,11 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         // A TILE CAN CHANGE INTO A DIFFERENT TILE, AND THE ANSWER HAS TO CHANGE WITH IT.
         //
-        // NoBreakZoneEvaluatedCD exists so an object is judged once (기획서 §9), and for an object
+        // NoBreakZoneEvaluatedCD exists so an object is judged once (design.md §9), and for an object
         // that is a sound assumption: a chest never becomes an ore boulder. A tilemap square is not
         // like that. Judge one as WALL — protected since design.md's 2026-08-07 decision — let it
         // become ORE, and the stale answer keeps the ore indestructible. A protected ore tile never
-        // depletes, which is the resource duplication 기획서 §6 forbids above everything else.
+        // depletes, which is the resource duplication design.md §6 forbids above everything else.
         //
         // The change filter is what keeps this from undoing the tag's whole purpose: it matches only
         // chunks whose TileCD was actually written since this system last ran, so a base full of
@@ -201,7 +202,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
 
         if (pylons.Length == 0)
         {
-            // No switched-on pylon means no square, so nothing can qualify (기획서 §6). Leaving
+            // No switched-on pylon means no square, so nothing can qualify (design.md §6). Leaving
             // early also leaves the candidates untagged, so they get judged properly once one is
             // switched on rather than being written off now.
             return;
@@ -244,7 +245,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
                 continue;
             }
 
-            // 기획서 §6: every tile the object stands on has to be covered, not just the one its
+            // design.md §6: every tile the object stands on has to be covered, not just the one its
             // transform sits at.
             if (!IsFootprintCovered(em, entity, transforms[i], objectDatas[i], radius))
             {
@@ -259,9 +260,9 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         transforms.Dispose();
     }
 
-    // STAGE 4 — the other half of the switch (기획서 §6: "기지를 수정하려면 파일런을 끄면 된다").
+    // STAGE 4 — the other half of the switch (design.md §6: "to change the base, switch the pylon off").
     //
-    // Up to 3단계 this system only ever added protection, which made the toggle pointless: turning a
+    // Up to stage 3 this system only ever added protection, which made the toggle pointless: turning a
     // pylon off left every chest around it just as indestructible as before. This gives them back.
     //
     // ONLY ENTITIES CARRYING NoBreakZoneProtectedCD ARE TOUCHED, and that tag is only ever applied
@@ -270,7 +271,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     // switching can make them breakable. That is the whole reason the tag exists.
     //
     // An object still covered by some other switched-on pylon keeps everything, so overlapping
-    // squares behave the way 기획서 §6 describes when only one of them is switched off.
+    // squares behave the way design.md §6 describes when only one of them is switched off.
     private void ReleaseUncovered(int radius)
     {
         if (_ours.IsEmpty)
@@ -344,7 +345,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
     private static void Release(EntityManager em, Entity entity)
     {
         // Disable rather than remove: NetCode fixes a ghost's component set at bake time, and the
-        // enable flag is the part the damage path actually reads (research.md 9장).
+        // enable flag is the part the damage path actually reads.
         if (em.HasComponent<IndestructibleCD>(entity))
         {
             em.SetComponentEnabled<IndestructibleCD>(entity, false);
@@ -377,7 +378,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         _pylonCount = pylons.Length;
     }
 
-    // 기획서 §6, both rules at once: every tile the object occupies must be covered, and each of
+    // design.md §6, both rules at once: every tile the object occupies must be covered, and each of
     // them may be covered by a different pylon.
     //
     // The size comes from the object database rather than from anything on the entity, and the
@@ -445,12 +446,12 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         // component would be dead weight on a great many entities.
         //
         // TileDamageSystem runs in PredictedSimulationSystemGroup, so the client predicts the break
-        // too — the same trap that made chests into ghosts in 9장. This system already runs in both
-        // worlds, so both refuse alike.
+        // too — the same trap that made chests into ghosts. This system already runs in both worlds,
+        // so both refuse alike.
         if (!isTile)
         {
             // Leave objects that were already indestructible alone, and do not claim them as ours —
-            // otherwise 4단계 would "restore" them to destructible when a pylon switches off.
+            // otherwise stage 4 would "restore" them to destructible when a pylon switches off.
             bool alreadyNativelyIndestructible =
                 em.HasComponent<IndestructibleCD>(entity)
                 && em.IsComponentEnabled<IndestructibleCD>(entity);
@@ -471,10 +472,10 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             em.AddComponent<NoBreakZoneProtectedCD>(entity);
         }
 
-        // design.md §10's "몹 피해 차단". The two components guard different paths: IndestructibleCD
-        // above is what the player's own mining and attacks consult, while this one guards the
-        // single gate every damage source passes through (research.md 8·9장). Leaving it off is
-        // therefore exactly "끄면 플레이어발 피해만 막음" — mobs and explosions can still finish
+        // design.md §10's "block mob damage". The two components guard different paths:
+        // IndestructibleCD above is what the player's own mining and attacks consult, while this one
+        // guards the single gate every damage source passes through. Leaving it off is therefore
+        // exactly "off blocks only player-caused damage" — mobs and explosions can still finish
         // something off.
         //
         // A tile has no other guard, so its protection is not optional in the same way: the setting

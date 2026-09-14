@@ -3,7 +3,7 @@ using UnityEngine;
 using UnityEngine.Scripting;
 
 // Root component of Prefabs/NoBreakZonePylonGraphics.prefab, and the whole of the E-key toggle
-// (기획서 §5). The prefab's InteractableObject calls Toggle on press.
+// (design.md §5). The prefab's InteractableObject calls Toggle on press.
 //
 // THE NETWORKING IS THE GAME'S, NOT OURS. EntityMonoBehaviour.SetVariation does three things at
 // once (ck-db Pug.Other/EntityMonoBehaviour.cs:429): it records a local override so the presser
@@ -12,12 +12,12 @@ using UnityEngine.Scripting;
 // is rejected, an update count that is not newer is ignored) and writes ObjectDataCD, which NetCode
 // replicates back to everyone. So the mod needs no RPC, no command, and no server code for this.
 //
-// The state survives save/load for free: ObjectDataCD is part of what the world save keeps
-// (research.md 10장). That is why 기획서 chose the game's native variation over a file of our own.
+// The state survives save/load for free: ObjectDataCD is part of what the world save keeps. That
+// is why design.md chose the game's native variation over a file of our own.
 [Preserve]
 public class NoBreakZonePylonGraphics : EntityMonoBehaviour
 {
-    // 기획서 §5: off is 0 and the initial state; on is 1.
+    // design.md §5: off is 0 and the initial state; on is 1.
     public const int VariationOff = 0;
     public const int VariationOn = 1;
 
@@ -72,17 +72,18 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
 
     // ---------------------------------------------------------------------------------- the wave
     //
-    // "켤 때 파동이 퍼지는 느낌, 끌 때 파동이 들어오는 느낌" — asked for on 2026-09-10 after the flash
-    // alone read as a pop with no direction to it. PlayPuff bursts at one point and cannot expand, so
-    // the motion is composed: a few rings of small puffs, each ring a step further out (or further
-    // in) than the last, spread over well under a second. The eye joins the steps into a wave.
+    // "A wave spreading out when switched on, a wave drawing in when switched off" — asked for on
+    // 2026-09-10 after the flash alone read as a pop with no direction to it. PlayPuff bursts at
+    // one point and cannot expand, so the motion is composed: a few rings of small puffs, each ring
+    // a step further out (or further in) than the last, spread over well under a second. The eye
+    // joins the steps into a wave.
     //
-    // 기획서 §7 IS THE CEILING. "파동이 보호 범위 경계까지 퍼지게 하지 않는다" — if the wave reached
-    // the edge, flipping the switch would show the range and the lens would have no reason to
-    // exist. So the outermost ring stops at WaveReachTiles, a fifth of the default 10-tile radius,
-    // and is further clamped to a fraction of whatever radius the config actually sets, so a small
-    // custom range cannot be given away either. The wave says "something changed here"; where
-    // "here" ends is the lens's job.
+    // design.md §7 IS THE CEILING. "Do not let the wave spread to the edge of the protected range"
+    // — if the wave reached the edge, flipping the switch would show the range and the lens would
+    // have no reason to exist. So the outermost ring stops at WaveReachTiles, a fifth of the
+    // default 10-tile radius, and is further clamped to a fraction of whatever radius the config
+    // actually sets, so a small custom range cannot be given away either. The wave says "something
+    // changed here"; where "here" ends is the lens's job.
 
     // Outermost ring, in tiles. Two is enough to read as motion on a base and nowhere near an edge.
     private const float WaveReachTiles = 2f;
@@ -90,7 +91,7 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
     // Ceiling on reach as a share of the protected radius, for configs that shrink the range.
     private const float WaveReachShareOfRadius = 0.3f;
 
-    // 기획서 §7: "지속 시간 1초 이내". The rings are dealt across this many seconds.
+    // design.md §7: "lasting under one second". The rings are dealt across this many seconds.
     private const float WaveDuration = 0.4f;
     private const int WaveRings = 4;
     private const int WavePointsPerRing = 8;
@@ -135,7 +136,7 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
     private void PlayRing(int step)
     {
         // Expanding counts outward from the first ring; contracting deals the same rings in the
-        // opposite order, which is the whole of the "reverse" 기획서 §7 asks for on switch-off.
+        // opposite order, which is the whole of the "reverse" design.md §7 asks for on switch-off.
         float share = _waveExpanding
             ? (step + 1) / (float)WaveRings
             : (WaveRings - step) / (float)WaveRings;
@@ -159,22 +160,24 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         }
     }
 
-    // 기획서 §7's "활성화 순간 이펙트": a short flash, under a second, and a quieter reverse when
-    // switching off. Runs on whichever client observes the change, which is every client — the
-    // variation is replicated, and this method hangs off the same comparison that repaints.
+    // design.md §7's "effect at the moment of activation": a short flash, under a second, and a
+    // quieter reverse when switching off. Runs on whichever client observes the change, which is
+    // every client — the variation is replicated, and this method hangs off the same comparison
+    // that repaints.
     //
-    // 기획서 §7 also forbids the effect reaching the edge of the protected square: "파동이 보호
-    // 범위 경계까지 퍼지게 하지 않는다. 그렇게 하면 껐다 켜는 것만으로 범위를 알 수 있어 렌즈의
-    // 존재 이유가 사라진다." The centre flash bursts at one point and cannot reach anything; the
-    // wave that now follows it can, which is why its reach is capped (see StartWave).
+    // design.md §7 also forbids the effect reaching the edge of the protected square: "Do not let
+    // the wave spread to the edge of the protected range. Otherwise switching it off and on alone
+    // would reveal the range, and the lens would lose its reason to exist." The centre flash bursts
+    // at one point and cannot reach anything; the wave that now follows it can, which is why its
+    // reach is capped (see StartWave).
     /// Boss cues are mixed for a boss. A pylon is switched whenever somebody rearranges a base.
     private const float ToggleVolume = 0.6f;
 
     private void PlayToggleFeedback(bool switchedOn)
     {
         // Named rather than numbered, for the reason ObjectID taught us: names resolve against the
-        // real game assembly at build time. Chosen to match 기획서 §4's framing of the pylon as a
-        // 고대 유물 같은 장치.
+        // real game assembly at build time. Chosen to match design.md §4's framing of the pylon as
+        // a device like an ancient relic.
         //
         // SfxTableID, NOT SfxID, AND THE DIFFERENCE IS WHY THIS WAS SILENT UNTIL 2026-09-10.
         // The two look interchangeable and are not. SfxID is an ordinary sequential enum;
@@ -184,10 +187,10 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         // nothing, every time, with no error to show for it. The SDK's own example
         // (Examples/SpawnStuffFromTiles.cs:79) passes SfxTableID, which is what settled it.
         //
-        // A MATCHED PAIR FROM ONE SOURCE. coreBossOrbPowerUp and coreBossOrbPowerDown are an
-        // on/off pair the game already treats as one device powering up and down, which is what
-        // 기획서 §4 calls the pylon — 고대 유물 같은 장치. Turned down because a boss cue at full
-        // volume is too much for something a player flips whenever they rearrange their base.
+        // A MATCHED PAIR FROM ONE SOURCE. coreBossOrbPowerUp and coreBossOrbPowerDown are an on/off
+        // pair the game already treats as one device powering up and down, which is what design.md
+        // §4 calls the pylon — a device like an ancient relic. Turned down because a boss cue at
+        // full volume is too much for something a player flips whenever they rearrange their base.
         // AFSFXPortalAppear is the nearest alternative but has no counterpart for switching off.
         //
         // The first pass used AncientBurst at 10 particles and it read as almost nothing in game.
@@ -206,7 +209,7 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
         // AncientSparks at 6 was still too faint when a human looked (2026-09-10), so this is one
         // step up rather than a leap: AncientFlashingSparks keeps the same character and reads
         // brighter. AncientEnergyBurst is the next rung if it is still not enough — but not
-        // AncientEnergyRing, which an earlier pass found overpowering and which 기획서 §7 warns
+        // AncientEnergyRing, which an earlier pass found overpowering and which design.md §7 warns
         // against for a different reason: an effect that reaches the square's edge would give the
         // range away and make the lens pointless.
         StartWave(expanding: switchedOn);
@@ -219,8 +222,8 @@ public class NoBreakZonePylonGraphics : EntityMonoBehaviour
             return;
         }
 
-        // 기획서 §7 wants the off state to fade rather than pop, so this stays deliberately smaller
-        // than its counterpart rather than mirroring it.
+        // design.md §7 wants the off state to fade rather than pop, so this stays deliberately
+        // smaller than its counterpart rather than mirroring it.
         API.Effects.PlayPuff((int)PuffID.SmallAncientSmoke, transform.position, 4);
         API.Audio.PlaySfx(SfxTableID.coreBossOrbPowerDown, transform.position,
                           volumeMultiplier: ToggleVolume);

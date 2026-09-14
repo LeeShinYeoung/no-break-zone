@@ -6,18 +6,18 @@ using Unity.Mathematics;
 using Unity.Transforms;
 using UnityEngine;
 
-// 기획서 §4's remote: right-click a pylon from a distance and it switches, exactly as if you had
+// design.md §4's remote: right-click a pylon from a distance and it switches, exactly as if you had
 // walked over and pressed E.
 //
 // WHY IT EXISTS, per design.md §4: switch a pylon on and wall yourself around it and the game is
 // stuck — the walls are protected so they cannot be mined, and the pylon cannot be reached. The
 // remote is the way out from inside the game. That is its whole job, which is why it targets one
-// pylon and nothing more; "사거리 안 모든 파일런 일괄 조작" was considered and dropped.
+// pylon and nothing more; "operate every pylon within range at once" was considered and dropped.
 //
 // SERVER ONLY, AND NO RPC. ClientInput is netcode command input, so the player's cursor position
 // and button state are already replicated here — the same data the client sent to drive movement.
 // Being on the server, writing ObjectDataCD is enough and NetCode replicates the result. That is a
-// different route from 4단계's E key, which starts on a client and has to send SetVariationRPC to
+// different route from stage 4's E key, which starts on a client and has to send SetVariationRPC to
 // reach this side.
 //
 // It also avoids what looked at first like the only way in. Reacting to item use means patching
@@ -129,7 +129,7 @@ public partial class NoBreakZoneRemoteSystem : SystemBase
                 continue;
             }
 
-            // 기획서 §4: 30 tiles from the player by default, walls and line of sight ignored —
+            // design.md §4: 30 tiles from the player by default, walls and line of sight ignored —
             // the point is reaching a pylon you have sealed yourself away from.
             if (!NoBreakZoneRange.IsWithinReach(
                     player.x, player.y, tile.x, tile.y, NoBreakZoneConfig.RemoteReachTiles))
@@ -145,10 +145,11 @@ public partial class NoBreakZoneRemoteSystem : SystemBase
         transforms.Dispose();
     }
 
-    // 기획서 §4: "E의 원거리판일 뿐이다. 파일런 앞에서 E를 누르는 것과 결과가 완전히 같고, 거리만
-    // 다르다." So this writes the same field the E key ends up writing, and everything downstream —
-    // the registry picking it up, protection being applied or released, the sprite and the sound on
-    // every client — follows from that one value exactly as it does for E.
+    // design.md §4: "It is only a long-range E. The result is exactly the same as pressing E in
+    // front of the pylon, and only the distance differs." So this writes the same field the E key ends
+    // up writing, and everything downstream — the registry picking it up, protection being applied
+    // or released, the sprite and the sound on every client — follows from that one value exactly
+    // as it does for E.
     private static void Toggle(EntityManager em, Entity pylon)
     {
         var data = em.GetComponentData<ObjectDataCD>(pylon);

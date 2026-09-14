@@ -17,16 +17,16 @@ using UnityEngine;
 // if it somehow is not there, and — more usefully now — it reports what the target bench actually
 // looks like, so a recipe that fails to appear is diagnosed from Player.log instead of guessed at.
 //
-// WITHOUT A WORKING RECIPE THE MOD IS UNREACHABLE. 기획서 §4 has the pylon crafted at our own
+// WITHOUT A WORKING RECIPE THE MOD IS UNREACHABLE. design.md §4 has the pylon crafted at our own
 // workbench and the workbench itself at a vanilla bench, and only the game owns that bench.
 [WorldSystemFilter(WorldSystemFilterFlags.ServerSimulation | WorldSystemFilterFlags.ClientSimulation)]
 [UpdateInGroup(typeof(SimulationSystemGroup))]
 public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
 {
-    // Must match the converter's target. research.md 18장 records why this is the Automation Table
-    // and not the iron workbench 기획서 §4 first named: the iron bench authors all 18 of the slots
-    // the UI can show, and it absorbs three lower benches, which splits its recipe list into ranges
-    // that are drawn one at a time. The Automation Table holds 6 of 18 and absorbs nobody.
+    // Must match the converter's target. Why this is the Automation Table and not the iron
+    // workbench design.md §4 first named: the iron bench authors all 18 of the slots the UI can
+    // show, and it absorbs three lower benches, which splits its recipe list into ranges that are
+    // drawn one at a time. The Automation Table holds 6 of 18 and absorbs nobody.
     /// Public so NoBreakZoneSelfTestSystem checks the bench this system actually targets rather
     /// than a second copy of the decision that could drift away from it.
     public const ObjectID TargetWorkbench = ObjectID.AutomationTable;
@@ -40,7 +40,7 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     /// ordering between them, so a test reading the recipe buffers on its own schedule could judge
     /// them before this system had written anything and report a failure that says nothing about
     /// the mod. Waiting on a flag beats waiting a guessed number of frames — guessing frame order
-    /// is the mistake that hid the explosion bug (Editor/Docs/status.md).
+    /// is the mistake that hid the explosion bug.
     public bool Done => _done;
 
     protected override void OnCreate()
@@ -147,7 +147,7 @@ public partial class NoBreakZoneRecipeInjectionSystem : PugSimulationSystemBase
     }
 
     /// Writes down everything that decides whether the recipe is drawn, so a failure is read off
-    /// Player.log rather than guessed at. Three things settle it (research.md 18장):
+    /// Player.log rather than guessed at. Three things settle it:
     ///
     ///   slots       — the UI shows three windows of six, so 18 is the ceiling for one bench.
     ///   ours        — where our recipe sits. Past the end of a range means it is never drawn.
