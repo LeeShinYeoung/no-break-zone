@@ -620,8 +620,10 @@ public void ModObjectLoaded(Object obj) {
 ⚠️ **바닥에 스프라이트를 깔 때 재질을 어디서 가져오나 — 미해결.** 맨 `SpriteRenderer`는 이
 게임 렌더 파이프라인에 맞는 재질이 없다. 레퍼런스 모드는 설치 중에 넘어오는 `PlacementIcon.SR`에서
 material·sortingLayer를 복사하는데, **설치 중이 아니면 그 대상이 없다.**
-우리는 `FindObjectOfType<PlacementIcon>(true)`로 씬에서 빌려 쓴다 — **인게임 확인 필요.**
-못 찾으면 유니티 기본 스프라이트 재질이 쓰여 안 보이거나 벽을 뚫고 그려질 수 있다.
+~~우리는 `FindObjectOfType<PlacementIcon>(true)`로 씬에서 빌려 쓴다 — 인게임 확인 필요.~~
+→ **풀린 문제 (2026-09-14).** 씬을 훑는 방식은 렌즈 끊김의 원인이었다. 이제는 풀에 있는 설치 칸
+프리팹에서 한 번만 꺼낸다 — 29장. 둘 다 실패하면 유니티 기본 스프라이트 재질이 쓰여 안 보이거나
+벽을 뚫고 그려질 수 있다는 위험은 그대로라, 경고 로그를 남긴다.
 
 ## 15. 커서가 지목한 것을 아는 법 — `ClientInput` (2026-08-05)
 
@@ -1348,6 +1350,96 @@ public void ClearLastActiveSession()  { characterData[characterId].lastActiveSes
 > 맞았지만 **질문이 틀렸다.** 용의자는 변경의 *내용*이 아니라 변경을 *적용하는 행위*였다. 사람이
 > "10분 전엔 됐잖아"라고 했을 때 반박할 게 아니라 **되돌려 보고** 나서 따졌어야 했다.
 
+## 28. 윤곽이 걸을 때만 한 칸 튀던 이유 — 기준점은 우리 뒤에 옮겨진다 (2026-09-14)
+
+**증상.** 렌즈 윤곽이 걸을 때마다 실제 경계에서 한 칸 튀었다가 돌아온다. 서 있으면 안 튄다.
+테스터가 보고했고 사람도 봤다.
+
+**한 프레임의 순서.**
+
+| 순서 | 무엇 | 어디서 |
+| --- | --- | --- |
+| 1 | 우리가 윤곽을 놓는다 — `ToRenderFromWorld` = 월드 − 지금 `RenderOrigo` | MonoBehaviour Update (`ModManager.Update` → `Integration.Update` → `Loader.Update` → `IMod.Update`) |
+| 2 | `CameraManager.UpdateRenderOrigo()` — 반올림한 카메라 위치가 바뀌었으면 `MoveRenderAnchors(delta)` → `RenderOrigo` 갱신 → `RenderOrigoUpdated` 호출 | `UpdateGraphicalObjectTransformSystem` (TransformSystemGroup, OrderLast). 클라 SimulationSystemGroup은 유니티 Entities 문서상 **Update 단계 끝**에 돈다 |
+| 3 | 카메라 적용 | `CameraUpdateSystem` (PresentationSystemGroup, PreLateUpdate 끝) |
+
+기준점이 옮겨지는 프레임에만 1에서 쓴 값이 낡아서 한 칸 어긋난다. 기준점은 카메라가 칸 경계를
+넘을 때만 옮겨지니 걸을 때만 튄다.
+
+**게임이 같은 문제를 푸는 방법.**
+
+- 알림 — `MultiPugMap`(바닥 타일)이 `camera.RenderOrigoUpdated`에 구독해서 같은 순간 따라간다.
+- 앵커 — `ParticleWorldSimulationSpace`가 `GetRenderAnchor()`로 받은 트랜스폼을 쓴다.
+  `MoveRenderAnchors`가 참조 수가 남은 앵커를 `position -= delta`로 옮긴다.
+- `TextManager`는 LateUpdate에서 루트를 `-RenderOrigo`에 둔다. `IMod`에는 LateUpdate가 없어 못 쓴다.
+
+**우리는 알림 방식이다.** 루트를 0에 두고 놓은 뒤 쓴 기준점을 기억하고, 알림이 오면 루트를
+`(기억한 값 − 새 값)`의 x/z로 **덮어쓴다**(누적하지 않는다 — `UpdateSceneHandler`에서도 불리고 한
+프레임에 여러 번 올 수 있다). 앵커는 뺐다: 자식은 DontDestroyOnLoad가 안 되고, 카메라 관리자가 장면
+전환에 살아남는지 확인되지 않았다(`ManagerBase`에 DontDestroyOnLoad가 없다).
+
+`RenderOrigoUpdated`는 이벤트가 아니라 `public Action` **필드**다. `+=`는 `Delegate.Combine`으로
+컴파일되고 리플렉션이 아니라 안전 검사에 안 걸린다 — 게임의 `MultiPugMap`도 똑같이 쓴다.
+
+## 29. 설치 미리보기 아이콘은 풀 원본에서 꺼낸다 — 씬 훑기가 렌즈 끊김이었다 (2026-09-14)
+
+**증상.** 파일런 4개쯤부터 렌즈를 들면 잠깐 프레임이 떨어진다. 렌즈를 든 채일 때만 (테스터·사람).
+
+**원인.** 윤곽선을 하나 만들 때마다 `FindAnyObjectByType<PlacementIcon>(FindObjectsInactive.Include)`를
+불렀다. 유니티 문서상 로드된 오브젝트 전체를, Include면 비활성까지 찾는다. 그런데 `MemoryManager`는
+부팅 때 모든 풀 프리팹의 사본을 `initialSize`만큼 비활성으로 만들어 DontDestroyOnLoad로 둔다
+(`PoolSystem.IncreasePoolCapacity`) — 훑을 대상이 많다. 파일런 하나에 4번이라 4개면 한 프레임에 16번.
+**측정은 안 했다.** 정황(개수 문턱, 렌즈 한정)이 맞는다.
+
+**훑지 않는 경로** — 전부 public:
+
+```
+Manager.memory.poolablePrefabBanks        // List<PoolablePrefabBank>
+  foreach PoolablePrefab entry in bank    // public abstract IEnumerator<PoolablePrefab> GetEnumerator()
+    entry.prefab.GetComponent<PlaceObjectSlot>()
+      .placementHandler                   // PlacementHandler (직렬화 필드)
+      .placeableIcon                      // PlacementIcon
+      .SR                                 // SpriteRenderer
+```
+
+- 플레이어의 장비 칸은 `Manager.memory.GetFreeComponent(칸 종류)`로 이 풀에서 나온다
+  (`PlayerController.CreateEquipmentSlotToBeUsedForObject`). 화면의 아이콘은 이 프리팹의 사본이다.
+- `WaterCanSlot`·`BucketSlot`·`PaintToolSlot`은 `PlaceObjectSlot`을 물려받고 설치 도우미가 다르다 →
+  `is`로 뺀다. `GetType()`은 안전 검사가 거부한다.
+- 프리팹의 `sharedMaterial`은 원본 자산이다. 살아 있는 아이콘은 `LateUpdate`에서 `SR.material`을
+  건드려 복제 재질을 갖게 되고, 그 복제는 아이콘과 함께 사라진다.
+- 장비 칸에서 바로 닿는 길은 **설치물을 손에 들었을 때만** 열린다(`equipmentSlots`는 private,
+  렌즈는 `PlaceObjectSlot`이 아니다). 렌즈를 든 상태에서 훑지 않는 경로는 풀 원본뿐이다.
+- 풀은 부팅 때 만들어지고 월드를 오가도 안 지워지니, 월드에 들어온 첫 프레임에도 있다.
+  그래서 한 번 꺼내는 일과 윤곽선 16개 생성을 월드 진입 때 해 둔다.
+
+## 30. 작은 아이콘 — 10×10, 칸 밖의 아이템 (2026-09-14)
+
+`InventoryItemAuthoring`에 `icon`과 `smallIcon`이 따로 있다(`ObjectInfo.smallIcon`). `smallIcon`을
+쓰는 곳:
+
+| 어디 | 코드 |
+| --- | --- |
+| 바닥에 떨어진 아이템 | `DroppedItem.UpdateAndShow` |
+| 손에 든 설치물 | `PlayerController.ActivatePlaceItemSprite` |
+| 제작 재료 호버 목록 | `UIMouse` |
+| 제작 목록·요리책 필터 | `CraftingBuilding`, `CraftingHandler`, `CookBookIngredientFilterSlot` |
+| 테이블 진열(작은 아이콘 모드), 로봇팔, 어망, 곤충 채집기, 낚싯대 | `Table`, `RobotArm`, `FishingNet`, `CritterCatcher`, `PlayerController` |
+
+**규격: 10×10, PPU 16, 점 필터.** 근거는 ck-mods의 `ConveyorTunnelIcon_inHand.png`(10×10,
+`spritePixelsToUnits: 16`)와 `MPTest10x10.png`, 그리고 `ExpandNullforge/DefaultArt/README.md`의 표
+("Small icon 10 × 10 — In the player's hand while held, and on the cursor while dragging").
+
+**떨어진 아이템 크기는 스프라이트로만 정해진다.** `DroppedItem`이 `SR.transform.localScale`을 등장
+곡선으로 매 프레임 쓰고 끝나면 `Vector3.one`으로 되돌리니, 밖에서 크기를 바꿔도 덮인다. 16px 그림으로
+PPU 32짜리 반쪽 스프라이트를 만드는 길도 있지만 도트 하나가 화면 점 절반이 돼 뭉갠다 — 새로 그렸다.
+
+**그림자는 그리지 않는다.** `DroppedItem`이 자기 `shadow` 오브젝트를 켠다.
+
+이전에는 `smallIcon`에 `icon`과 같은 16px 스프라이트를 넣었다. 테스터가 그 떨어진 아이템을 "너무
+크다"고 봤다는 것은, `fileID: 21300000` + 텍스처 guid로 건 아이콘 스프라이트가 **실제로 그려진다**는
+뜻이기도 하다 — 아래 열린 질문 하나가 이걸로 닫힌다.
+
 ## 7. 열린 질문 / 다음 검증
 
 - [ ] 로컬 모드 활성화 절차 (인게임 모드 메뉴에서 자동 인식되는지, 수동 활성화 필요한지)
@@ -1360,5 +1452,5 @@ public void ClearLastActiveSession()  { characterData[characterId].lastActiveSes
   16×18로 맞추면서 같은 조건이 됐다**(19장·11장). 그래도 어긋나 보이면 여기다
 - [ ] **`ImmunityZoneCD`를 쓸 것인가** (21-5) — 삽·호미·폭발을 근원에서 한 번에 막는 게임 자체
   장치지만 `immune` 타일이 세이브에 남는다. 모드를 지우면 그 땅이 영구히 안 부서진다. **결정 필요**
-- [ ] 인벤토리 아이콘이 실제로 그려지는가 — 번들이 Sprite를 안 넘겨준다는 사실(19-3)이
-  `icon`(`fileID: 21300000`)에도 해당되는지. 번들 내부 참조라 다를 수 있어 미확정
+- [x] ~~인벤토리 아이콘이 실제로 그려지는가~~ — 그려진다. 같은 스프라이트를 `smallIcon`으로 쓰던
+  떨어진 아이템을 테스터가 "너무 크다"고 봤다 (30장, 2026-09-14)
