@@ -1,128 +1,56 @@
 # No Break Zone
 
-A Core Keeper mod that stops your base from being destroyed by your own pickaxe,
-explosions, and stray attacks — while leaving ore, walls, and crops fully mineable.
+> A Core Keeper mod for anyone tired of breaking their own stuff. Switch on a pylon and everything around it stays in one piece. Bombs or pickaxes, doesn't matter.
 
-> **Status: 1.0.0, confirmed by hand in a running game.** Crafting, placement, the on/off
-> switch, protection and its release, the workbench, the lens and the remote have each been
-> checked in game. It has run for weeks in a world that predates it, and on a dedicated server
-> with a client connected. Two people playing at once has not been tried yet.
+## What's inside
 
-## What it adds
-
-Protection is not global: it comes from a pylon you place and switch on, and it covers a
-square around that pylon. Switch the pylon off and your base is ordinary again, so you can
-remodel it.
-
-| | |
-| --- | --- |
-| **No Break Pylon** | Placeable. Press **E** to switch on or off; the state survives save and load. While it is on, nothing inside its square can be destroyed — and neither can the pylon. |
-| **Pylon Workbench** | Where the three below are made. Itself crafted at an Automation Table. |
-| **Pylon Lens** | Hold it to see the edge of every switched-on pylon's square. Nothing else ever draws it. |
-| **Pylon Remote** | Right-click a pylon from a distance to switch it. For when you have walled yourself out of reach of one. |
-
-While a pylon is on, **nothing inside its square can be broken — walls and ore included.** That
-is the point rather than an oversight: a base you cannot blow up by accident is also a base you
-cannot remodel by accident, so switch the pylon off when you want to dig.
-
-**Farming and drill automation are the exception and keep working with it on.** Anything that pays
-out every time it is damaged — the boulders a drill chews through above all — is never protected,
-because holding one of those at full health would duplicate resources and break a save
-permanently. That rule outranks every other property of this mod.
-
-## Settings
-
-Registered under `NoBreakZone` / `General`; the game decides where the file lives.
-
-| Key | Default | |
+| | | |
 | --- | --- | --- |
-| `protectionDiameter` | `21` | Width and height in tiles of the square one pylon covers. The pylon stands in the middle, so an even number rounds down. |
-| `blockMobDamage` | `true` | Stop every source of damage. Turn off to stop only what the player does, leaving mobs and explosions able to destroy protected objects. |
-| `showRangeWithLens` | `true` | Draw the outline while the lens is held. |
-| `remoteReachTiles` | `30` | How far the remote reaches. |
+| <img src=".github/readme/pylon.png" width="64" alt="No Break Pylon"> | **No Break Pylon** | Place it and press **E** to switch it on. While it's on, nothing around it breaks, and neither does the pylon. Press **E** again to switch it off. |
+| <img src=".github/readme/workbench.png" width="64" alt="Pylon Workbench"> | **Pylon Workbench** | Makes the three items below. Crafted at the Automation Table. |
+| <img src=".github/readme/lens.png" width="64" alt="Pylon Lens"> | **Pylon Lens** | Hold it to see how far each pylon reaches. |
+| <img src=".github/readme/remote.png" width="64" alt="Pylon Remote"> | **Pylon Remote** | Right-click a pylon from a distance to switch it on or off. Handy when you've walled yourself away from one. |
 
 ## Install
 
-Copy the built `NoBreakZone` folder into:
+Put the built `NoBreakZone` folder into the game's mods folder and restart the game.
 
 ```
 <Core Keeper>/CoreKeeper_Data/StreamingAssets/Mods/
 ```
 
-## Development setup
+On a dedicated server it goes in `CoreKeeperServer_Data/StreamingAssets/Mods/` instead. In multiplayer, the server and every player need the mod. Anyone without it gets a notice before joining.
 
-This repository is the **mod folder only**, not a full Unity project. The Unity project is
-the Mod SDK; this repo is checked out inside it. To reconstruct a working environment:
+## Development
 
-1. Clone the SDK — it is the Unity project:
-   ```
-   git clone https://github.com/Pugstorm/CoreKeeperModSDK
-   ```
-2. Clone this repository into the SDK's `Assets/` folder, as `NoBreakZone`:
-   ```
-   git clone https://github.com/LeeShinYeoung/no-break-zone CoreKeeperModSDK/Assets/NoBreakZone
-   ```
-3. Add the SDK folder as a project in Unity Hub and open it. When Unity Hub installs the
-   editor, enable **Linux Build Support (Mono)** — without it the mod cannot be built.
-   Optionally add `-disable-assembly-updater` to the project's command line arguments.
-4. Point [Editor/build.ps1](Editor/build.ps1) at your machine: its `-Unity`, `-ProjectPath`
-   and `-ExportPath` defaults are hardcoded to one developer's paths.
+This repository is only the mod folder. It lives inside the Core Keeper Mod SDK, which is the Unity project.
 
-> **Unity version.** The SDK README specifies `6000.0.58f2`; `build.ps1` currently defaults
-> to `6000.0.59f2`. Match whichever the SDK asks for if the two disagree.
+```
+git clone https://github.com/Pugstorm/CoreKeeperModSDK
+git clone https://github.com/LeeShinYeoung/no-break-zone CoreKeeperModSDK/Assets/NoBreakZone
+```
 
-> **Where the build settings live.** [Editor/NoBreakZone.asset](Editor/NoBreakZone.asset) is the
-> `ModBuilderSettings` that drives the build — mod guid, name, dependencies, `modPath`, the Linux
-> flag. The SDK's own examples keep this file as a sibling of the mod folder, which would put it
-> outside this repository; it is under `Editor/` instead so that it is version controlled and still
-> stays out of the shipped bundle.
+Open the SDK folder in Unity Hub. When it installs the editor, turn on **Linux Build Support (Mono)**.
 
-## Build
+**Build (Windows)**
 
-Windows only — the build drives the Unity editor in batch mode.
+Close the Unity editor and run the script below. The built mod goes straight into the game's Mods folder.
 
-```powershell
-# close the Unity editor first: batch mode cannot take the project lock twice
+```
 powershell -File Editor/build.ps1
 ```
 
-Exit codes: `0` built, `1` failed, `2` the editor is still open.
-The mod is installed straight into the game's `Mods` folder.
+The default paths sit at the top of the script. If yours are different, pass `-Unity`, `-ProjectPath` and `-ExportPath`.
 
-## Layout
+**Making changes**
 
-The repository root *is* the mod folder (`Assets/NoBreakZone/` in the Unity project), so
-everything outside `Editor/` ships inside the mod bundle. Development docs and draft art
-live under `Editor/` for that reason.
-
-| Path | |
-| --- | --- |
-| `Scripts/` | runtime systems, graphics components and converters |
-| `Prefabs/` · `Textures/` · `Data/` | the four objects — **generated**, see below |
-| `Editor/genassets.py` | writes every prefab, sprite asset, text block and texture import from one spec list |
-| `Editor/preflight.py` | static checks that run without Unity |
-| `Editor/` | build tooling and docs — excluded from the mod bundle |
-| `Editor/Docs/` | the design document and draft art |
-| `Editor/GameData/` | full object-database dump used to derive the protection rules |
-| `.claude/` | agent harness (see [CLAUDE.md](CLAUDE.md)) |
-
-### Generated assets
-
-Everything under `Prefabs/`, `Textures/` and `Data/` other than the mod definition is written
-by `Editor/genassets.py` from a spec list. **Do not hand-edit those files** — change the spec
-and re-run it. Guids and the 128-bit addresses Core Keeper links sprites and text with are
-derived from each asset's path, so regenerating is a no-op:
+`Prefabs/`, `Textures/` and `Data/` are generated by `Editor/genassets.py`. Don't edit them by hand. Change the script and run it again. These checks run without Unity:
 
 ```
-python3 Editor/genassets.py            # write or refresh
-python3 Editor/genassets.py --check    # fail if anything on disk is stale
-python3 Editor/preflight.py            # prefab references, banned namespaces, .meta pairs
+python3 Editor/genassets.py --check
+python3 Editor/preflight.py
 ```
-
-Neither is a compiler. Type errors only surface in the Windows build.
-
-The design document in `Editor/Docs/` is written in Korean.
 
 ## License
 
-MIT — see [LICENSE.md](LICENSE.md).
+MIT. See [LICENSE.md](LICENSE.md).
