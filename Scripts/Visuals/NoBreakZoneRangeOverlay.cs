@@ -45,11 +45,33 @@ public static class NoBreakZoneRangeOverlay
     private static Transform _root;
     private static readonly List<SpriteRenderer> _markers = new List<SpriteRenderer>();
 
+    // Markers made on world entry rather than in the frame the lens first comes up: four pylons'
+    // worth, the count at which a player first reported the lens stuttering (2026-09-14). More are
+    // still made on demand, but by then making one is only a GameObject and a SpriteRenderer.
+    private const int PrewarmedMarkers = 16;
+
     private static ObjectID _lensObjectID = ObjectID.None;
     private static bool _warnedNoSprite;
 
+    // The look every marker copies from the game's placement icon, resolved ONCE (ResolveAppearance).
+    // It used to be looked up per marker by scanning every loaded object, pooled inactive ones
+    // included, and that was the lens's hitch: four pylons meant sixteen scans in a single frame.
+    private static bool _appearanceResolved;
+    private static bool _haveAppearance;
+    private static Material _markerMaterial;
+    private static int _markerSortingLayerID;
+    private static int _markerSortingOrder;
+    private static SpriteMaskInteraction _markerMaskInteraction;
+    private static int _markerLayer;
     private static bool _warnedNoIcon;
     private static Color _markerColour = Color.white;
+
+    // Following the render origin within the frame it moves (OnRenderOrigoMoved). One cached
+    // delegate, so the -= in Dispose removes exactly what += added. System.Action is spelled out:
+    // a `using System;` would make every `Object` here ambiguous with UnityEngine.Object.
+    private static readonly System.Action OriginMovedHandler = OnRenderOrigoMoved;
+    private static CameraManager _subscribedCamera;
+    private static Vector3Int _placedOrigo;
 
     /// PlaceIconAmplify is driven by a shader float the game names "_transparancy": PlacementIcon
     /// writes it every frame on its own material INSTANCE, ramping 0 -> 0.5 while the player stands
@@ -114,6 +136,8 @@ public static class NoBreakZoneRangeOverlay
     /// Called every frame from NoBreakZoneMod.Update.
     public static void Update()
     {
+        EnsureWorldReady();
+
         if (!ShouldDraw())
         {
             HideAll();
@@ -132,6 +156,13 @@ public static class NoBreakZoneRangeOverlay
         int radius = NoBreakZoneRange.RadiusFromDiameter(NoBreakZoneConfig.ProtectionDiameter);
         int2 player = PlayerTile();
         int used = 0;
+
+        // Every marker is placed against this frame's origin with the root back at zero. If the
+        // origin moves later in this same frame, OnRenderOrigoMoved offsets the root by the
+        // difference, so the outline moves with the floor instead of a frame behind it.
+        EnsureRoot();
+        _root.localPosition = Vector3.zero;
+        _placedOrigo = Manager.camera.RenderOrigo;
 
         // The square spans [-radius, +radius] tiles around the pylon, and a tile is a unit wide, so
         // the outline sits half a tile beyond the outermost protected tile on each side.
@@ -190,6 +221,14 @@ public static class NoBreakZoneRangeOverlay
         // hour of reading an absent log line as "never happened". Reset with the markers so each
         // world reports afresh.
         _warnedNoIcon = false;
+
+        // The borrowed look is resolved again after a reload rather than trusted across one.
+        _appearanceResolved = false;
+        _haveAppearance = false;
+        _markerMaterial = null;
+
+        // An unloaded mod must not leave a handler behind on the game's camera.
+        FollowRenderOrigo(null);
     }
 
     private static bool ShouldDraw()
@@ -300,11 +339,13 @@ public static class NoBreakZoneRangeOverlay
         // reports for itself. The extra turn about Z is what makes a side run along Z instead of X;
         // adjust it first if the sides come out crossed. The small lift avoids z-fighting with the
         // floor.
+        //
+        // LOCAL to the root, which Update has just put back at zero. The root is what
+        // OnRenderOrigoMoved shifts, so the marker's own position stays the plain render position.
         Vector3 renderPosition = EntityMonoBehaviour.ToRenderFromWorld(
             new Vector3(centreX, 0.02f, centreZ));
-        marker.transform.SetPositionAndRotation(
-            renderPosition,
-            Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f));
+        marker.transform.localPosition = renderPosition;
+        marker.transform.localRotation = Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f);
 
         marker.transform.localScale = new Vector3(length, 1f, 1f);
         marker.color = _markerColour;
@@ -313,43 +354,140 @@ public static class NoBreakZoneRangeOverlay
 
     private static SpriteRenderer CreateMarker()
     {
-        if (_root == null)
-        {
-            var rootObject = new GameObject("NoBreakZoneRangeOverlay");
-            Object.DontDestroyOnLoad(rootObject);
-            _root = rootObject.transform;
-        }
+        EnsureRoot();
 
         var markerObject = new GameObject("RangeMarker");
         markerObject.transform.SetParent(_root, false);
 
         var renderer = markerObject.AddComponent<SpriteRenderer>();
         renderer.sprite = _markerSprite;
-        CopyAppearanceFromPlacementIcon(renderer);
+        ApplyAppearance(renderer);
 
         markerObject.SetActive(false);
         return renderer;
     }
 
+    private static void EnsureRoot()
+    {
+        if (_root != null)
+        {
+            return;
+        }
+
+        var rootObject = new GameObject("NoBreakZoneRangeOverlay");
+        Object.DontDestroyOnLoad(rootObject);
+        _root = rootObject.transform;
+    }
+
+    /// Everything that would otherwise happen in the frame the lens first comes up, done in the
+    /// first frames of a world instead. A player reported a brief stutter on raising the lens with
+    /// four or more pylons out (2026-09-14); after this, that frame has nothing heavy left in it.
+    private static void EnsureWorldReady()
+    {
+        var manager = Manager.main;
+        if (manager == null || manager.player == null)
+        {
+            return;
+        }
+
+        FollowRenderOrigo(Manager.camera);
+
+        if (!_appearanceResolved)
+        {
+            ResolveAppearance();
+        }
+
+        // Nothing to prewarm for a player who has switched the display off, or before the sprite
+        // the markers are drawn with has arrived.
+        if (!NoBreakZoneConfig.ShowRangeWithLens || _markerSprite == null)
+        {
+            return;
+        }
+
+        while (_markers.Count < PrewarmedMarkers)
+        {
+            _markers.Add(CreateMarker());
+        }
+    }
+
+    /// The game's floor tiles keep up with the render origin by listening for exactly this —
+    /// MultiPugMap subscribes to CameraManager.RenderOrigoUpdated — and the outline now does too.
+    private static void FollowRenderOrigo(CameraManager camera)
+    {
+        // Plain reference comparison, not Unity's ==: a destroyed camera still has to be
+        // unsubscribed from, and its delegate field is managed memory that outlives the native side.
+        if (ReferenceEquals(camera, _subscribedCamera))
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(_subscribedCamera, null))
+        {
+            _subscribedCamera.RenderOrigoUpdated -= OriginMovedHandler;
+        }
+
+        _subscribedCamera = camera;
+        if (!ReferenceEquals(camera, null))
+        {
+            camera.RenderOrigoUpdated += OriginMovedHandler;
+        }
+    }
+
+    /// WHY THE OUTLINE JUMPED A TILE WHILE WALKING. Within a frame, IMod.Update — and so Update here —
+    /// runs in MonoBehaviour Update. The client world's SimulationSystemGroup runs after it, at the
+    /// end of Unity's Update phase, and UpdateGraphicalObjectTransformSystem there calls
+    /// CameraManager.UpdateRenderOrigo. The camera is applied later still, in PresentationSystemGroup.
+    /// So in every frame where the rounded camera position crossed into a new tile, the markers had
+    /// been placed against the old origin and were drawn a tile off. It happened only while moving,
+    /// never standing still (a tester and the user, 2026-09-14).
+    ///
+    /// Absolute, never cumulative: this also fires from UpdateSceneHandler when a scene starts, and
+    /// it may fire more than once before the next Update. The sign is the game's own, from
+    /// MoveRenderAnchors: `position -= newOrigo - oldOrigo`.
+    private static void OnRenderOrigoMoved()
+    {
+        if (_root == null || ReferenceEquals(_subscribedCamera, null))
+        {
+            return;
+        }
+
+        Vector3Int origo = _subscribedCamera.RenderOrigo;
+        _root.localPosition = new Vector3(_placedOrigo.x - origo.x, 0f, _placedOrigo.z - origo.z);
+    }
+
     // A bare SpriteRenderer has no material that suits this game's render pipeline, and unlike the
     // reference mod we are not placing an object, so there is no PlacementIcon handed to us to copy
-    // from. Borrowing the one in the scene keeps the marker on the game's own sorting layer with
-    // the game's own material; if it is not found, Unity's default sprite material is what gets
-    // used and the marker may be invisible or drawn through walls.
+    // from. Borrowing the game's own keeps the marker on the game's sorting layer with the game's
+    // material; without it, Unity's default sprite material is what gets used and the marker may be
+    // invisible or drawn through walls.
     //
     // Everything copied here was logged against the icon on 2026-09-10 and matched. This was the
     // prime suspect for the invisible lens through three play sessions and was innocent all along;
     // the fault was the coordinate space (class comment), which no amount of appearance can fix.
-    private static void CopyAppearanceFromPlacementIcon(SpriteRenderer renderer)
+    //
+    // ONCE, AND FROM THE POOL'S PREFAB RATHER THAN A SCENE SCAN. This used to run
+    // FindAnyObjectByType<PlacementIcon>(FindObjectsInactive.Include) for every marker made. That
+    // walks every loaded object, and MemoryManager keeps inactive copies of every poolable prefab
+    // from boot, so with four pylons it was sixteen long walks in the frame the lens came up — the
+    // stutter a player reported (2026-09-14). The icon the player sees belongs to an equipment slot
+    // taken from one of those pools (PlayerController asks Manager.memory for a PlaceObjectSlot), so
+    // the pooled prefab carries the same look behind public fields. The scan stays as a fallback.
+    private static void ResolveAppearance()
     {
-        // FindAnyObjectByType, not FindObjectOfType: the latter is deprecated and the build warned
-        // about it (CS0618), which a released mod should not do. "Any" rather than "First" because
-        // there is one placement icon in the scene and we do not care which is returned, and the
-        // game's own docs say Any is the faster of the two. FindObjectsInactive.Include keeps the
-        // old `true` argument's meaning — the icon is inactive whenever the player is not placing
-        // something, which is most of the time, so excluding inactive objects would find nothing.
-        var icon = Object.FindAnyObjectByType<PlacementIcon>(FindObjectsInactive.Include);
-        if (icon == null || icon.SR == null)
+        // Set first: a failure is remembered too, so the fallback scan runs at most once.
+        _appearanceResolved = true;
+
+        SpriteRenderer source = FindIconInPools();
+        if (source == null)
+        {
+            // FindAnyObjectByType, not FindObjectOfType: the latter is deprecated and the build
+            // warned about it (CS0618). FindObjectsInactive.Include because the icon is inactive
+            // whenever the player is not placing something, which is most of the time.
+            var icon = Object.FindAnyObjectByType<PlacementIcon>(FindObjectsInactive.Include);
+            source = icon != null ? icon.SR : null;
+        }
+
+        if (source == null)
         {
             // Said out loud rather than returned from silently: a marker left on Unity's default
             // sprite material is one of the two ways "the lens does nothing" can happen, and it used
@@ -364,21 +502,81 @@ public static class NoBreakZoneRangeOverlay
             return;
         }
 
-        // COLOUR IS COPIED TOO, AND WAS NOT BEFORE. Everything else here came from the icon while
-        // the tint was left at whatever a fresh SpriteRenderer defaults to. On a material that
-        // multiplies by vertex colour that alone can render a sprite invisible, which puts it on the
-        // short list of reasons the markers exist and cannot be seen.
-        _markerColour = icon.SR.color;
-
-        renderer.sharedMaterial = icon.SR.sharedMaterial;
-        renderer.sortingLayerID = icon.SR.sortingLayerID;
+        // The prefab's sharedMaterial is the game's own asset. A live icon's becomes a per-icon copy
+        // once PlacementIcon.LateUpdate touches SR.material, and that copy goes when the icon does —
+        // one more reason the prefab is the better source.
+        _markerMaterial = source.sharedMaterial;
+        _markerSortingLayerID = source.sortingLayerID;
         // Above the placement icon rather than below it. Below was the tidier choice — an outline is
         // background information — but it also put the marker behind whatever the game draws at
         // ground level, which is one of the two ways it could have gone missing. Order first, taste
         // afterwards.
-        renderer.sortingOrder = icon.SR.sortingOrder + 1;
-        renderer.maskInteraction = icon.SR.maskInteraction;
-        renderer.gameObject.layer = icon.SR.gameObject.layer;
+        _markerSortingOrder = source.sortingOrder + 1;
+        _markerMaskInteraction = source.maskInteraction;
+        _markerLayer = source.gameObject.layer;
+        // COLOUR IS COPIED TOO. On a material that multiplies by vertex colour, the tint a fresh
+        // SpriteRenderer defaults to can alone render a sprite invisible.
+        _markerColour = source.color;
+        _haveAppearance = true;
+    }
+
+    /// The placement icon on the pooled PlaceObjectSlot prefab, or null.
+    ///
+    /// WaterCanSlot, BucketSlot and PaintToolSlot derive from PlaceObjectSlot and bring placement
+    /// handlers of their own, so they are skipped. `is` rather than comparing GetType(): the mod
+    /// safety check rejects GetType outright (see RegisterLoadedObject).
+    private static SpriteRenderer FindIconInPools()
+    {
+        var memory = Manager.memory;
+        if (memory == null || memory.poolablePrefabBanks == null)
+        {
+            return null;
+        }
+
+        foreach (PoolablePrefabBank bank in memory.poolablePrefabBanks)
+        {
+            if (bank == null)
+            {
+                continue;
+            }
+
+            foreach (PoolablePrefabBank.PoolablePrefab entry in bank)
+            {
+                if (entry == null || entry.prefab == null)
+                {
+                    continue;
+                }
+
+                var slot = entry.prefab.GetComponent<PlaceObjectSlot>();
+                if (slot == null || slot is WaterCanSlot || slot is BucketSlot || slot is PaintToolSlot)
+                {
+                    continue;
+                }
+
+                PlacementHandler handler = slot.placementHandler;
+                PlacementIcon icon = handler != null ? handler.placeableIcon : null;
+                if (icon != null && icon.SR != null)
+                {
+                    return icon.SR;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static void ApplyAppearance(SpriteRenderer renderer)
+    {
+        if (!_haveAppearance)
+        {
+            return;  // ResolveAppearance has already said so in the log
+        }
+
+        renderer.sharedMaterial = _markerMaterial;
+        renderer.sortingLayerID = _markerSortingLayerID;
+        renderer.sortingOrder = _markerSortingOrder;
+        renderer.maskInteraction = _markerMaskInteraction;
+        renderer.gameObject.layer = _markerLayer;
 
         // A property block rather than renderer.material: the latter clones the material per
         // marker and the clones outlive the GameObjects Dispose destroys, so a mod reload would

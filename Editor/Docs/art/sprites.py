@@ -87,7 +87,7 @@ def bounds(cells):
     return min(xs), min(ys), max(xs), max(ys)
 
 
-def build_image(c, regions, shifts, glow_on):
+def build_image(c, regions, shifts, glow_on, shadow=True):
     out = [[T] * c.w for _ in range(c.h)]
     box = {n: bounds(c.cells(n)) for n in regions}
 
@@ -190,13 +190,16 @@ def build_image(c, regions, shifts, glow_on):
             frontier = nxt
 
     img = Image.new("RGBA", (c.w, c.h), T)
-    ac = c.all_cells()
-    bx0, _, bx1, by1 = bounds(ac)
-    cx, rx = (bx0 + bx1) / 2, (bx1 - bx0) / 2 + 1.5
-    for y in range(by1 - 1, min(c.h, by1 + 3)):
-        for x in range(c.w):
-            if c.r[y][x] is None and ((x - cx) / rx) ** 2 + ((y - by1) / 2.4) ** 2 <= 1.0:
-                img.putpixel((x, y), SHADOW)
+    # NO BAKED SHADOW ON A SMALL ICON. The game draws a dropped item's shadow itself (DroppedItem
+    # switches its own `shadow` object on), so one painted into the picture would be doubled.
+    if shadow:
+        ac = c.all_cells()
+        bx0, _, bx1, by1 = bounds(ac)
+        cx, rx = (bx0 + bx1) / 2, (bx1 - bx0) / 2 + 1.5
+        for y in range(by1 - 1, min(c.h, by1 + 3)):
+            for x in range(c.w):
+                if c.r[y][x] is None and ((x - cx) / rx) ** 2 + ((y - by1) / 2.4) ** 2 <= 1.0:
+                    img.putpixel((x, y), SHADOW)
     for y in range(c.h):
         for x in range(c.w):
             if out[y][x] != T:
@@ -342,17 +345,110 @@ for name, (w, h, fn, regs, sh) in DESIGNS.items():
 made["workbench"] = bench_image()
 made["workbench"].save(OUT / "workbench.png")
 
+
+# ------------------------------------------------------------------------------ small icons (10x10)
+#
+# The game shows a SMALL icon wherever an item is not sitting in a slot: lying on the floor, carried
+# in the hand, listed as a crafting material. Reusing the 16px icons there drew ours oversized beside
+# the game's own (tester, 2026-09-14). The reference mods ship 10x10 at 16 pixels per unit
+# (ConveyorTunnelIcon_inHand.png), and halving 16px art smears it, so these are drawn at 10.
+#
+# Same shapes, shading and palette as the big ones, fewer pixels. No baked shadow: the game draws a
+# dropped item's shadow itself. The pylon is drawn switched off, because an item is never lit.
+SMALL = 10
+
+
+def pylon_small(c):
+    rect(c, 0, 7, 9, 9, "base")
+    trapezoid(c, 3, 7, 3, 6, 1, 8, "shaft")
+    trapezoid(c, 0, 3, 3, 6, 2, 7, "tip")
+    diamond(c, 4.5, 4.5, 1.5, 2.0, "glow_gem")
+
+
+def lens_small(c):
+    rect(c, 4, 7, 5, 9, "handle")
+    rect(c, 3, 7, 6, 7, "grip")
+    ring(c, 4.5, 3.5, 3.5, 1.8, "frame")
+    disc(c, 4.5, 3.5, 1.8, "glow_lens")
+
+
+def remote_small(c):
+    rect(c, 5, 0, 6, 0, "tip")
+    rect(c, 5, 1, 6, 2, "ant")
+    rect(c, 1, 3, 8, 9, "body")
+    rect(c, 3, 4, 6, 5, "glow_screen")
+    rect(c, 2, 7, 3, 7, "btn")
+    rect(c, 6, 7, 7, 7, "btn")
+    rect(c, 2, 8, 2, 8, "glow_led")
+
+
+# The bench's grammar at ten pixels: props above, wood top, lip, iron plate with the gem, shadowed
+# underside, legs. Same palette as BENCH_ROWS, so the two read as one object.
+BENCH_SMALL_ROWS = [
+    "..kjk..kgk",   # 0  props: hammer head (left), the pylon's gem (right)
+    "oooooooooo",   # 1  top edge, in wood
+    "oLLLLLLLLo",   # 2  top plane
+    "olllllLllo",   # 3
+    "oMMMMMMMMo",   # 4  lip
+    "oDIIIIIIDo",   # 5  front, with an iron plate
+    "oDIrGgrIDo",   # 6  the gem, set in the plate
+    "dddddddddd",   # 7  underside: wood shadow, not black
+    "kKk....kKk",   # 8  legs
+    "OOO....OOO",   # 9  feet
+]
+
+
+def bench_small_image():
+    if len(BENCH_SMALL_ROWS) != SMALL:
+        raise ValueError(f"small bench is {len(BENCH_SMALL_ROWS)} rows, not {SMALL}")
+    img = Image.new("RGBA", (SMALL, SMALL), T)
+    for y, row in enumerate(BENCH_SMALL_ROWS):
+        if len(row) != SMALL:
+            raise ValueError(f"small bench row {y} is {len(row)} wide, not {SMALL}")
+        for x, ch in enumerate(row):
+            img.putpixel((x, y), BENCH_PALETTE[ch])
+    return img
+
+
+SMALL_DESIGNS = {
+    "pylon": (pylon_small, ["base", "shaft", "tip"], {"base": -1, "tip": 1}),
+    "remote": (remote_small, ["tip", "ant", "body", "btn"],
+               {"tip": 1, "ant": 0, "body": 0, "btn": 2}),
+    "lens": (lens_small, ["handle", "grip", "frame"], {"handle": -1, "grip": -2, "frame": 1}),
+}
+SMALL_HIGHLIGHTS = {"lens": [(4, 2), (3, 3)]}
+
+small = {}
+for name, (fn, regs, sh) in SMALL_DESIGNS.items():
+    c = C(SMALL, SMALL)
+    fn(c)
+    im = build_image(c, regs, sh, glow_on=name != "pylon", shadow=False)
+    for hx, hy in SMALL_HIGHLIGHTS.get(name, []):
+        im.putpixel((hx, hy), HILITE)
+    small[name] = im
+small["workbench"] = bench_small_image()
+for name, im in small.items():
+    im.save(OUT / f"{name}_small.png")
+
 SC, PAD = 8, 20
 BG = (30, 29, 27, 255)
 order = ["pylon_off", "pylon_on", "lens", "remote", "workbench"]
+# Each small icon sits under the big one it belongs to, at the same scale, so the sheet shows how
+# much smaller they draw. The lit pylon has none: an item is never lit.
+small_under = {"pylon_off": "pylon", "lens": "lens", "remote": "remote", "workbench": "workbench"}
 w = PAD * (len(order) + 1) + sum(made[n].width for n in order) * SC
 # Tallest of the set rather than a constant: the designs are no longer all the same height.
-h = PAD * 2 + max(made[n].height for n in order) * SC
+big_h = max(made[n].height for n in order) * SC
+h = PAD * 3 + big_h + SMALL * SC
 sheet = Image.new("RGBA", (w, h), BG)
 ox = PAD
 for n in order:
     im = made[n]
     sheet.alpha_composite(im.resize((im.width * SC, im.height * SC), Image.NEAREST), (ox, PAD))
+    if n in small_under:
+        s = small[small_under[n]]
+        sheet.alpha_composite(s.resize((s.width * SC, s.height * SC), Image.NEAREST),
+                              (ox, PAD * 2 + big_h))
     ox += im.width * SC + PAD
 sheet.save(OUT / "preview.png")
 
