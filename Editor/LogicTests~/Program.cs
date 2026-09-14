@@ -54,7 +54,8 @@ namespace NoBreakZone.LogicTests
 
         private static void RangeChecks()
         {
-            // 기획서 §6: the pylon owns the centre tile, so a diameter of 21 reaches ten tiles out.
+            // design.md §6: the pylon owns the centre tile, so a diameter of 21 reaches ten tiles
+            // out.
             IsTrue(NoBreakZoneRange.RadiusFromDiameter(21) == 10, "diameter 21 -> radius 10");
             IsTrue(NoBreakZoneRange.RadiusFromDiameter(22) == 10, "an even diameter rounds down");
             IsTrue(NoBreakZoneRange.RadiusFromDiameter(0) == 0, "a degenerate diameter is not negative");
@@ -66,7 +67,7 @@ namespace NoBreakZone.LogicTests
             IsTrue(!Covered(px, pz, 1, 11, 0, 10), "one tile past the edge is outside");
             IsTrue(Covered(px, pz, 1, -10, -10, 10), "the square is symmetric");
 
-            // Two pylons may each cover part of one object; 기획서 §6 wants the union to count.
+            // Two pylons may each cover part of one object; design.md §6 wants the union to count.
             // 21 apart with radius 10 makes the squares [-10,10] and [11,31] — touching, no gap.
             int[] touchingX = { 0, 21 };
             int[] touchingZ = { 0, 0 };
@@ -110,7 +111,7 @@ namespace NoBreakZone.LogicTests
 
         // ---------------------------------------------- Scripts/Logic/NoBreakZoneRange.IsWithinReach
 
-        /// 기획서 §4's remote: right-click a pylon from up to 30 tiles away and it switches.
+        /// design.md §4's remote: right-click a pylon from up to 30 tiles away and it switches.
         ///
         /// coverage.md counted #35 and #36 as work for the in-game suite, on the grounds that the
         /// remote runs on the server. That was the wrong reason: the REACH DECISION is a pure
@@ -144,10 +145,10 @@ namespace NoBreakZone.LogicTests
             IsTrue(!NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, -1),
                 "a negative reach touches nothing, not even its own tile");
 
-            // 기획서 §4 #36, "벽 너머로도 통한다", and it does not look like the others because the
-            // claim is structural rather than numeric. There is no line-of-sight input to this
-            // decision — the arguments are two positions and a distance, and nothing else can be
-            // consulted. Walls cannot matter because there is nowhere for them to enter.
+            // design.md §4 #36, "it works through walls too", and it does not look like the others
+            // because the claim is structural rather than numeric. There is no line-of-sight input
+            // to this decision — the arguments are two positions and a distance, and nothing else
+            // can be consulted. Walls cannot matter because there is nowhere for them to enter.
             //
             // What this pins down is that it stays that way. If somebody later adds an obstruction
             // test, the call below stops compiling or stops answering true, and the design decision
@@ -267,7 +268,7 @@ namespace NoBreakZone.LogicTests
                 "a Clear+Add pair is left alone so the tile is not emptied");
 
             // Removing is never refused — PlayerController.DigUpTile drops the item through a
-            // separate command buffer, so refusing the removal duplicates the floor (기획서 §6).
+            // separate command buffer, so refusing the removal duplicates the floor (design.md §6).
             IsTrue(!NoBreakZoneTileEdit.RefuseEdit(remove, floor, covered: true, clearedAtSamePosition: false),
                 "lifting a floor is allowed: refusing it would duplicate the item");
             IsTrue(!NoBreakZoneTileEdit.RefuseEdit(remove, ground, covered: true, clearedAtSamePosition: false),
@@ -345,8 +346,8 @@ namespace NoBreakZone.LogicTests
 
                 protectedIds.Add(row["id"]);
 
-                // The invariant that outranks the count: one leak here duplicates a resource forever
-                // in a live save, which 기획서 §6 forbids outright.
+                // The invariant that outranks the count: one leak here duplicates a resource
+                // forever in a live save, which design.md §6 forbids outright.
                 if (row["lootOnDmg"] == "1" || row["tileType"] == "ore"
                     || row["requiresDrill"] == "1" || row["plant"] == "1" || row["growing"] == "1")
                 {

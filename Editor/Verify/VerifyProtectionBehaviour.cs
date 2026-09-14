@@ -91,13 +91,14 @@ namespace NoBreakZone.EditorTools
                 report.Check(!IsIndestructible(em, floorInside),
                     "and is not given IndestructibleCD, which would be dead weight on every tile");
 
-                // 기획서 §6's one absolute rule. Protecting ore makes a drill mine it forever.
-                // design.md:320 — "켜져 있는 동안 파일런은 무적이다. 폭발로도, 곡괭이로도, 몹
-                // 공격으로도 파괴되지 않는다." Two components, because they guard different halves
-                // of that sentence: IndestructibleCD is what the player's own mining consults, and
-                // everything arriving through HealthChangeBuffer reads the other one instead
-                // (research.md 8·9장). Until 2026-09-09 only the first was applied, so a switched-on
-                // pylon shrugged off a pickaxe and died to the first bomb.
+                // design.md §6's one absolute rule. Protecting ore makes a drill mine it forever.
+                // design.md:320 — "While switched on, the pylon is invulnerable. Explosions,
+                // pickaxes and mob attacks cannot destroy it." Two components, because they guard
+                // different halves of that sentence: IndestructibleCD is what the player's own
+                // mining consults, and everything arriving through HealthChangeBuffer reads the
+                // other one instead (research.md chapters 8 and 9). Until 2026-09-09 only the first
+                // was applied, so a switched-on pylon shrugged off a pickaxe and died to the first
+                // bomb.
                 //
                 // That fix is currently held by a single in-game verdict, which costs a play session
                 // to reproduce. This is the check that makes a regression cost nothing.
@@ -121,8 +122,8 @@ namespace NoBreakZone.EditorTools
                 report.Check(!em.HasComponent<NoBreakZoneProtectedCD>(oreInside),
                     "and is never claimed as ours");
 
-                // Switching the pylon off has to hand everything back — 기획서 §6's "기지를
-                // 수정하려면 파일런을 끄면 된다". Two updates: one to notice, one to release.
+                // Switching the pylon off has to hand everything back — design.md §6's "to modify
+                // the base, just switch the pylon off". Two updates: one to notice, one to release.
                 em.SetComponentData(pylon, new ObjectDataCD
                 {
                     objectID = (ObjectID)PylonId,
@@ -144,10 +145,10 @@ namespace NoBreakZone.EditorTools
                 report.Check(!BlocksEveryDamageSource(em, floorInside),
                     "and releases the floor too");
 
-                // 기획서 §6's other half — "회수하려면 먼저 꺼야 한다". A pylon that cannot be
-                // picked up again is a trap, and the invulnerability fix above added a second
-                // component that could have created exactly that. Nobody has picked one up in game
-                // since, so this is the only thing watching the recovery path at all.
+                // design.md §6's other half — "to pick it up, switch it off first". A pylon that
+                // cannot be picked up again is a trap, and the invulnerability fix above added a
+                // second component that could have created exactly that. Nobody has picked one up
+                // in game since, so this is the only thing watching the recovery path at all.
                 report.Check(!IsIndestructible(em, pylon),
                     "switching a pylon off makes it recoverable again");
                 report.Check(!BlocksEveryDamageSource(em, pylon),
@@ -255,7 +256,7 @@ namespace NoBreakZone.EditorTools
         ///
         /// With a floor restoring it to full every frame, that brake is gone: hit, pay out, restore,
         /// hit again, forever. The floor turns any leak in the discriminator into the exact failure
-        /// 기획서 §6 puts above every other property of this mod.
+        /// design.md §6 puts above every other property of this mod.
         ///
         /// The discriminator does exclude these today, so this is a condition that should be
         /// unreachable. It is checked anyway because "unreachable" is a claim about code that keeps
@@ -307,7 +308,7 @@ namespace NoBreakZone.EditorTools
         /// dropped in bulk only when the set of active pylons changes or the diameter does. If a
         /// square judged as WALL — protected since design.md's 2026-08-07 decision — later reads as
         /// ORE, and nothing re-judges it, the ore stays protected. A protected ore tile is an
-        /// infinite resource, which 기획서 §6 forbids above every other property of this mod.
+        /// infinite resource, which design.md §6 forbids above every other property of this mod.
         ///
         /// NOTHING TOUCHES THE PYLON HERE, AND THAT IS THE WHOLE POINT. A pylon switching is exactly
         /// the event that clears the tag, so a version of this check that toggled one would re-judge
@@ -338,7 +339,7 @@ namespace NoBreakZone.EditorTools
 
             report.Check(!BlocksEveryDamageSource(em, wall),
                 "a tile that turns into ore stops being protected, with no pylon change to prompt "
-                + "a re-judgement — a stale answer here would duplicate resources (기획서 §6)");
+                + "a re-judgement — a stale answer here would duplicate resources (design.md §6)");
 
             // Put it back so the release checks below still have a protected wall to release.
             em.SetComponentData(wall, new TileCD { tileset = 0, tileType = TileType.wall });
