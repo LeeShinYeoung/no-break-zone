@@ -74,7 +74,7 @@ MonoBehaviour:
   buyValueMultiplier: 1
   icon: {fileID: 21300000, guid: 4fb44da871db04fd185dae29829d534d, type: 3}
   iconOffset: {x: 0, y: 0}
-  smallIcon: {fileID: 21300000, guid: 4fb44da871db04fd185dae29829d534d, type: 3}
+  smallIcon: {fileID: 21300000, guid: efbd32afb6dd42915750eb13b14db088, type: 3}
   isStackable: 0
   requiredObjectsToCraft:
   - objectName: IronBar

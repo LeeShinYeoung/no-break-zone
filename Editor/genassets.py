@@ -367,7 +367,7 @@ class ObjectSpec:
                  crafts=(), graphics_script=None, ui_titles=(),
                  variants=(), interact_method=None,
                  variation_is_dynamic=False, variation_to_toggle_to=0,
-                 localized=None):
+                 localized=None, small_art=None):
         self.key = key  # asset base name, for everything the game finds by guid or by address
         # ObjectID string — 기획서 §4, never change (CLAUDE.md §5). Also the localization term: the
         # game looks item text up by this, so the TextDataBlock and termKey are named from it too.
@@ -392,6 +392,14 @@ class ObjectSpec:
         # session that discovers the mapping does not also have to translate.
         self.localized = dict(localized or {})
         self.art = art  # source PNG under Editor/Docs/art
+        # The 10x10 picture the game shows wherever it wants a SMALL icon: an item lying on the
+        # floor (DroppedItem), a placeable carried in the hand (PlayerController
+        # .ActivatePlaceItemSprite), crafting materials in hover lists. Every item reusing its 16px
+        # inventory icon there drew it oversized on the floor (tester, 2026-09-14). 10x10 at 16
+        # pixels per unit is what the reference mods ship (ConveyorTunnelIcon_inHand.png) — drawn
+        # small rather than scaled down, since halving 16px pixel art smears it. None falls back
+        # to the inventory icon, which was the old behaviour.
+        self.small_art = small_art
         self.object_type = object_type
         self.tile_size = tile_size
         self.pixels_to_units = pixels_to_units
@@ -450,6 +458,10 @@ class ObjectSpec:
     @property
     def texture_path(self):
         return f"Textures/{self.key}.png"
+
+    @property
+    def small_texture_path(self):
+        return f"Textures/{self.key}Small.png"
 
     @property
     def sprite_asset_path(self):
@@ -525,6 +537,7 @@ SPECS = [
         localized={"ko": ("파일런",
                           "주변의 사물을 보호합니다. 켜져 있는 동안에는 범위 안의 어떤 것도 파괴되지 않습니다.")},
         art="Editor/Docs/art/pylon_off.png",
+        small_art="Editor/Docs/art/pylon_small.png",
         # 기획서 §4: 1x1 tiles, and the 16x18 art now draws at exactly that (a tile is 16px, which
         # is hardcoded in SpriteObject.PixelsPerUnit). The 32px draft covered 2x2.
         tile_size=(1, 1),
@@ -556,6 +569,7 @@ SPECS = [
         localized={"ko": ("파일런 작업대",
                           "파일런과 그에 딸린 도구를 만들 수 있는 작업대입니다.")},
         art="Editor/Docs/art/workbench.png",
+        small_art="Editor/Docs/art/workbench_small.png",
         # ONE TILE, not 기획서 §4's original 2x1 — changed with the user's approval after seeing it
         # placed, and design.md §4 carries the decision record. The 64x32 draft drew four tiles wide
         # and two tall over a two-tile footprint; a bench that reaches past its own footprint is
@@ -584,6 +598,7 @@ SPECS = [
         localized={"ko": ("파일런 렌즈",
                           "파일런의 파편을 깎아 만든 렌즈입니다. 들고 있으면 보호 범위의 경계가 드러납니다.")},
         art="Editor/Docs/art/lens.png",
+        small_art="Editor/Docs/art/lens_small.png",
         # 기획서 §4 calls it 도구, "손에 드는 물건, 착용 장비가 아님", and it does nothing when
         # used — its whole effect is the overlay that runs while it is held. KeyItem is the game's
         # type for exactly that: carried, no mechanical use of its own.
@@ -606,6 +621,7 @@ SPECS = [
         localized={"ko": ("파일런 리모콘",
                           "멀리 떨어진 파일런을 켜고 끌 수 있습니다. 파일런에 커서를 올리고 사용하세요.")},
         art="Editor/Docs/art/remote.png",
+        small_art="Editor/Docs/art/remote_small.png",
         # Same shape as the lens: carried, and what it does happens in a system reading the player's
         # input rather than through any slot behaviour the game would attach to a usable type.
         object_type=OBJECT_TYPE_KEY_ITEM,
@@ -1140,6 +1156,9 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         )
     )
     icon = f"{{fileID: {FID_SPRITE}, guid: {asset_guid(spec.texture_path)}, type: 3}}"
+    # Every variation carries the same small icon: it stands for the item, and an item is never lit.
+    small_icon = (f"{{fileID: {FID_SPRITE}, guid: {asset_guid(spec.small_texture_path)}, type: 3}}"
+                  if spec.small_art else icon)
     graphics_root = local_file_id(spec.graphics_path, "root")
 
     body = YAML_HEADER
@@ -1173,7 +1192,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         "  buyValueMultiplier: 1\n"
         f"  icon: {icon}\n"
         "  iconOffset: {x: 0, y: 0}\n"
-        f"  smallIcon: {icon}\n"
+        f"  smallIcon: {small_icon}\n"
         f"  isStackable: {1 if spec.stackable else 0}\n"
         + recipe_block
         + f"  craftingTime: {spec.crafting_time}\n",
@@ -1561,6 +1580,10 @@ def build_outputs():
     for spec in SPECS:
         out[spec.texture_path] = (REPO / spec.art).read_bytes()
         out[spec.texture_path + ".meta"] = texture_meta(spec.texture_path, spec.pixels_to_units)
+        if spec.small_art:
+            out[spec.small_texture_path] = (REPO / spec.small_art).read_bytes()
+            out[spec.small_texture_path + ".meta"] = texture_meta(
+                spec.small_texture_path, spec.pixels_to_units)
         for suffix, lit_art in spec.variants:
             variant = spec.variant_texture_path(suffix)
             check_same_silhouette(REPO / spec.art, REPO / lit_art)
