@@ -10,7 +10,7 @@ placed, switched, protected, released, collected.
 - **No Break Pylon.** Place it and press **E**. While it is on, nothing inside the square around it
   can be destroyed — chests, walls, floors, machines, and the pylon itself. Press **E** again and
   the area is ordinary again. The on/off state survives saving and loading.
-- **Pylon Workbench**, crafted at a vanilla iron workbench, makes the pylon and its two tools.
+- **Pylon Workbench**, crafted at a vanilla Automation Table, makes the pylon and its two tools.
 - **Pylon Lens.** Hold it and the edge of every switched-on pylon's square is drawn. Nothing else
   ever draws it.
 - **Pylon Remote.** Switch a pylon from up to 30 tiles away.
@@ -30,5 +30,5 @@ structure takes a translation as a single line of text whenever one arrives.
 
 ### Known gaps
 
-- Never loaded into a world created before the mod was installed.
-- Never run with more than one player.
+- Never played by two people at once. It has run in a world that predates it, and on a dedicated
+  server with a client connected.

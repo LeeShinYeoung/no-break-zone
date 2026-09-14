@@ -3,11 +3,10 @@
 A Core Keeper mod that stops your base from being destroyed by your own pickaxe,
 explosions, and stray attacks — while leaving ore, walls, and crops fully mineable.
 
-> **Status: 0.1.0. Playable, and confirmed by hand in a running game.** Crafting, placement,
-> the on/off switch, protection and its release, the workbench, the lens, the remote and the
-> settings have each been checked in game. Two gates are still open before a wider release:
-> the mod has never been loaded into a world that predates it, and it has never run with more
-> than one player. Not yet published to mod.io or the Workshop.
+> **Status: 1.0.0, confirmed by hand in a running game.** Crafting, placement, the on/off
+> switch, protection and its release, the workbench, the lens and the remote have each been
+> checked in game. It has run for weeks in a world that predates it, and on a dedicated server
+> with a client connected. Two people playing at once has not been tried yet.
 
 ## What it adds
 
@@ -18,7 +17,7 @@ remodel it.
 | | |
 | --- | --- |
 | **No Break Pylon** | Placeable. Press **E** to switch on or off; the state survives save and load. While it is on, nothing inside its square can be destroyed — and neither can the pylon. |
-| **Pylon Workbench** | Where the three below are made. Itself crafted at an iron workbench. |
+| **Pylon Workbench** | Where the three below are made. Itself crafted at an Automation Table. |
 | **Pylon Lens** | Hold it to see the edge of every switched-on pylon's square. Nothing else ever draws it. |
 | **Pylon Remote** | Right-click a pylon from a distance to switch it. For when you have walled yourself out of reach of one. |
 
@@ -103,7 +102,7 @@ live under `Editor/` for that reason.
 | `Editor/genassets.py` | writes every prefab, sprite asset, text block and texture import from one spec list |
 | `Editor/preflight.py` | static checks that run without Unity |
 | `Editor/` | build tooling and docs — excluded from the mod bundle |
-| `Editor/Docs/` | design, workflow, status, research |
+| `Editor/Docs/` | design, status, research, test coverage, the dev loop, store listing |
 | `Editor/GameData/` | full object-database dump used to derive the protection rules |
 | `.claude/` | agent harness (see [CLAUDE.md](CLAUDE.md)) |
 
