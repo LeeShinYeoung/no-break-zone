@@ -1,4 +1,4 @@
-# No Break Zone
+# No-Break Zone
 
 > A Core Keeper mod for anyone tired of breaking their own stuff. Switch on a pylon and everything around it stays in one piece. Bombs or pickaxes, doesn't matter.
 
