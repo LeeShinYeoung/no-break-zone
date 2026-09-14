@@ -8,7 +8,7 @@
 
 | | | |
 | --- | --- | --- |
-| <img src=".github/readme/pylon.png" width="64" alt="No Break Pylon"> | **No Break Pylon** | Place it and press **E** to switch it on. While it's on, nothing around it breaks, and neither does the pylon. Press **E** again to switch it off. |
+| <img src=".github/readme/pylon.png" width="64" alt="No Break Pylon"> | **No Break Pylon** | While it's on, nothing around it can be broken, the pylon included. |
 | <img src=".github/readme/workbench.png" width="64" alt="Pylon Workbench"> | **Pylon Workbench** | Makes the pylon, the lens and the remote. Crafted at the Automation Table. |
 | <img src=".github/readme/lens.png" width="64" alt="Pylon Lens"> | **Pylon Lens** | Hold it to see how far each pylon reaches. |
 | <img src=".github/readme/remote.png" width="64" alt="Pylon Remote"> | **Pylon Remote** | Right-click a pylon from a distance to switch it on or off. Handy when you've walled yourself away from one. |
@@ -55,4 +55,4 @@ python3 Editor/preflight.py
 
 ## License
 
-MIT. See [LICENSE.md](LICENSE.md).
+[MIT](LICENSE.md)
