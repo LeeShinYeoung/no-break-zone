@@ -114,12 +114,16 @@ subject는 GitHub이 `Merge pull request #N from …`으로 만들고 PR 제목�
 
 ## 5. 머지
 
+`git config user.email`이 비어 있으면 **멈추고 알린다.** 머지 커밋의 작성자가 그 메일이 된다.
+
 ```bash
-gh pr merge --merge --delete-branch
+gh pr merge --merge --delete-branch --author-email "$(git config user.email)"
 ```
 
 저장소 설정이 `delete_branch_on_merge: false`라 `--delete-branch`를 **반드시** 붙인다.
 붙여도 원격만 지워질 수 있으니 다음 단계에서 로컬을 확인한다.
+
+`--author-email`도 **반드시** 붙인다. 빼면 GitHub 계정의 기본 메일이 작성자가 된다. 메일은 git 설정에서 읽는다.
 
 ## 6. 정리
 
@@ -129,6 +133,7 @@ gh pr merge --merge --delete-branch
 ```bash
 git fetch --prune origin     # 실제로 필요한 건 이것 하나
 git branch -a                # main 만 남았는지 확인
+git log -1 --format='%an <%ae>' origin/main   # 방금 만든 머지 커밋의 작성자
 ```
 
 `checkout`·`pull`·`branch -d`를 다시 하지 않는다. 이미 끝난 일이라 no-op이거나 에러가 난다.
@@ -139,7 +144,8 @@ git branch -a                # main 만 남았는지 확인
 ## 7. 보고
 
 - PR 번호와 URL
-- `main`에 들어간 머지 커밋
+- `main`에 들어간 머지 커밋과 **그 작성자.** `git config user.email`과 다르면 경고한다 —
+  기록을 고치려 하지는 않는다
 - 브랜치 정리 결과
 - **`Editor/Docs/status.md` 갱신이 필요한지 판단**해서 필요하면 알린다.
   기능 단계가 진행된 PR이면 대개 필요하다
@@ -155,3 +161,4 @@ git branch -a                # main 만 남았는지 확인
 | 정리 후에도 피처 브랜치가 남아 있음 | 머지가 실제로 안 됐다. `gh pr view`로 상태를 확인한다. 강제 삭제(`-D`) 하지 말고 원인을 보고한다 |
 | 푸시 거부 | 원격이 앞서 있다. `git pull --rebase` 는 사람 확인 후에만 |
 | `main`이 diverged | 1단계에서 걸러진다. 자동으로 rebase·merge하지 말고 상태를 보고한다 |
+| 머지 커밋 작성자가 `git config user.email`과 다름 | 되돌리지 않는다. 보고하고, git 설정 메일과 GitHub 계정 기본 메일을 확인하라고 알린다 |
