@@ -1,13 +1,15 @@
-# No Break Zone
+# No-Break Zone
 
 > A Core Keeper mod for anyone tired of breaking their own stuff. Switch on a pylon and everything around it stays in one piece. Bombs or pickaxes, doesn't matter.
+
+<img src=".github/readme/demo.webp" alt="A pickaxe and a magic beam hit a base next to a switched-on pylon, and nothing breaks">
 
 ## What's inside
 
 | | | |
 | --- | --- | --- |
 | <img src=".github/readme/pylon.png" width="64" alt="No Break Pylon"> | **No Break Pylon** | Place it and press **E** to switch it on. While it's on, nothing around it breaks, and neither does the pylon. Press **E** again to switch it off. |
-| <img src=".github/readme/workbench.png" width="64" alt="Pylon Workbench"> | **Pylon Workbench** | Makes the three items below. Crafted at the Automation Table. |
+| <img src=".github/readme/workbench.png" width="64" alt="Pylon Workbench"> | **Pylon Workbench** | Makes the pylon, the lens and the remote. Crafted at the Automation Table. |
 | <img src=".github/readme/lens.png" width="64" alt="Pylon Lens"> | **Pylon Lens** | Hold it to see how far each pylon reaches. |
 | <img src=".github/readme/remote.png" width="64" alt="Pylon Remote"> | **Pylon Remote** | Right-click a pylon from a distance to switch it on or off. Handy when you've walled yourself away from one. |
 
