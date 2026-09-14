@@ -10,7 +10,7 @@ SpriteAssetManifest, and a .meta beside every one of them — roughly 1,500 line
 single item. design.md stage 6 adds three more objects (lens, remote, workbench) built the exact
 same way, so the YAML is written once here as templates and the differences live in SPECS below.
 
-WHY THIS CAN WORK WITHOUT UNITY (research.md chapter 11): prefabs are plain YAML whose only opaque
+WHY THIS CAN WORK WITHOUT UNITY: prefabs are plain YAML whose only opaque
 part is `m_Script: {fileID, guid}`. The guid names an assembly and is copied from reference prefabs;
 the fileID is derived from the class name via MD4 and is therefore computable. Editor/preflight.py
 reverses every reference we emit back to a real game class, so a typo in a component name fails on
@@ -114,7 +114,7 @@ TAG_CAN_BE_SALVAGED = "19000000"  # List<ObjectCategoryTag>{CanBeSalvaged}; Unit
 
 # The game's 13 language addresses, copied verbatim from the SDK WorkbenchExample TextDataBlock.
 # Which entry is which language was unknown until 2026-09-13 and is now written down in
-# LANGUAGE_SLOTS below (research.md chapter 17). Order matters: the index into this list IS the slot.
+# LANGUAGE_SLOTS below. Order matters: the index into this list IS the slot.
 LANGUAGE_ADDRESSES = [
     (8319415704751845611, -6023042414290333943),
     (-2957573344710624914, 6297677370195620808),
@@ -186,8 +186,7 @@ def local_file_id(rel_path: str, node: str) -> int:
 
 
 def data_block_address(rel_path: str) -> tuple:
-    """(m_low, m_high) for a DataBlockAddress — how sprites and text are linked
-    (research.md chapter 11).
+    """(m_low, m_high) for a DataBlockAddress — how sprites and text are linked.
 
     It is the asset's own Unity guid: a 128-bit GUID laid out the Microsoft way (first three fields
     little-endian), split into two signed 64-bit halves. DataBlockAddress is built from GUID strings
@@ -421,8 +420,7 @@ class ObjectSpec:
         # The SDK workbench's 0.0625 was copied verbatim and put the bottom half a unit UNDER the
         # floor: in game the pylon and the workbench were both sliced off across the middle, showing
         # roughly their top ten rows of eighteen, which is exactly 0.5 units of sinking. That example
-        # has never been built by anyone (research.md chapter 11 records the same lesson about its
-        # guids), so its numbers are not evidence.
+        # has never been built by anyone (its guids were wrong too), so its numbers are not evidence.
         self.sprite_offset = sprite_offset
 
         # A crafting station. Non-empty means the logic prefab gets CraftingAuthoring and the
@@ -786,7 +784,7 @@ def texture_meta(rel_path: str, pixels_to_units: int) -> str:
         "    customData: \n"
         "    physicsShape: []\n"
         "    bones: []\n"
-        # Fixed in all 14 reference textures — not a per-asset id (research.md chapter 11).
+        # Fixed in all 14 reference textures — not a per-asset id.
         "    spriteID: 5e97eb03825dee720800000000000000\n"
         "    internalID: 0\n"
         "    vertices: []\n"
@@ -839,7 +837,7 @@ def sprite_asset(spec: ObjectSpec, texture_path: str, asset_path: str) -> str:
     m_staticVariants is not reachable from an object's variation at all: the game builds
     m_staticVariantLookup from a hash of each variant's *name*, and SetVariant is driven by sprite
     orientation and animations. EntityMonoBehaviour.UpdateGraphicsFromObjectInfo — the one place a
-    variation reaches the graphics — never touches it (research.md chapter 20).
+    variation reaches the graphics — never touches it.
 
     What a variation does reach is objectVariants: a list of GameObjects to switch on. So each look
     is a SpriteAsset of its own, worn by a SpriteObject of its own, and the variation decides which
@@ -855,7 +853,7 @@ def sprite_asset(spec: ObjectSpec, texture_path: str, asset_path: str) -> str:
         + "  m_dynamicCollections:\n"
         "    m_list: []\n"
         # Colour comes straight from the PNG. Grayscale + GradientMap is the skin system, which is
-        # optional — the reference mod paints its art directly and so do we (research.md 31-3).
+        # optional — the reference mod paints its art directly and so do we.
         + "  m_defaultPrimaryGradientMap:\n" + _null_address("    ")
         + "  m_defaultSecondaryGradientMap:\n" + _null_address("    ")
         + "  m_defaultTertiaryGradientMap:\n" + _null_address("    ")
@@ -1325,7 +1323,7 @@ def logic_prefab(spec: ObjectSpec, variation: int, path: str) -> str:
         # we drop on purpose, nothing of ours turns) were the only two it had and we did not.
         #
         # useSecondInteraction stays 0: that is right-click, and the remote reaches a pylon through
-        # ClientInput rather than through the pylon's own interactable (research.md chapter 15).
+        # ClientInput rather than through the pylon's own interactable.
         body += _authoring(ids["interactable"], root, "Interaction.LocalInteractableAuthoring",
                            "  useSecondInteraction: 0\n  interactSubIndex: 0\n")
     body += _authoring(ids["localization"], root, "LocalizationAuthoring",
@@ -1522,8 +1520,7 @@ def graphics_prefab(spec: ObjectSpec) -> str:
         body += _transform(look["tf"], look["go"], scaler_tf, position=spec.sprite_offset)
         body += _behaviour(
             look["obj"], look["go"], *game_script("Pug.Sprite.SpriteObject"),
-        # This address, not a guid, is how the SpriteObject finds its SpriteAsset
-        # (research.md chapter 11).
+        # This address, not a guid, is how the SpriteObject finds its SpriteAsset.
         "  m_assetRef:\n" + _address("    ", low, high)
         + "  skinRef:\n" + _null_address("    ")
         + "  color: {r: 1, g: 1, b: 1, a: 1}\n"

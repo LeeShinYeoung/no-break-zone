@@ -113,7 +113,7 @@ namespace NoBreakZone.LogicTests
 
         /// design.md §4's remote: right-click a pylon from up to 30 tiles away and it switches.
         ///
-        /// coverage.md counted #35 and #36 as work for the in-game suite, on the grounds that the
+        /// These checks were once counted as work for the in-game suite, on the grounds that the
         /// remote runs on the server. That was the wrong reason: the REACH DECISION is a pure
         /// function of two coordinates and a number, so it needs no game, no server and no human.
         /// Only the input path — reading a real player's cursor — needs those.
@@ -145,7 +145,7 @@ namespace NoBreakZone.LogicTests
             IsTrue(!NoBreakZoneRange.IsWithinReach(0, 0, 0, 0, -1),
                 "a negative reach touches nothing, not even its own tile");
 
-            // design.md §4 #36, "it works through walls too", and it does not look like the others
+            // design.md §4, "it works through walls too", and it does not look like the others
             // because the claim is structural rather than numeric. There is no line-of-sight input
             // to this decision — the arguments are two positions and a distance, and nothing else
             // can be consulted. Walls cannot matter because there is nowhere for them to enter.

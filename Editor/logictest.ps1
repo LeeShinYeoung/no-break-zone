@@ -4,7 +4,7 @@
 #
 # Exit codes: 0 = all checks passed, 1 = a check failed, 2 = could not run.
 #
-# This is the first gate of the verification ladder (Editor/Docs/workflow.md):
+# This is the first gate of the verification ladder (CLAUDE.md section 4):
 #   logictest.ps1  ->  build.ps1  ->  verify.ps1  ->  a human loads a test world once
 #
 # WHY NOT THE UNITY TEST RUNNER: `Unity.exe -batchmode -runTests` is refused on this machine with

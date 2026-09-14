@@ -457,8 +457,7 @@ sheet.save(OUT / "preview.png")
 # ------------------------------------------------------------------------------------ store image
 #
 # Both stores take .png or .jpg and check nothing else client-side; mod.io re-renders the logo at
-# 1280x720, 640x360 and 320x180, so 16:9 at 1280x720 is the size that survives every crop
-# (Editor/Docs/store.md records where those numbers come from).
+# 1280x720, 640x360 and 320x180, so 16:9 at 1280x720 is the size that survives every crop.
 #
 # NO TEXT. Drawing the mod's name would need a font file, and either we depend on whatever TTF a
 # machine happens to have -- which makes this script non-reproducible, the one property the whole

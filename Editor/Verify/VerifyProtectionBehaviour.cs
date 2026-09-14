@@ -96,9 +96,8 @@ namespace NoBreakZone.EditorTools
                 // pickaxes and mob attacks cannot destroy it." Two components, because they guard
                 // different halves of that sentence: IndestructibleCD is what the player's own
                 // mining consults, and everything arriving through HealthChangeBuffer reads the
-                // other one instead (research.md chapters 8 and 9). Until 2026-09-09 only the first
-                // was applied, so a switched-on pylon shrugged off a pickaxe and died to the first
-                // bomb.
+                // other one instead. Until 2026-09-09 only the first was applied, so a switched-on
+                // pylon shrugged off a pickaxe and died to the first bomb.
                 //
                 // That fix is currently held by a single in-game verdict, which costs a play session
                 // to reproduce. This is the check that makes a regression cost nothing.
@@ -300,8 +299,8 @@ namespace NoBreakZone.EditorTools
 
         /// Chases one of the two hypotheses once raised for the resource-duplication failure
         /// (`ore-inside-still-breaks`): does a tile keep the answer it was first given after the
-        /// tile itself changes? The failure in game turned out to be the other one (research.md
-        /// chapter 23); this hole is real regardless (research.md 31-1).
+        /// tile itself changes? The failure in game turned out to be the other one; this hole is
+        /// real regardless.
         ///
         /// NoBreakZoneProtectionSystem tags every entity it has judged with NoBreakZoneEvaluatedCD
         /// and excludes tagged entities from its query, so an answer is computed once. The tag is

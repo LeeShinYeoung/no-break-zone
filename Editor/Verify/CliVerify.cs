@@ -6,7 +6,7 @@ namespace NoBreakZone.EditorTools
 {
     /// <summary>
     /// Batch-mode entry point for the ECS checks — the second rung of the verification ladder
-    /// (Editor/Docs/workflow.md). Run through Editor/verify.ps1:
+    /// (CLAUDE.md §4). Run through Editor/verify.ps1:
     ///
     ///   Unity.exe -batchmode -quit -projectPath &lt;proj&gt;
     ///     -executeMethod NoBreakZone.EditorTools.CliVerify.All
