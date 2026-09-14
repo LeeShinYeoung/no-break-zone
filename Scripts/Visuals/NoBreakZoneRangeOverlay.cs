@@ -66,6 +66,13 @@ public static class NoBreakZoneRangeOverlay
     private static bool _warnedNoIcon;
     private static Color _markerColour = Color.white;
 
+    // Following the render origin within the frame it moves (OnRenderOrigoMoved). One cached
+    // delegate, so the -= in Dispose removes exactly what += added. System.Action is spelled out:
+    // a `using System;` would make every `Object` here ambiguous with UnityEngine.Object.
+    private static readonly System.Action OriginMovedHandler = OnRenderOrigoMoved;
+    private static CameraManager _subscribedCamera;
+    private static Vector3Int _placedOrigo;
+
     /// PlaceIconAmplify is driven by a shader float the game names "_transparancy": PlacementIcon
     /// writes it every frame on its own material INSTANCE, ramping 0 -> 0.5 while the player stands
     /// still and back to 0 when they move, so 0 is invisible and 0.5 is as shown as the game ever
@@ -150,6 +157,13 @@ public static class NoBreakZoneRangeOverlay
         int2 player = PlayerTile();
         int used = 0;
 
+        // Every marker is placed against this frame's origin with the root back at zero. If the
+        // origin moves later in this same frame, OnRenderOrigoMoved offsets the root by the
+        // difference, so the outline moves with the floor instead of a frame behind it.
+        EnsureRoot();
+        _root.localPosition = Vector3.zero;
+        _placedOrigo = Manager.camera.RenderOrigo;
+
         // The square spans [-radius, +radius] tiles around the pylon, and a tile is a unit wide, so
         // the outline sits half a tile beyond the outermost protected tile on each side.
         float half = radius + 0.5f;
@@ -212,6 +226,9 @@ public static class NoBreakZoneRangeOverlay
         _appearanceResolved = false;
         _haveAppearance = false;
         _markerMaterial = null;
+
+        // An unloaded mod must not leave a handler behind on the game's camera.
+        FollowRenderOrigo(null);
     }
 
     private static bool ShouldDraw()
@@ -322,11 +339,13 @@ public static class NoBreakZoneRangeOverlay
         // reports for itself. The extra turn about Z is what makes a side run along Z instead of X;
         // adjust it first if the sides come out crossed. The small lift avoids z-fighting with the
         // floor.
+        //
+        // LOCAL to the root, which Update has just put back at zero. The root is what
+        // OnRenderOrigoMoved shifts, so the marker's own position stays the plain render position.
         Vector3 renderPosition = EntityMonoBehaviour.ToRenderFromWorld(
             new Vector3(centreX, 0.02f, centreZ));
-        marker.transform.SetPositionAndRotation(
-            renderPosition,
-            Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f));
+        marker.transform.localPosition = renderPosition;
+        marker.transform.localRotation = Quaternion.Euler(90f, 0f, horizontal ? 0f : 90f);
 
         marker.transform.localScale = new Vector3(length, 1f, 1f);
         marker.color = _markerColour;
@@ -371,6 +390,8 @@ public static class NoBreakZoneRangeOverlay
             return;
         }
 
+        FollowRenderOrigo(Manager.camera);
+
         if (!_appearanceResolved)
         {
             ResolveAppearance();
@@ -387,6 +408,51 @@ public static class NoBreakZoneRangeOverlay
         {
             _markers.Add(CreateMarker());
         }
+    }
+
+    /// The game's floor tiles keep up with the render origin by listening for exactly this —
+    /// MultiPugMap subscribes to CameraManager.RenderOrigoUpdated — and the outline now does too.
+    private static void FollowRenderOrigo(CameraManager camera)
+    {
+        // Plain reference comparison, not Unity's ==: a destroyed camera still has to be
+        // unsubscribed from, and its delegate field is managed memory that outlives the native side.
+        if (ReferenceEquals(camera, _subscribedCamera))
+        {
+            return;
+        }
+
+        if (!ReferenceEquals(_subscribedCamera, null))
+        {
+            _subscribedCamera.RenderOrigoUpdated -= OriginMovedHandler;
+        }
+
+        _subscribedCamera = camera;
+        if (!ReferenceEquals(camera, null))
+        {
+            camera.RenderOrigoUpdated += OriginMovedHandler;
+        }
+    }
+
+    /// WHY THE OUTLINE JUMPED A TILE WHILE WALKING. Within a frame, IMod.Update — and so Update here —
+    /// runs in MonoBehaviour Update. The client world's SimulationSystemGroup runs after it, at the
+    /// end of Unity's Update phase, and UpdateGraphicalObjectTransformSystem there calls
+    /// CameraManager.UpdateRenderOrigo. The camera is applied later still, in PresentationSystemGroup.
+    /// So in every frame where the rounded camera position crossed into a new tile, the markers had
+    /// been placed against the old origin and were drawn a tile off. It happened only while moving,
+    /// never standing still (a tester and the user, 2026-09-14).
+    ///
+    /// Absolute, never cumulative: this also fires from UpdateSceneHandler when a scene starts, and
+    /// it may fire more than once before the next Update. The sign is the game's own, from
+    /// MoveRenderAnchors: `position -= newOrigo - oldOrigo`.
+    private static void OnRenderOrigoMoved()
+    {
+        if (_root == null || ReferenceEquals(_subscribedCamera, null))
+        {
+            return;
+        }
+
+        Vector3Int origo = _subscribedCamera.RenderOrigo;
+        _root.localPosition = new Vector3(_placedOrigo.x - origo.x, 0f, _placedOrigo.z - origo.z);
     }
 
     // A bare SpriteRenderer has no material that suits this game's render pipeline, and unlike the
