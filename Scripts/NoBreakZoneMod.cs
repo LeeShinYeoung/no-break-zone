@@ -19,6 +19,7 @@ public class NoBreakZoneMod : IMod
     {
         NoBreakZoneConfig.Register();
         Debug.Log($"[NoBreakZone] loaded ({Version}) — protection follows switched-on {NoBreakZonePylonRegistrySystem.PylonObjectName}");
+        NoBreakZoneCreativeMenu.TryRegister();
     }
 
     public void Shutdown()
@@ -40,6 +41,7 @@ public class NoBreakZoneMod : IMod
     {
         NoBreakZoneRangeOverlay.Update();
         NoBreakZoneRemoteFeedback.Update();
+        NoBreakZoneCreativeMenu.TryRegister();
         KeepDedicatedServerAwake();
     }
 
