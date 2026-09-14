@@ -137,4 +137,80 @@ public static class NoBreakZoneRange
 
         return false;
     }
+
+    // "Is the set of switched-on pylons still the one protection was judged against?" Asked by
+    // NoBreakZonePylonRegistrySystem every frame, and a "no" re-judges the whole world.
+    //
+    // A SET, NOT A SEQUENCE. The pylon query returns entities in chunk order, and a pylon changes
+    // chunk whenever its component set changes: it gains its own two guards the first time it is
+    // switched on, and a pylon streaming back in is a new entity altogether. Comparing position by
+    // position read each of those as a new set and re-judged the world a second time, doubling the
+    // cost of every first switch-on and every reload (verify.ps1 -Perf, 2026-09-14).
+    //
+    // Tiles are taken to be unique — two pylons cannot stand on one tile — so equal counts plus every
+    // tile of one list found in the other is equality. The same-order pass comes first because it is
+    // what nearly every frame looks like, and it costs one walk.
+    public static bool SameTiles(
+        int[] ax, int[] az, int aCount,
+        int[] bx, int[] bz, int bCount)
+    {
+        aCount = ClampCount(ax, az, aCount);
+        bCount = ClampCount(bx, bz, bCount);
+
+        if (aCount != bCount)
+        {
+            return false;
+        }
+
+        bool sameOrder = true;
+        for (int i = 0; i < aCount; i++)
+        {
+            if (ax[i] != bx[i] || az[i] != bz[i])
+            {
+                sameOrder = false;
+                break;
+            }
+        }
+
+        if (sameOrder)
+        {
+            return true;
+        }
+
+        for (int i = 0; i < aCount; i++)
+        {
+            if (!ContainsTile(bx, bz, bCount, ax[i], az[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool ContainsTile(int[] xs, int[] zs, int count, int x, int z)
+    {
+        for (int i = 0; i < count; i++)
+        {
+            if (xs[i] == x && zs[i] == z)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    // A count beyond the buffer is clamped rather than read past the end, and a missing buffer holds
+    // nothing: the same reading AllTilesCovered gives its input.
+    private static int ClampCount(int[] xs, int[] zs, int count)
+    {
+        if (xs == null || zs == null || count <= 0)
+        {
+            return 0;
+        }
+
+        int available = xs.Length < zs.Length ? xs.Length : zs.Length;
+        return count > available ? available : count;
+    }
 }

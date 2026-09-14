@@ -180,24 +180,47 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             _registry.RequestReevaluation();
         }
 
+        // A frame in which the set of switched-on pylons changed. It is the one kind of frame that
+        // re-judges the whole world, and so the one timed: what a player feels as a slowdown when a
+        // pylon switches is this frame, and the log line below turns it into a number from a real
+        // game rather than from the editor (verify.ps1 -Perf).
+        //
+        // UnityEngine.Time spelled out: inside a SystemBase, Time is the world's TimeData.
+        bool reevaluating = _registry.ConsumeReleaseRequest();
+        double startedAt = UnityEngine.Time.realtimeSinceStartupAsDouble;
+
         // Before judging anything new: if the set of switched-on pylons just changed, hand back
-        // whatever fell outside it. This has to run before the early exits below — switching the
-        // last pylon off leaves no squares and no new candidates, and is exactly the case where
+        // whatever fell outside it. This has to run before JudgeCandidates' early exits — switching
+        // the last pylon off leaves no squares and no new candidates, and is exactly the case where
         // releasing matters most.
-        if (_registry.ConsumeReleaseRequest())
+        if (reevaluating)
         {
             ReleaseUncovered(radius);
         }
 
         // Then: any tile that has become a different tile since we judged it goes back in the queue.
-        // Ordered after the release above and before the early exits below for the same reason that
-        // one is — a tile that turned into ore has to be handed back even in a frame where nothing
-        // new is waiting to be judged.
+        // Ordered after the release above and before JudgeCandidates' early exits for the same
+        // reason that one is — a tile that turned into ore has to be handed back even in a frame
+        // where nothing new is waiting to be judged.
         ReJudgeChangedTiles();
 
+        int judged = JudgeCandidates(pylons, radius);
+
+        if (reevaluating)
+        {
+            // The release above is part of the same frame, so it is part of the figure.
+            double ms = (UnityEngine.Time.realtimeSinceStartupAsDouble - startedAt) * 1000.0;
+            Debug.Log($"[NoBreakZone] re-judged {judged} object(s) in {ms:F1} ms (world={World.Name})");
+        }
+    }
+
+    /// Runs every waiting candidate through the discriminator and protects the ones that qualify.
+    /// Returns how many it judged.
+    private int JudgeCandidates(NativeArray<int2> pylons, int radius)
+    {
         if (_candidates.IsEmpty)
         {
-            return;
+            return 0;
         }
 
         if (pylons.Length == 0)
@@ -205,7 +228,7 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             // No switched-on pylon means no square, so nothing can qualify (design.md §6). Leaving
             // early also leaves the candidates untagged, so they get judged properly once one is
             // switched on rather than being written off now.
-            return;
+            return 0;
         }
 
         // Copy first: adding components below is a structural change that would invalidate live
@@ -215,13 +238,18 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
         var transforms = _candidates.ToComponentDataArray<LocalTransform>(Allocator.Temp);
         var em = EntityManager;
 
+        // Mark first, and unconditionally: an entity we decided not to protect must not come back
+        // through the query next frame.
+        //
+        // ONE CALL FOR THE WHOLE BATCH. Tagging entity by entity made each a structural change of
+        // its own, moving it to a new chunk alone, and after a pylon switches the batch is the whole
+        // world. Through the query the same tag moves whole chunks at once. The arrays above were
+        // copied first, so they still name exactly the entities this tags.
+        em.AddComponent<NoBreakZoneEvaluatedCD>(_candidates);
+
         for (int i = 0; i < entities.Length; i++)
         {
             var entity = entities[i];
-
-            // Mark first, and unconditionally: an entity we decided not to protect must not come
-            // back through the query next frame.
-            em.AddComponent<NoBreakZoneEvaluatedCD>(entity);
 
             bool destructible = em.HasComponent<DestructibleObjectCD>(entity);
             bool lootTable = em.HasComponent<DropsLootFromLootTableCD>(entity);
@@ -255,9 +283,11 @@ public partial class NoBreakZoneProtectionSystem : SystemBase
             Protect(em, entity, objectDatas[i].objectID, isTile);
         }
 
+        int judged = entities.Length;
         entities.Dispose();
         objectDatas.Dispose();
         transforms.Dispose();
+        return judged;
     }
 
     // STAGE 4 — the other half of the switch (design.md §6: "to change the base, switch the pylon off").
