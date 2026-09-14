@@ -41,7 +41,7 @@
 
 > ⚠️ 아래 규칙은 **벽·바닥을 보호 대상에 넣기 전**의 것이다. 지금 규칙은
 > `Scripts/Logic/NoBreakZoneProtectionRule.cs`가 원본이고, **692개**(설치물 569 + 타일 123)를
-> 보호한다. `Editor/Tests`와 `Editor/LogicTests~` 양쪽이 그 숫자를 강제한다.
+> 보호한다. `Editor/LogicTests~`가 그 숫자를 강제한다.
 
 **보호(PROTECT)** = `type==PlaceablePrefab` **AND** `health==1` **AND** `tileCD==0` **AND NOT(`destructible` OR `lootTable` OR `lootOnDmg`)**
 
@@ -61,7 +61,7 @@
 
 ⚠️ **`[NBZDB]` 줄을 통째로 뽑으면 안 된다.** 덤프가 찍는 `BEGIN objectInfos=…`·`END unique=…`
 마커와 `COLUMNS=` 헤더까지 딸려 들어온다. 실제로 그렇게 만들어져서 마커 2줄이 데이터 한가운데
-박혔고(추출 후 알파벳 정렬을 해서), `Editor/Tests`의 전수 회귀가
+박혔고(추출 후 알파벳 정렬을 해서), 당시의 전수 회귀 테스트가
 `KeyNotFoundException: 'type'`이라는 엉뚱한 얼굴로 실패했다.
 
 빼야 할 것: `BEGIN`/`END` 마커, `COLUMNS=` 헤더, 그리고 프리팹이 없어 4칸만 찍히는

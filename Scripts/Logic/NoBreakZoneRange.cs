@@ -1,5 +1,5 @@
 // Pure geometry for pylon protection ranges. Deliberately free of any game or Unity type so it can
-// be unit tested without loading the game assemblies (Editor/Tests/NoBreakZoneRangeTests.cs).
+// be unit tested without loading the game assemblies (Editor/LogicTests~/Program.cs).
 //
 // The world is the XZ plane and tile coordinates come from LocalTransform.Position.RoundToInt2(),
 // which maps float3 -> int2(round(x), round(z)) (Pug.UnityExtensions.ExtensionMethods:551). Callers
