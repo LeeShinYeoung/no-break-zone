@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- All four items now appear in the creative mode item window, each beside its vanilla neighbours:
+  the pylon with the electronics, the workbench with the crafting stations, and the lens and the
+  remote with the other tools. The game lists no mod's items there on its own.
+
 ## 1.0.0 — first release
 
 The mod is feature complete against its design and has been played through by hand: crafted,
