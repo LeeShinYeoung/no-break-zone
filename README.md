@@ -2,6 +2,8 @@
 
 > A Core Keeper mod for anyone tired of breaking their own stuff. Switch on a pylon and everything around it stays in one piece. Bombs or pickaxes, doesn't matter.
 
+<img src=".github/readme/demo.webp" alt="A pickaxe and a magic beam hit a base next to a switched-on pylon, and nothing breaks">
+
 ## What's inside
 
 | | | |
