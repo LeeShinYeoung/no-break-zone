@@ -54,6 +54,14 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
     private bool _announced;
     private bool _protectionNeedsRelease;
 
+    // This frame's switched-on pylon tiles and the ones last published, as the parallel int arrays
+    // NoBreakZoneRange takes. Reused every frame and always grown together, so they can be swapped.
+    private int[] _currentX = new int[8];
+    private int[] _currentZ = new int[8];
+    private int[] _publishedX = new int[8];
+    private int[] _publishedZ = new int[8];
+    private int _publishedCount;
+
     /// Tile coordinates of every switched-on pylon. Valid for the rest of the frame once this
     /// system has run; NoBreakZoneProtectionSystem is ordered after it and reads this directly.
     public NativeArray<int2> Positions => _positions.AsArray();
@@ -166,11 +174,8 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
         var objectDatas = _pylons.ToComponentDataArray<ObjectDataCD>(Allocator.Temp);
         var em = EntityManager;
 
-        // Compared position by position, which assumes the query returns pylons in a stable order.
-        // It does in practice: chunk order only shifts when a pylon's own component set changes,
-        // and that settles after the first frame it is seen. If the assumption ever breaks the cost
-        // is a redundant re-evaluation, not a wrong answer.
-        bool changed = false;
+        // Room for every pylon before any is written, so the loop below never grows a buffer.
+        EnsureTileCapacity(entities.Length);
         int active = 0;
 
         for (int i = 0; i < entities.Length; i++)
@@ -189,38 +194,71 @@ public partial class NoBreakZonePylonRegistrySystem : SystemBase
             // The game resolves an entity to a tile this way too — float3 -> int2(round(x),
             // round(z)), the XZ plane (Pug.UnityExtensions/ExtensionMethods.cs:551).
             int2 tile = transforms[i].Position.RoundToInt2();
-
-            if (active < _positions.Length)
-            {
-                if (!_positions[active].Equals(tile))
-                {
-                    changed = true;
-                    _positions[active] = tile;
-                }
-            }
-            else
-            {
-                changed = true;
-                _positions.Add(tile);
-            }
-
+            _currentX[active] = tile.x;
+            _currentZ[active] = tile.y;
             active++;
-        }
-
-        if (active < _positions.Length)
-        {
-            changed = true;
-            _positions.Resize(active, NativeArrayOptions.UninitializedMemory);
         }
 
         entities.Dispose();
         transforms.Dispose();
         objectDatas.Dispose();
 
-        if (changed)
+        // COMPARED AS A SET, because the order is not ours: see NoBreakZoneRange.SameTiles. This
+        // loop's own ApplySelfProtection moves a pylon to another chunk the first time it is
+        // switched on, so reading the order as meaning used to re-judge the whole world a second
+        // time right after every first switch-on.
+        if (NoBreakZoneRange.SameTiles(
+                _currentX, _currentZ, active, _publishedX, _publishedZ, _publishedCount))
         {
-            InvalidateEvaluatedObjects();
+            return;
         }
+
+        // Publish this frame's tiles. A swap rather than a copy; EnsureTileCapacity keeps the two
+        // pairs the same size.
+        int[] swapX = _publishedX;
+        _publishedX = _currentX;
+        _currentX = swapX;
+
+        int[] swapZ = _publishedZ;
+        _publishedZ = _currentZ;
+        _currentZ = swapZ;
+
+        _publishedCount = active;
+
+        _positions.Clear();
+        for (int i = 0; i < active; i++)
+        {
+            _positions.Add(new int2(_publishedX[i], _publishedZ[i]));
+        }
+
+        InvalidateEvaluatedObjects();
+    }
+
+    private void EnsureTileCapacity(int count)
+    {
+        if (_currentX.Length >= count)
+        {
+            return;
+        }
+
+        int size = math.max(count, _currentX.Length * 2);
+        _currentX = new int[size];
+        _currentZ = new int[size];
+        _publishedX = Grow(_publishedX, size, _publishedCount);
+        _publishedZ = Grow(_publishedZ, size, _publishedCount);
+    }
+
+    // A plain loop rather than System.Array.Copy: nothing here should hand the game's mod safety
+    // check a new API to rule on.
+    private static int[] Grow(int[] source, int size, int keep)
+    {
+        var grown = new int[size];
+        for (int i = 0; i < keep; i++)
+        {
+            grown[i] = source[i];
+        }
+
+        return grown;
     }
 
     // design.md §6: "While switched on, the pylon is invulnerable … to recover it, switch it off first."

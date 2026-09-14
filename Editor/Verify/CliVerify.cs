@@ -29,14 +29,28 @@ namespace NoBreakZone.EditorTools
     {
         public static void All()
         {
+            Run(report =>
+            {
+                VerifySystemOrder.Run(report);
+                VerifyProtectionBehaviour.Run(report);
+            });
+        }
+
+        /// Not part of the ladder: pylon toggle timings, run on demand with `verify.ps1 -Perf`.
+        public static void Perf()
+        {
+            Run(VerifyTogglePerformance.Run);
+        }
+
+        private static void Run(Action<VerifyReport> checks)
+        {
             int exitCode = 1;
 
             try
             {
                 var report = new VerifyReport();
 
-                VerifySystemOrder.Run(report);
-                VerifyProtectionBehaviour.Run(report);
+                checks(report);
 
                 Debug.Log($"[NBZ] verify: {report.Passed} passed, {report.Failed} failed");
                 exitCode = report.Failed == 0 ? 0 : 1;

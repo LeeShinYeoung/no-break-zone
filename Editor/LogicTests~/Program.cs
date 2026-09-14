@@ -38,6 +38,7 @@ namespace NoBreakZone.LogicTests
             }
 
             RangeChecks();
+            PylonSetChecks();
             RemoteReachChecks();
             FootprintChecks();
             ProtectionRuleUnitChecks();
@@ -107,6 +108,46 @@ namespace NoBreakZone.LogicTests
         private static bool Covered(int[] px, int[] pz, int count, int x, int z, int radius)
         {
             return NoBreakZoneRange.AllTilesCovered(px, pz, count, x, z, x, z, radius);
+        }
+
+        // ------------------------------------------------ Scripts/Logic/NoBreakZoneRange.SameTiles
+
+        /// The registry's "did the switched-on pylons change?" A wrong yes re-judges the whole world
+        /// for nothing; a wrong no leaves protection answering for pylons that are gone. Order must
+        /// not count: the pylon query returns chunk order, which shifts when a pylon gains its guards,
+        /// and reading that as a change doubled the cost of every first switch-on.
+        private static void PylonSetChecks()
+        {
+            int[] x = { 0, 21, 42 };
+            int[] z = { 0, 0, 21 };
+
+            IsTrue(NoBreakZoneRange.SameTiles(x, z, 3, x, z, 3), "an unchanged pylon list is the same set");
+
+            int[] shuffledX = { 42, 0, 21 };
+            int[] shuffledZ = { 21, 0, 0 };
+            IsTrue(NoBreakZoneRange.SameTiles(x, z, 3, shuffledX, shuffledZ, 3),
+                "the same pylons in another order are the same set");
+
+            IsTrue(!NoBreakZoneRange.SameTiles(x, z, 3, x, z, 2), "one pylon fewer is a change");
+
+            int[] movedX = { 0, 21, 43 };
+            IsTrue(!NoBreakZoneRange.SameTiles(x, z, 3, movedX, z, 3), "one pylon on another tile is a change");
+
+            // A version that matched the x list and the z list separately would call these the same:
+            // both hold x in {0, 21} and z in {0, 21}.
+            int[] pairX = { 0, 21 };
+            int[] pairZ = { 21, 0 };
+            int[] crossX = { 0, 21 };
+            int[] crossZ = { 0, 21 };
+            IsTrue(!NoBreakZoneRange.SameTiles(pairX, pairZ, 2, crossX, crossZ, 2),
+                "x and z are compared as one tile, not as two separate lists");
+
+            IsTrue(NoBreakZoneRange.SameTiles(x, z, 0, shuffledX, shuffledZ, 0),
+                "no pylons and still no pylons is no change");
+            IsTrue(!NoBreakZoneRange.SameTiles(x, z, 0, x, z, 1), "the first pylon switching on is a change");
+            IsTrue(NoBreakZoneRange.SameTiles(x, z, 99, x, z, 99),
+                "a count beyond the buffer is clamped rather than read past the end");
+            IsTrue(NoBreakZoneRange.SameTiles(null, null, 3, x, z, 0), "a missing list holds no pylons");
         }
 
         // ---------------------------------------------- Scripts/Logic/NoBreakZoneRange.IsWithinReach

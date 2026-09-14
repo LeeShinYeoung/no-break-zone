@@ -1,6 +1,8 @@
 # Runs the ECS checks in Editor/Verify through Unity batch mode. No GUI, no human.
 #
-# Usage:   powershell -File verify.ps1
+# Usage:   powershell -File verify.ps1          the checks
+#          powershell -File verify.ps1 -Perf    pylon toggle timings instead, on demand only
+#                                               (Editor/Verify/VerifyTogglePerformance.cs)
 #
 # Exit codes: 0 = all checks passed, 1 = a check failed, 2 = the editor is open (close it first).
 #
@@ -14,11 +16,17 @@
 param(
     [string]$Unity       = "C:\Program Files\Unity\Hub\Editor\6000.0.59f2\Editor\Unity.exe",
     [string]$ProjectPath = "C:\Unity\CoreKeeper",
-    [string]$LogFile     = (Join-Path $env:TEMP "nbz_verify.log")
+    [string]$LogFile     = (Join-Path $env:TEMP "nbz_verify.log"),
+    [switch]$Perf
 )
 
 $ErrorActionPreference = "Stop"
 $method = "NoBreakZone.EditorTools.CliVerify.All"
+if ($Perf) {
+    $method = "NoBreakZone.EditorTools.CliVerify.Perf"
+    # Its own log, so a timing run never overwrites the last checks' log.
+    if (-not $PSBoundParameters.ContainsKey("LogFile")) { $LogFile = Join-Path $env:TEMP "nbz_perf.log" }
+}
 
 if (-not (Test-Path $Unity))       { Write-Host "Unity not found: $Unity"; exit 1 }
 if (-not (Test-Path $ProjectPath)) { Write-Host "Project not found: $ProjectPath"; exit 1 }
